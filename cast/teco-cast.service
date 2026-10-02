@@ -1,0 +1,15 @@
+[Unit]
+Description=Teco.Pi cast (YouTube aplikacija / Chrome -> Teco.Pi)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/teco/cast
+Environment=TECO_API=http://127.0.0.1:80/api/cast
+ExecStart=/usr/local/bin/node --no-warnings cast.mjs
+StandardOutput=append:/tmp/teco-cast.log
+StandardError=append:/tmp/teco-cast.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

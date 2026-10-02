@@ -1,0 +1,1984 @@
+
+<div class="evalert" id="evAlert" hidden role="alert"><img id="evImg" alt=""><div><b id="evName"></b><span>upravo sada</span></div></div>
+
+<div class="modal" id="pinModal" hidden>
+  <form class="modal-box" id="pinForm">
+    <div class="modal-ic"><svg class="i"><use href="#i-lock"/></svg></div>
+    <h2 id="pinTitle">Admin režim</h2>
+    <p class="muted" id="pinHelp">Unesi PIN.</p>
+    <input class="field pin-in" id="pinIn" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" aria-label="PIN">
+    <input class="field pin-in" id="pinIn2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" aria-label="Ponovi PIN" placeholder="Ponovi PIN" hidden>
+    <p class="pin-err" id="pinErr" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" type="button" id="pinCancel">Otkaži</button>
+      <button class="btn gel" type="submit"><span id="pinOk">Otključaj</span></button>
+    </div>
+  </form>
+</div>
+
+<style>
+.modal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgba(8,12,18,.55);backdrop-filter:blur(4px)}
+.modal-box{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-lg);text-align:center}
+.modal-box h2{justify-content:center;font-size:18px}
+.modal-ic{width:48px;height:48px;border-radius:14px;margin:0 auto;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.modal-ic svg.i{width:24px;height:24px}
+.pin-in{text-align:center;font:600 22px/1 var(--f-mono);letter-spacing:.4em;height:52px}
+.pin-err{min-height:1.3em;margin:0;font-size:13px;color:var(--crit)}
+.queue .q{cursor:pointer}
+.gallery .ph .nm{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:10.5px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* admin: konzole na AV ulazima */
+.src-names{display:flex!important;flex-direction:column;gap:10px;margin-top:0;padding:14px;border-radius:16px;border:1px dashed color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+.sn-head{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.sn-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.src-names.off,.sn.off{display:none!important}
+.sn{display:grid!important;grid-template-columns:minmax(0,150px) minmax(0,1fr);grid-template-areas:"top top" "art l1" "art f1" "art l2" "art f2";column-gap:12px;align-items:center}
+.sn .sn-top{grid-area:top}.sn .sn-art{grid-area:art;align-self:stretch}
+@media (max-width:400px){.sn{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "art" "l1" "f1" "l2" "f2"}}
+.sn{display:flex;flex-direction:column;gap:6px;min-width:0;padding:10px;border-radius:14px;background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--c)}
+.sn-top{display:flex;align-items:center;gap:8px;min-width:0}
+.sn .tag{flex:none;font-size:12px;font-weight:800;padding:3px 8px;border-radius:6px;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.sn-name{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sn-art{aspect-ratio:260/150;max-width:100%;border-radius:10px;background:radial-gradient(110% 90% at 50% 0%,color-mix(in srgb,var(--c) 18%,var(--surface-2)),var(--surface-2) 70%);display:grid;place-items:center;padding:4px}
+.sn-art svg{width:100%;height:auto;display:block}
+.src-names .sn-l{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-top:2px}
+.sn .field{height:38px;font-size:13.5px;padding:0 10px}
+.sn select.field{padding-right:30px}
+.adminbar{flex-wrap:wrap}
+.src[data-src="av1"]{--c:#ff0033}
+.hero .card-head{margin:-4px 0 -6px}
+#hBack,#hFwd,.wl.left,.wl.right{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.ways{display:flex;flex-direction:column;gap:8px}
+.way{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
+.wic{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.wtx{display:flex;flex-direction:column;gap:4px;min-width:0}
+.wtx > b{font-size:14px}
+.wtx p{margin:0;font-size:13px;color:var(--muted);line-height:1.45}
+.wtx p b{color:var(--text)}
+.wtx .inl{width:15px;height:15px;vertical-align:-3px;color:var(--text)}
+.bm-mini{align-self:flex-start;margin-top:6px;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;font-size:13px;text-decoration:none;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.bm-mini .grip{width:14px;height:14px;opacity:.8}
+.sendhelp > summary .i:first-child{color:var(--muted)}
+.send-row{display:flex;flex-direction:column;gap:8px}
+.hist-head{display:flex;align-items:center;justify-content:space-between}
+.hclr{font-size:12px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0;padding:4px 8px;border-radius:8px}
+.hclr:hover{background:var(--surface-3);color:var(--crit)}
+.send-row p{margin:0;font-size:13px}
+.dragzone{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px;border:2px dashed color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.dz-hint{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.dz-hint svg.i{width:15px;height:15px;animation:dzup 1.4s ease-in-out infinite}
+@keyframes dzup{50%{transform:translateY(-3px)}}
+.sh-bm{cursor:grab!important}.sh-bm:active{cursor:grabbing!important}
+.sh-bm .grip{opacity:.8}
+.sh-steps{margin:0;padding:0 14px 12px 32px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.sh-steps code{font-family:var(--f-mono);font-size:12px;color:var(--text);overflow-wrap:anywhere}
+.sendhelp{border-radius:14px;border:1px solid var(--line);background:var(--surface-2)}
+.sendhelp > summary{list-style:none;display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;font-weight:700;font-size:13.5px}
+.sendhelp > summary::-webkit-details-marker{display:none}
+.sendhelp > summary .i{color:#ff0033}
+.sendhelp > summary .chev{margin-left:auto;color:var(--muted);transition:transform .2s}
+.sendhelp[open] > summary .chev{transform:rotate(180deg)}
+.sh-body{display:flex;flex-direction:column;gap:14px;padding:0 14px 14px}
+.sh-step{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.sh-step p,.sh-step ol{margin:0;color:var(--muted)}
+.sh-step ol{padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.sh-step code{font-family:var(--f-mono);font-size:12.5px;color:var(--text);background:var(--surface);padding:2px 6px;border-radius:6px;overflow-wrap:anywhere}
+.sh-bm{align-self:flex-start;text-decoration:none;cursor:grab}
+.netcfg{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.netcfg-t,.wifi-head b{font-size:13.5px}
+.wifi{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.wifi-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wifi-head .btn{height:34px;padding:0 12px;font-size:12.5px}
+.wlist{display:flex;flex-direction:column;gap:6px}
+.wn{border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.wn.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.wn-row{display:flex;align-items:center;gap:10px;padding:9px 12px;width:100%;text-align:left}
+.wn-row b{flex:1;min-width:0;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wn-row small{font-size:11.5px;color:var(--muted)}
+.wn.on .wn-row small{color:var(--accent);font-weight:700}
+.wbars{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+.wbars i{width:3px;background:var(--surface-3);border-radius:1px}
+.wbars i:nth-child(1){height:30%}.wbars i:nth-child(2){height:55%}.wbars i:nth-child(3){height:80%}.wbars i:nth-child(4){height:100%}
+.wbars i.f{background:var(--text)}
+.wn-row svg.i{width:13px;height:13px;color:var(--muted)}
+.wn-form{display:flex;gap:6px;padding:0 12px 10px}
+.wn-form .field{height:36px;flex:1;min-width:0}
+.wn-form .btn{height:36px;padding:0 12px;font-size:12.5px;white-space:nowrap}
+.netst{display:grid;gap:8px}
+.netst label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.netst .field{height:40px;font-family:var(--f-mono);font-size:14px}
+/* Alarm (Paradox) */
+.alerr{margin:0;font-size:12.5px;color:var(--crit);background:color-mix(in srgb,var(--crit) 10%,transparent);padding:8px 12px;border-radius:10px}
+.alparts{display:flex;flex-direction:column;gap:8px}
+.alp{--c:var(--ok);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px;border-radius:14px;background:var(--surface-2);border-left:4px solid var(--c)}
+.alp[data-s="armed"]{--c:var(--crit)}.alp[data-s="stay"]{--c:var(--warn)}.alp[data-s="alarm"]{--c:#ff0033;animation:alblink 1s steps(2) infinite}
+.alp[data-s="delay"]{--c:var(--warn)}
+@keyframes alblink{50%{background:color-mix(in srgb,#ff0033 18%,var(--surface-2))}}
+.alp .t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.alp .t b{font-size:14.5px}
+.alp .t small{font-size:12.5px;font-weight:700;color:var(--c)}
+.alp .b{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.alp .b .btn{height:36px;padding:0 12px;font-size:12.5px}
+.alp .b .btn.dis{background:var(--ok);color:#fff;border-color:transparent}
+.alp .b .btn.arm{background:var(--crit);color:#fff;border-color:transparent}
+.alzhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.alzhead .segc{margin-left:auto}
+.alzones{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+@media (max-width:560px){.alp{grid-template-columns:1fr}.alp .b{justify-content:flex-start}}
+.alz{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:12.5px;min-width:0}
+.alz i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--ok)}
+.alz span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alz em{font-style:normal;font-size:11px;font-weight:700;color:var(--muted)}
+.alz.open i{background:var(--warn)}.alz.open em{color:var(--warn)}
+.alz.byp{opacity:.55}.alz.byp i{background:var(--faint)}
+.alz.alarm{background:color-mix(in srgb,#ff0033 14%,var(--surface-2))}.alz.alarm i{background:#ff0033}.alz.alarm em{color:#ff0033}
+.alz.tamper i{background:#a855f7}
+#alCard{order:2}   /* na telefonu odmah posle Hub-a */
+.alz .mem{flex:none;font-size:10px;font-weight:800;color:#ff0033;background:color-mix(in srgb,#ff0033 12%,transparent);padding:2px 5px;border-radius:5px}
+.alpgms{display:flex;flex-direction:column;gap:6px}
+.alg{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--surface-2);font-size:13px}
+.alg i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--faint)}.alg i.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.alg span:not(.b){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.alg .b{display:flex;gap:4px}.alg .b .btn{height:30px;padding:0 9px;font-size:12px}
+.alpall summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);padding:6px 2px}
+.alpall[open]{display:flex;flex-direction:column;gap:6px}
+/* meni sa strane (stablo): Multimedija, Alarm, CCTV */
+.side{position:fixed;top:0;bottom:0;left:0;z-index:45;width:236px;padding:16px 12px calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);border-right:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.side-logo{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:19px;padding:4px 6px 8px}
+.side-logo .mark{width:30px;height:30px}
+.tree{display:flex;flex-direction:column;gap:6px}
+.tsec{width:100%;display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:12px;background:transparent;border:0;font:800 14px/1 var(--f-body);color:var(--text);cursor:pointer;text-align:left}
+.tsec svg.i{width:19px;height:19px;color:var(--muted)}
+.tsec small{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.tsec:hover{background:var(--surface-2)}
+.tgrp.on>.tsec{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+.tgrp.on>.tsec svg.i{color:var(--accent)}
+.tsec .tdot{margin-left:auto;width:9px;height:9px;border-radius:50%;background:transparent}
+.tdot[data-s="off"]{background:var(--ok)}.tdot[data-s="armed"]{background:var(--crit)}.tdot[data-s="err"]{background:var(--warn)}
+.tdot[data-s="alarm"]{background:#ff0033;animation:alblink 1s steps(2) infinite}
+.titems{display:none;flex-direction:column;gap:1px;margin:2px 0 6px 20px;padding-left:12px;border-left:2px solid var(--line)}
+.tgrp.on .titems{display:flex}
+.titems a{padding:7px 10px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none}
+.titems a:hover{background:var(--surface-2);color:var(--text)}
+.tgrp[data-view="cctv"] .tsec{opacity:.75}
+.tsep{height:1px;margin:8px 6px;background:var(--line)}
+.tadm .tadm-on{display:none;color:#b45309}
+.tadm[aria-checked="true"]{background:color-mix(in srgb,#f59e0b 16%,transparent);color:#b45309}
+.tadm[aria-checked="true"] svg.i{color:#d97706}
+.tadm[aria-checked="true"] .tadm-on{display:inline}
+.navbtn{display:none;width:40px;height:40px;border-radius:12px;place-items:center;background:var(--surface);border:1px solid var(--line);color:var(--text);flex:none;cursor:pointer}
+.navbtn svg.i{width:20px;height:20px}
+.side-bg{position:fixed;inset:0;z-index:44;background:rgba(10,14,20,.45);animation:rfade .15s ease-out}
+/* šta se vidi u kom delu */
+body:not([data-view="alarm"]) #alCard,body:not([data-view="alarm"]) #alList{display:none!important}
+body:not([data-view="cctv"]) #cctvCard{display:none!important}
+body[data-view="alarm"] main.wrap>*:not(.grid):not(#offline):not(#connBar):not(.admbar),
+body[data-view="cctv"] main.wrap>*:not(#cctvCard):not(#offline):not(#connBar):not(.admbar){display:none!important}
+body[data-view="alarm"] .grid .col>*:not(#alCard):not(#alList){display:none!important}
+/* alarm: pregled (pločica po alarmu) */
+#alList{order:2}
+.altiles{display:flex;flex-direction:column;gap:8px}
+.altile{--c:var(--ok);display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:12px;width:100%;padding:14px;border-radius:16px;background:var(--surface-2);
+  border:1px solid var(--line);border-left:4px solid var(--c);text-align:left;font:inherit;color:inherit;cursor:pointer;transition:transform .12s,border-color .2s}
+.altile:hover{border-color:color-mix(in srgb,var(--c) 50%,var(--line))}.altile:active{transform:scale(.99)}
+.altile[data-s="armed"]{--c:var(--crit)}.altile[data-s="stay"],.altile[data-s="delay"]{--c:var(--warn)}.altile[data-s="err"],.altile[data-s="idle"]{--c:var(--faint)}
+.altile[data-s="alarm"]{--c:#ff0033;animation:alblink 1s steps(2) infinite}
+.altile .ati{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.altile .ati svg.i{width:22px;height:22px}
+.altile .atx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.altile .atx b{font-size:15.5px}
+.altile .ast{font-size:13px;font-weight:800;color:var(--c)}
+.altile .amet{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.altile .amet em{font-style:normal;font-weight:700}.altile .amet .bad{color:var(--warn)}.altile .amet .good{color:var(--ok)}
+.altile .achev{width:18px;height:18px;color:var(--faint)}
+/* alarm: detaljan prikaz */
+.alback{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px 0 8px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line);font:700 13px/1 var(--f-body);color:var(--text);cursor:pointer}
+.alback svg.i{width:16px;height:16px}
+.alname{margin:2px 0 0;font:700 20px/1.2 var(--f-display)}
+.alsec{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:4px}.alsec b{font-size:14px}.alsec small{font-size:12px}
+.alsys{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.als{--c:var(--ok);display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--surface-2)}
+.als.bad{--c:var(--crit);background:color-mix(in srgb,var(--crit) 10%,var(--surface-2))}
+.als .sic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);flex:none}
+.als .sic svg.i{width:17px;height:17px}
+.als span:last-child{display:flex;flex-direction:column;min-width:0}.als b{font-size:13px}.als small{font-size:12px;color:var(--c);font-weight:700}
+.altr{display:flex;flex-wrap:wrap;gap:6px}
+.altrb{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent)}
+.altrb.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.altrb svg.i{width:14px;height:14px}
+.almem{display:flex;flex-wrap:wrap;gap:6px}
+.almz{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;font-size:12.5px;font-weight:700;background:color-mix(in srgb,#ff0033 10%,var(--surface-2))}
+.almz i{width:8px;height:8px;border-radius:50%;background:#ff0033}
+.zmon{flex:none;width:28px;height:28px;margin-left:2px;border-radius:8px;display:grid;place-items:center;border:1px solid transparent;background:transparent;color:var(--faint);cursor:pointer}
+.zmon svg.i{width:16px;height:16px}
+.zmon:hover{border-color:var(--line)}
+.zmon[aria-pressed="true"]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.alclr{margin-left:auto;height:30px;padding:0 10px;font-size:12px}
+.alclr svg.i{width:14px;height:14px}
+.alclr.armed{color:var(--crit);border-color:var(--crit)}
+.alzhead .alclr + .segc{margin-left:8px}
+/* događaji */
+.alev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:420px;overflow:auto}
+.ale{--c:var(--faint);display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;font-size:13px}
+.ale:nth-child(odd){background:var(--surface-2)}
+.ale i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.ale em{font-style:normal;font-weight:700;color:var(--c)}
+.ale time{font:600 11.5px/1 var(--f-mono);color:var(--muted);white-space:nowrap}
+.ale[data-k="open"]{--c:var(--warn)}.ale[data-k="ok"]{--c:var(--ok)}.ale[data-k="alarm"]{--c:#ff0033}.ale[data-k="armed"]{--c:var(--crit)}.ale[data-k="warn"]{--c:var(--warn)}.ale[data-k="info"]{--c:var(--accent)}
+/* uključivanje držanjem: dugme se puni 1,5 s */
+.alp .b .btn.hold{position:relative;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.alp .b .btn.hold span{position:relative;z-index:1}
+.alp .b .btn.hold::before{content:"";position:absolute;inset:0;width:0;background:color-mix(in srgb,var(--crit) 35%,transparent)}
+.alp .b .btn.hold.arm::before{background:rgba(255,255,255,.35)}
+.alp .b .btn.hold.holding::before{width:100%;transition:width 1.5s linear}
+.alp .b .btn.hold.sent{animation:alsent .5s ease-out}
+@keyframes alsent{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+/* izlazno/ulazno vreme: pokretna traka */
+.alp{position:relative;overflow:hidden}
+.aldelay{position:absolute;left:0;right:0;bottom:0;height:4px;background:color-mix(in srgb,var(--warn) 25%,transparent)}
+.aldelay i{display:block;height:100%;width:40%;background:var(--warn);animation:aldelay 1.2s ease-in-out infinite}
+@keyframes aldelay{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+/* prečice PGM1/PGM2: aktiviraj na 5 s */
+.alquick{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.qpg{position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);font:inherit;color:inherit;cursor:pointer;text-align:left}
+.qpg .qic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);flex:none;position:relative;z-index:1}
+.qpg .qtx{display:flex;flex-direction:column;position:relative;z-index:1}.qpg b{font-size:14px}.qpg small{font-size:12px;color:var(--muted);font-weight:700}
+.qpg .qbar{position:absolute;left:0;top:0;bottom:0;width:0;background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.qpg.run{border-color:var(--accent)}.qpg.run small{color:var(--accent)}
+.qpg.run .qbar{width:100%;transition:width 5s linear}
+.qpg.run .qic{background:var(--accent);color:#fff}
+.qpg.dis{opacity:.6;cursor:not-allowed}.qpg.dis small{color:var(--warn)}
+.alg.dis span:not(.b){white-space:normal}.alg small{display:block;font-size:11.5px;font-weight:600;color:var(--warn)}
+body[data-view="cctv"] .grid{display:none!important}
+body[data-view="alarm"] .grid{grid-template-columns:minmax(0,1fr)!important}
+body:not([data-view="media"]) .mbar{display:none!important}
+/* Admin stranica: samo podešavanja (izvori i konzole, tasteri daljinskog, kartice sa klasom adm) */
+body[data-view="admin"] #qCard,body[data-view="admin"] #sendCard,body[data-view="admin"] #tempCard{display:none!important}
+body:not([data-view="media"]) .top-in .rtop{display:none!important}   /* prečica „Daljinski“ samo na Multimediji */
+#sysAdmCard .sset{border-top:0;padding-top:0}
+/* redosled na Admin stranici kao u meniju: izvori, tasteri, slike, obaveštenja, BT, cast, alarm, mreža, sistem, pristup */
+#alCfgCard{order:10}#netCard{order:11}#sysAdmCard{order:12}#accCard{order:13}
+main.wrap section.card,#alParts,#alZones,#alCfg{scroll-margin-top:130px}
+.navflash{animation:navflash 1.2s ease-out}
+@keyframes navflash{0%,30%{box-shadow:0 0 0 3px var(--accent),0 0 24px color-mix(in srgb,var(--accent) 45%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+.cctv .soon{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:30px 10px;color:var(--muted)}
+.cctv .soon svg.i{width:44px;height:44px;color:var(--faint)}
+.cctv .soon b{color:var(--text);font-size:16px}
+.cctv .soon p{margin:0;font-size:13px}
+.sidetog{display:none;margin-top:auto;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:12px;background:var(--surface-2);
+  border:1px solid var(--line);color:var(--muted);font:700 12.5px/1 var(--f-body);cursor:pointer;width:100%}
+.sidetog:hover{color:var(--text);border-color:var(--faint)}
+.sidetog svg.i{width:16px;height:16px}
+/* zaglavlje svuda: ikonica + naziv stranice (logo Teco.Pi je u meniju / fioci) */
+header.top .logo{display:none}
+@media (max-width:480px){.top-in .rtop{padding:0 5px}.top-in .rtop .al{display:none}.top-in .rtop .lk{background:transparent}}
+@media (max-width:999px){.ptitle{display:flex!important;font-size:17px;gap:8px;min-width:0}.ptitle .pic{width:32px;height:32px;border-radius:10px}.ptitle #ptTxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.ptitle{display:none;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:-.01em}
+.ptitle .pic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent)}
+.ptitle .pic svg.i{width:20px;height:20px}
+@media (min-width:1000px){
+  /* meni levo; uska kolona (600 px) prati meni, ne pluta na sredini; logo je u meniju, a gore je naziv dela */
+  /* meni + stranica kao jedna celina na sredini (--sw + 28 + 600 px); meni je zaobljena kartica.
+     Skupljen meni (body.side-mini) je uska traka samo sa ikonicama. */
+  body{--sw:236px;--shell:calc(var(--sw) + 628px)}
+  body.side-mini{--sw:72px}
+  .side{width:var(--sw);left:max(16px,calc((100% - var(--shell)) / 2));top:16px;bottom:16px;border:1px solid var(--line);border-radius:22px;
+    box-shadow:0 10px 30px rgba(15,23,42,.08);padding-top:18px;transition:width .2s ease,left .2s ease}
+  header.top .logo{display:none}
+  .ptitle{display:flex}
+  .wrap,.top-in{margin-left:max(calc(var(--sw) + 28px),calc((100% - var(--shell)) / 2 + var(--sw) + 28px))!important;margin-right:auto!important;
+    transition:margin-left .2s ease}
+  .sidetog{display:flex}
+  body.side-mini .side{padding-inline:10px;align-items:center}
+  body.side-mini .side-logo{padding:4px 0 8px}
+  body.side-mini .side-logo .slt,body.side-mini .tsec span,body.side-mini .tsec small,body.side-mini .sidetog span,body.side-mini .titems{display:none!important}
+  body.side-mini .tsec{width:48px;height:44px;justify-content:center;padding:0;position:relative}
+  body.side-mini .tsec .tdot{position:absolute;top:7px;right:7px;margin:0}
+  body.side-mini .sidetog{width:48px;justify-content:center;padding:0}
+  /* zaglavlje: puna pozadina (ništa se ne vidi iznad ni kroz njega pri skrolu), zaobljen panel iznad kolone */
+  header.top{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;padding-top:16px;padding-bottom:10px}
+  header.top::after{display:none}
+  header.top .top-in{padding:10px 12px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line)}
+  .mbar{display:none!important}   /* na računaru bez mini plejera */
+  body.mb-on{padding-bottom:0}
+  body.mb-on:not(.admin) .toast{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  body .admbar,body .toast{left:max(calc(var(--sw) + 344px),calc((100% - var(--shell)) / 2 + var(--sw) + 328px))}
+}
+@media (max-width:999px){
+  .navbtn{display:grid}
+  .side{transform:translateX(-105%);transition:transform .22s cubic-bezier(.2,.9,.25,1);box-shadow:0 0 40px rgba(0,0,0,.25)}
+  body.nav-open .side{transform:none}
+  .top-in .rtop{margin-left:auto}
+}
+.alcfg .chk{flex-direction:row!important;align-items:center;gap:8px;font-size:13.5px;color:var(--text)}
+.alcfg .chk input{width:18px;height:18px;accent-color:var(--accent)}
+.alcfg{border-top:1px solid var(--line);padding-top:10px}
+.alcfg summary{cursor:pointer;font-weight:700;font-size:13.5px}
+.alcfg[open]{display:flex;flex-direction:column;gap:10px}
+/* Sistem: redovi sa stanjem */
+.strows{display:flex;flex-direction:column;gap:6px}
+.strow{--c:var(--faint);display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;column-gap:10px;row-gap:3px;padding:10px 12px;border-radius:12px;background:var(--surface-2);border-left:3px solid var(--c)}
+.strow[data-lvl="ok"]{--c:var(--ok)}.strow[data-lvl="warn"]{--c:var(--warn)}.strow[data-lvl="crit"]{--c:var(--crit)}
+.strow .sic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent)}
+.strow .sic svg.i{width:18px;height:18px}
+.strow .sic{grid-row:1/3;align-self:start}
+.strow .stx{display:contents}
+.strow .stx b{font-size:13.5px;grid-column:2;grid-row:1;min-width:0}
+.strow .stx small{font-size:12px;color:var(--muted);line-height:1.35;grid-column:2/-1;grid-row:2}
+.strow .sval{grid-column:3;grid-row:1;font:700 14px/1.2 var(--f-mono);text-align:right;white-space:nowrap}
+.strow .sval small{font-size:11.5px;color:var(--muted);font-weight:500}
+.strow:not([id]) .sic,#rowLoad:not([data-lvl]) .sic{--c:var(--muted)}
+.strow .spark{grid-column:1/-1;grid-row:3;width:100%;height:26px;margin-top:4px}
+.sset{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.sset .bootrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px;font-weight:700}
+/* I/O: releji i uređaji na klik */
+.ioexp{border-radius:12px;background:var(--surface-2)}
+.ioexp>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:12px 14px;cursor:pointer}
+.ioexp>summary::-webkit-details-marker{display:none}
+.ioexp>summary .iohead{margin:0}
+.ioexp>summary small{font-size:12px}
+.ioexp>summary .chev{margin-left:auto;width:18px;height:18px;color:var(--muted);transition:transform .2s}
+.ioexp[open]>summary .chev{transform:rotate(180deg)}
+.ioexp>.relays,.ioexp>.iolist{padding:0 10px 10px}
+.nstat{margin-left:6px;font-size:12px;font-weight:600;color:var(--muted)}
+.nstat i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px;font-style:normal}
+.npre{display:flex;flex-wrap:wrap;gap:6px}
+.npre button{height:30px;padding:0 11px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font:700 12px/1 var(--f-body);color:var(--muted);cursor:pointer}
+.npre button:hover{border-color:var(--accent);color:var(--text)}
+/* zvono i interfon */
+#evCard{order:6}
+.evlist{display:flex;flex-direction:column;gap:12px}
+.ev{display:block;padding:12px;border-radius:14px;background:var(--surface-2)}
+.ev.off{opacity:.6}
+.ev img{width:100%;aspect-ratio:16/9;border-radius:10px;object-fit:cover;background:#0b1018}
+.ev-body{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ev-top{display:flex;gap:8px;align-items:center}
+.ev-top .field{height:38px;font-weight:700}
+.ev .swb{flex:none;background:none;border:0;padding:0;cursor:pointer}
+.ev .swb .sw{display:block}
+.ev-top .field{flex:1;min-width:0;width:auto}
+.ev-top .ev-n{flex:1;min-width:0;font-size:15px;display:flex;align-items:center;gap:8px}
+.ev-top .ev-n::after{content:'ALARM';font:800 10px/1 var(--f-body);letter-spacing:.08em;padding:4px 6px;border-radius:6px;color:#ef4444;background:color-mix(in srgb,#ef4444 14%,transparent)}
+.ev .swb[aria-checked="true"] .sw{background:var(--accent)}
+.ev .swb[aria-checked="true"] .sw::after{transform:translateX(18px)}
+.ev .row{justify-content:flex-start;gap:8px;font-size:13px}
+.ev .evsec{width:72px;height:34px;text-align:center;font-weight:700}
+.ev .chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.ev .chk input{accent-color:var(--accent);width:16px;height:16px}
+.ev-snd{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.ev-snd b{color:var(--text)}
+.ev-snd code{font-family:var(--f-mono);font-size:11.5px;overflow-wrap:anywhere}
+.ev-btns{display:flex;gap:6px;flex-wrap:wrap}
+.ev-btns .btn{height:34px;padding:0 12px;font-size:12.5px}
+.ev-btns label.btn{position:relative;overflow:hidden}
+.ev-btns label.btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+@media (max-width:420px){.ev{grid-template-columns:minmax(0,1fr)}}
+.evalert{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;padding:10px 16px 10px 10px;border-radius:16px;background:var(--text);color:var(--surface);box-shadow:var(--shadow-lg);max-width:calc(100% - 32px);animation:evin .3s ease-out}
+.evalert img{width:72px;aspect-ratio:16/9;border-radius:8px;object-fit:cover}
+.evalert b{display:block;font-size:15px}
+.evalert span{font-size:12.5px;opacity:.7}
+@keyframes evin{from{transform:translate(-50%,-20px);opacity:0}}
+#rebootBtn{margin-top:14px;width:100%;height:44px;justify-content:center;color:#dc2626;background:color-mix(in srgb,#dc2626 8%,transparent);border:1.5px solid color-mix(in srgb,#dc2626 45%,transparent);font-weight:700}
+#rebootBtn:hover{background:color-mix(in srgb,#dc2626 14%,transparent)}
+#castCard{order:8}
+#accCard{order:9} #sendCard{order:20}
+.acc-row{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border-radius:12px;background:var(--surface-2);text-align:left}
+.acc-row .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.acc-row .t b{font-size:14.5px}
+.acc-row .t span{font-size:12.5px;color:var(--muted)}
+.acc-row[aria-checked="true"] .sw{background:var(--accent)}
+.acc-row[aria-checked="true"] .sw::after{transform:translateX(18px)}
+/* izlaz zvuka, Bluetooth, mreža */
+.outs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.outs .ol{font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:11px;margin-right:2px}
+.och{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-weight:700;font-size:12.5px;color:var(--text)}
+.och svg.i{width:15px;height:15px;color:var(--muted)}
+.och[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-2)}
+.och[aria-pressed="true"] svg.i{color:var(--accent)}
+#btCard{order:7} #netCard{order:8}
+.btlist{display:flex;flex-direction:column;gap:6px}
+.btd{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border-radius:12px;background:var(--surface-2)}
+.btd .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface);color:var(--muted)}
+.btd.conn .ic{background:var(--accent-soft);color:var(--accent)}
+.btd .t b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btd .t span{font-size:12px;color:var(--muted)}
+.btd .bb{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.btd .btn{height:34px;padding:0 12px;font-size:12.5px}
+.netinfo{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;font-size:13.5px}
+.netinfo dt{color:var(--muted)}
+.netinfo dd{margin:0;font-family:var(--f-mono);font-size:13px;overflow-wrap:anywhere}
+.netinfo a{color:var(--accent)}
+/* prozor sa temperaturama */
+.tcard{padding:14px 18px}
+.tgrid{display:flex;gap:14px}
+.tbox{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tbox:not([hidden]) ~ .tbox:not([hidden]){border-left:1px solid var(--line);padding-left:14px}
+.tbox .k{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+.tbox .k svg.i{width:15px;height:15px}
+.tbox .v{display:flex;align-items:baseline;gap:4px}
+.tbox .v b{font-family:var(--f-display);font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.tbox .v small{font-size:16px;color:var(--muted);font-weight:600}
+.tbox .v .hum{margin-left:6px;font-size:13px;white-space:nowrap}
+.tbox .spark{width:100%;height:26px;display:block;margin-top:4px}
+/* gornja traka: logo + Daljinski u prvom redu, statusi + Admin u drugom (preko cele širine) */
+.top-in{flex-wrap:wrap;row-gap:10px}
+.top-in .rtop{margin-left:auto}
+.top-in .chips{order:3;width:100%;margin-left:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.top-in .chips::-webkit-scrollbar{display:none}
+.top-in .chip{flex:none}
+.top-in .sbar{flex:1 0 auto;height:38px;border-radius:12px;padding:0 4px 0 0;gap:0}
+.sbar .schip{flex:1 0 auto;justify-content:center;height:100%;border:0;background:transparent}
+.sbar>.sep{width:1px;height:18px;background:var(--line);flex:none}
+.sbar .admin-sw{flex:none;height:30px;margin-left:4px;padding:0 10px 0 4px;gap:5px;border:0;border-radius:9px;background:transparent;font-size:12.5px}
+.sbar .admin-sw .lk{width:22px;height:22px;border-radius:7px}
+.sbar .admin-sw .lk svg.i{width:13px;height:13px}
+.sbar .admin-sw:hover{background:var(--surface-2)}
+.sbar:has(.schip:hover){border-color:var(--accent)}
+.sbar .schip:hover{border:0}
+@media (max-width:420px){
+  .top-in .sbar{flex:1 1 auto;min-width:0}
+  .sbar .schip{flex:1 1 auto;padding:0 4px 0 8px;gap:3px;font-size:12px}
+  .sbar .schip b{font-size:11.5px}
+  .sbar .schip .sep{margin:0 2px}
+  .sbar .admin-sw{margin-left:2px;padding:0 6px 0 3px;gap:4px;font-size:12px}
+}
+.rtop{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 6px;border-radius:12px;background:var(--accent);border:0;color:#fff;font:inherit;font-weight:800;font-size:13.5px;letter-spacing:.02em;cursor:pointer;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+.rtop .lk{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.2)}
+.rtop .lk svg.i{width:16px;height:16px}
+.rtop:hover{filter:brightness(1.08)}
+html.admin .rtop{display:none}
+html.admin .sbar .admin-sw,html.admin .sbar>.sep{display:none}   /* u adminu se izlazi dugmetom u donjoj traci */
+html.admin .sbar{padding-right:0}
+/* poruke uvek iznad donje trake (admin ili mini plejer), ne preko dugmeta */
+.toast{z-index:60}
+html.admin .toast{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+body.mb-on .toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+.top-in .chip .lbl{display:inline!important}
+.schip{gap:5px;padding:0 12px;font-size:12.5px}
+.schip .lbl{font-weight:600}
+.schip b{font-size:12.5px;margin-right:1px}
+.schip .ctemp{color:var(--muted);font-weight:600;margin-left:3px}
+.schip .sep{width:1px;height:14px;background:var(--line);margin:0 4px}
+.schip .sdot{width:9px;height:9px}
+.schip .pw-ic{width:15px;height:15px;margin-right:-1px}
+.admin-sw{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 6px;border-radius:12px;background:transparent;border:1.5px dashed var(--faint);color:var(--muted);font-weight:800;font-size:13.5px;letter-spacing:.02em;transition:background .2s,border-color .2s,color .2s}
+.admin-sw .lk{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted)}
+.admin-sw .lk svg.i{width:15px;height:15px}
+.admin-sw:hover{border-color:var(--accent);color:var(--text)}
+.admin-sw[aria-checked="true"]{background:linear-gradient(180deg,var(--gel-top),var(--gel-mid) 55%,var(--gel-bot));border:1.5px solid var(--gel-edge);color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 35%,transparent);text-shadow:0 1px 1px rgba(0,0,0,.25)}
+.admin-sw[aria-checked="true"] .lk{background:rgba(255,255,255,.22);color:#fff}
+.admin-sw .sw{display:none}
+.rk.num{height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px}
+.rk.num small{font:800 8.5px/1 var(--f-body);letter-spacing:.08em;opacity:.65}
+/* Admin: stalna traka na vrhu i hub samo za podešavanje (bez plejera) */
+.admbar{position:fixed;left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 24px));bottom:calc(10px + env(safe-area-inset-bottom,0px));top:auto;z-index:40;display:flex;align-items:center;gap:12px;padding:10px 10px 10px 16px;border-radius:16px;background:#f59e0b;color:#1c1300;box-shadow:0 6px 20px rgba(245,158,11,.35)}
+.admbar svg.i{flex:none}
+.admbar span{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.25}
+.admbar b{font-size:15px}
+.admbar small{font-size:12.5px;opacity:.85}
+.admbar .btn{flex:none;height:40px;padding:0 18px;font-weight:800;background:#1c1300;color:#fff;border:0}
+html.admin #lcd,html.admin #fmLcd,html.admin #stLcd,html.admin #tvLcd,html.admin .fmctl,html.admin .transport,html.admin .volbox,
+html.admin #outs,html.admin #consPanel,html.admin #away{display:none!important}
+html.admin #hero{outline:2px dashed #f59e0b;outline-offset:-2px}
+.admnote{margin:0;font-size:13px;color:var(--muted);padding:10px 12px;border-radius:12px;background:color-mix(in srgb,#f59e0b 10%,var(--surface));border:1px solid color-mix(in srgb,#f59e0b 35%,transparent)}
+/* brzi daljinski: plutajuće dugme i prozor */
+.rfab{position:fixed;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:35;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.rfab svg.i{width:26px;height:26px}
+.rsheet{position:fixed;inset:0;z-index:50;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;animation:rfade .15s ease-out}
+.rsheet[hidden]{display:none}
+/* prozor na sredini ekrana; „Zatvori“ je zaobljeno dugme ispod sadržaja (simetrično, ništa ne viri) */
+.rsheet-in{position:relative;max-height:100dvh;overflow-y:auto;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;align-items:center;gap:12px;animation:rup .2s ease-out;scrollbar-width:none}
+.rsheet-in::-webkit-scrollbar{display:none}
+.rsheet-in > .rclose{order:99}
+.syssheet{width:min(460px,100%)}
+.syssheet > .card{margin:0}
+.syssheet{display:flex;flex-direction:column;gap:12px}
+.syssheet > section{order:0!important}
+.iohead{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:4px 0 2px}
+.relay .t small{display:block;font-size:11px;font-weight:600}
+.iolist{display:flex;flex-direction:column;gap:6px}
+.io{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--surface-2)}
+.io i{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+.io.ok i{background:#22c55e;box-shadow:0 0 0 3px color-mix(in srgb,#22c55e 25%,transparent)}
+.io span{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.io b{font-size:13.5px}
+.io small{font-size:11.5px;color:var(--muted)}
+.io em{font-style:normal;font-size:12px;font-weight:700;color:var(--muted)}
+.io.ok em{color:#16a34a}
+.schip{cursor:pointer;font:inherit;color:inherit}
+.schip:hover{border-color:var(--accent)}
+.rclose{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border-radius:14px;
+  background:var(--surface);color:var(--text);font:800 14px/1 var(--f-body);border:1px solid var(--line);box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:pointer}
+.rclose svg.i{width:16px;height:16px}
+.rclose:active{transform:scale(.97)}
+/* daljinski je samo u prozoru; kartica na stranici ostaje za admin (učenje tastera) */
+html:not(.admin) #irCard{display:none!important}
+.syssheet{align-items:stretch}
+@keyframes rfade{from{opacity:0}}
+@keyframes rup{from{transform:translateY(40px);opacity:0}}
+body.rsheet-open{overflow:hidden}
+/* YouTube lista: kompaktnije */
+.queue{gap:0}
+.qmore{list-style:none;display:flex;justify-content:center;padding-top:4px}
+#hist .q{padding-top:4px;padding-bottom:4px}
+#hist .q .qa{width:30px;height:30px}
+#hist .q .t{font-size:13px;-webkit-line-clamp:1}
+.q{gap:10px;padding:5px 8px;grid-template-columns:36px minmax(0,1fr) auto auto;border-radius:12px}
+.q .qa{width:36px;height:36px;border-radius:9px}
+.q .t{font-size:13.5px}
+.q .s,.q .d{font-size:11.5px}
+.q .mini{width:30px;height:30px}
+.queue .q:not(.pend):not(.perr) .s{display:none}   /* "YouTube" ispod svakog naslova je suvišno */
+#seek,#dial{touch-action:pan-y}
+#rDisp .l2{display:block;overflow:hidden;white-space:nowrap}
+#rDisp .l2 .mq{display:inline-block;white-space:nowrap}
+#rDisp .l2.marq .mq{animation:rmarq linear infinite}
+@keyframes rmarq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.rk.num.cur{box-shadow:0 0 0 2.5px var(--accent),0 2px 6px color-mix(in srgb,var(--accent) 40%,transparent)}
+.rk.num[data-k="1"].cur{box-shadow:0 0 0 2.5px #ff0033,0 2px 6px rgba(255,0,51,.35)}
+/* bez zumiranja na telefonu: dvostruki dodir ne zumira, a polja imaju 16 px da iPhone ne zumira sam */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+@media (max-width:560px){input.field,select.field,textarea.field,.field{font-size:16px}}
+html.admin body{padding-bottom:84px}
+/* mini plejer uz donju ivicu */
+.mbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:34;width:min(600px,calc(100% - 16px));display:flex;align-items:center;gap:8px;padding:9px 10px 9px 14px;border-radius:20px;background:color-mix(in srgb,var(--surface) 92%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transform:translate(-50%,calc(100% + 20px)) scale(.96);transition:transform .28s cubic-bezier(.2,.9,.25,1.1),opacity .2s ease-out}
+.mbar.show{opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1)}
+.mbar[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.mbar{transition:opacity .15s}}
+.mb-info{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.mb-info b{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.mb-info #mbTitle{font-size:14.5px;font-weight:700;overflow:hidden;white-space:nowrap;display:block}
+.mb-info #mbTitle .mq{display:inline-block;white-space:pre}
+.mb-info #mbTitle.marq{-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.mb-info #mbTitle.marq .mq{animation:rmarq linear infinite}
+.mb-ctl,.mb-vol{display:flex;align-items:center;gap:2px;flex:none}
+.mb-ctl[hidden]{display:none}
+.mbar button{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--text);font:700 21px/1 var(--f-body)}
+.mbar button:active{background:var(--surface-3)}
+.mbar button svg.i{width:20px;height:20px}
+.mbar .mb-play{width:46px;height:46px;background:var(--accent);color:#fff}
+.mb-vol{padding-left:6px;border-left:1px solid var(--line)}
+.mbar .mb-mute{width:auto;min-width:40px;padding:0 6px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;gap:0;transition:background .25s,color .25s}
+.mb-mute svg.i{width:0!important;opacity:0;transition:width .25s,opacity .25s,margin .25s}
+.mb-mute span{min-width:24px;text-align:center;font-size:13.5px;font-weight:800;color:var(--muted);transition:color .25s}
+.mb-mute.on{background:color-mix(in srgb,#ff0033 12%,transparent);color:#ff0033}
+.mb-mute.on svg.i{width:18px!important;opacity:1}
+.mb-mute.on span{min-width:0}
+/* utišano: ista crvena kao YT taster na daljinskom, sa prelazom */
+.vbtn{transition:background .25s,color .25s,border-color .25s}
+.vbtn.on{background:color-mix(in srgb,#ff0033 12%,var(--surface));color:#ff0033;border-color:color-mix(in srgb,#ff0033 45%,var(--line))}
+#volV{transition:color .25s}
+.volbox:has(.vbar.muted) #volV{color:#ff0033}
+.vbar i{transition:background .25s,height .12s}
+.rk{transition:box-shadow .25s,color .25s,transform .08s}
+.rk[data-k="Power"].arming{box-shadow:0 0 0 2.5px #ef4444,0 0 12px rgba(239,68,68,.5);animation:parm 1s ease-in-out infinite}
+@keyframes parm{50%{box-shadow:0 0 0 4px #ef4444,0 0 18px rgba(239,68,68,.7)}}
+.rk[data-k="Mute"].cur{box-shadow:0 0 0 2.5px #ff0033,0 2px 6px rgba(255,0,51,.35);color:#ff0033}
+/* dugmad plejera i daljinskog: dugo držanje ne selektuje tekst, ne otvara meni i ne zumira */
+.transport,.volbox,.fmctl,.mbar,#remote,.srcs,.standby,.vbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.transport button,.volbox button,.fmctl button,.mbar button,#remote button,.src,.avpick button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.bump{animation:vbump .18s ease-out}
+@keyframes vbump{from{transform:scale(1.18)}to{transform:scale(1)}}
+#volV,#mbVol{display:inline-block}
+body.mb-on{padding-bottom:84px}
+body.mb-on .rfab{display:none}   /* daljinski je tada u mini plejeru */
+.mbar .mb-rc{background:var(--surface-2);border:1px solid var(--line)}
+@media (max-width:400px){.mbar{gap:4px;padding-left:12px}.mbar button{width:36px;height:36px}.mbar .mb-play{width:42px;height:42px}}
+/* Teco.Pi nije dostupan: poruka preko zatamnjene i zamućene stranice */
+.offline{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:rgba(10,14,20,.45);-webkit-backdrop-filter:blur(4px) grayscale(.6);backdrop-filter:blur(4px) grayscale(.6);animation:rfade .2s ease-out}
+.offline[hidden]{display:none}
+.offbox{width:min(360px,100%);display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:26px 22px;border-radius:22px;background:var(--surface);box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.offic{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,#ef4444 14%,transparent);color:#ef4444}
+.offic svg.i{width:26px;height:26px}
+.offbox b{font-size:18px}
+.offbox p{margin:0;font-size:14px;color:var(--muted);line-height:1.45}
+.offtry{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--muted);margin-top:4px}
+.offtry .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+body.is-offline{overflow:hidden}   /* mesto za admin traku na dnu */
+html.admin .rfab{display:none}
+.srcb{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#ff0033;color:#fff;box-shadow:0 0 0 2px var(--surface)}
+.srcb.cast{background:#2563eb}
+.srcb svg.i{width:11px;height:11px;stroke-width:2.6}
+.q.cur .srcb{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,var(--surface))}
+#hist{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+#hist[hidden]{display:none}
+/* telefon: naslov dobija svu širinu, trajanje ide ispod, dugmad manja */
+@media (max-width:480px){
+  .q{grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"art txt act" "art dur act";gap:1px 10px;padding:6px 4px}
+  .q > :nth-child(1){grid-area:art;width:36px;height:36px}
+  .q > :nth-child(2){grid-area:txt}
+  .q > :nth-child(3){grid-area:dur;font-size:11.5px}
+  .q > :nth-child(4){grid-area:act}
+  .q .mini{width:30px;height:30px}
+.queue .q:not(.pend):not(.perr) .s{display:none}   /* "YouTube" ispod svakog naslova je suvišno */
+  .acts{gap:0}
+  .add{flex-wrap:wrap}
+  .add .field{flex:1 1 100%}
+  .add .btn{flex:1}
+  .src{flex-direction:column;align-items:flex-start;gap:8px;padding:10px}
+  .stlist{grid-template-columns:minmax(0,1fr)!important}
+  .bootrow{flex-direction:column;align-items:stretch;gap:6px}
+  .bootrow .field{max-width:none}
+  .stat .v{font-size:26px}
+  .stat .v small,.stat .v .u{font-size:13px}
+}
+.ev .evsec{flex:0 0 72px;width:72px}
+.hist-head{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-left:6px}
+.q.hist{cursor:pointer}
+.q.hist .qa .hp{width:16px;height:16px;color:#fff;opacity:0;transition:opacity .15s}
+.q.hist:hover .qa .hp{opacity:.9}
+@media (hover:none){.q.hist .qa .hp{opacity:.8}}
+.hist-more{align-self:center;height:36px;font-size:13px;color:var(--accent)}
+.q.pend{cursor:default;opacity:.92}
+.q.pend .qa{background:var(--surface-3)}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid color-mix(in srgb,var(--accent) 25%,transparent);border-top-color:var(--accent);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pbar{height:3px;border-radius:3px;background:var(--surface-3);overflow:hidden;margin-top:6px}
+.pbar i{display:block;height:100%;width:35%;border-radius:3px;background:var(--accent);animation:pbar 1.4s ease-in-out infinite}
+@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+.q.perr .s{color:var(--crit)}
+.q.perr .spin{animation:none;border-color:var(--crit)}
+.fm-err{font-size:13px;padding:8px 12px;border-radius:12px;background:color-mix(in srgb,var(--crit) 10%,transparent);border:1px solid color-mix(in srgb,var(--crit) 30%,transparent)}
+</style>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const fmt = s => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+  const setFill = el => el.style.setProperty('--p', (el.value - el.min) / (el.max - el.min || 1) * 100 + '%');
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let toastT; const toast = msg => { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2400); };
+  const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
+
+  /* semafor lampice u zaglavlju svake kartice */
+  $$('.card h2').forEach(h => { const l = document.createElement('span'); l.className = 'lights'; l.setAttribute('aria-hidden', 'true'); l.innerHTML = '<i></i><i></i><i></i>'; h.prepend(l); });
+
+  /* ---------------- veza sa serverom ---------------- */
+  let S = null, ws = null, rid = 0, tok = store.get('teco-tok');
+  const pend = new Map();
+  // veza sa Teco.Pi: ping na 4 s; bez odgovora 10 s = veza je pala (npr. Pi nestao sa mreže bez zatvaranja veze)
+  let lastMsg = Date.now(), offSince = 0, offShow = null, tries = 0;
+  function offline(on) {
+    if (!on) { clearTimeout(offShow); offShow = null; offSince = 0; tries = 0; $('#offline').hidden = true; document.body.classList.remove('is-offline'); return; }
+    tries++; $('#offTry').textContent = tries > 1 ? 'Pokušavam ponovo… (' + tries + ')' : 'Pokušavam ponovo…';
+    if (!offSince) { offSince = Date.now(); offShow = setTimeout(() => { $('#offline').hidden = false; document.body.classList.add('is-offline'); }, 2500); }   // kratak prekid se ne prikazuje
+  }
+  setInterval(() => {
+    if (!ws || ws.readyState !== 1) return;
+    if (Date.now() - lastMsg > 10000) { ws.close(); return; }
+    try { ws.send(JSON.stringify({ c: 'ping' })); } catch (e) {}
+  }, 4000);
+  // Telefon vraćen iz pozadine: iOS drži vezu „otvorenom“ iako je mrtva, pa bi prvi klik otišao u prazno
+  // (dugme kao da samo dobije fokus). Zato: veza bez poruka > 6,5 s je zastarela — komanda čeka u redu,
+  // veza se odmah obnovi i komanda ode čim se poveže.
+  let outbox = [], reconnT = null;
+  const fresh = () => ws && ws.readyState === 1 && Date.now() - lastMsg < 6500;
+  function reconnectNow() {
+    if (ws && ws.readyState === 0) return;   // već se povezuje
+    clearTimeout(reconnT);
+    const old = ws; ws = null;
+    if (old) { try { old.close(); } catch (e) {} }
+    connect();
+  }
+  function flush() {
+    const q = outbox; outbox = [];
+    q.forEach(m => { clearTimeout(m.t); pend.set(m.id, m.res); ws.send(JSON.stringify({ ...m.a, c: m.c, rid: m.id, tok }));
+      setTimeout(() => { if (pend.has(m.id)) { pend.delete(m.id); m.res({ err: 'Teco.Pi nije odgovorio.' }); } }, 120000); });
+  }
+  const wake = () => { if (document.visibilityState === 'visible' && !fresh()) reconnectNow(); };
+  document.addEventListener('visibilitychange', wake);
+  addEventListener('pageshow', wake);
+  addEventListener('online', wake);
+  function connect() {
+    const me = ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    const openTimer = setTimeout(() => { if (me.readyState !== 1) me.close(); }, 5000);   // Pi ugašen: ne čekaj dugo
+    ws.onopen = () => { if (me !== ws) { me.close(); return; } clearTimeout(openTimer); lastMsg = Date.now(); offline(false); $('#connBar').hidden = true; flush(); if (tok) send('check').then(r => { if (!r.valid) setAdmin(false, true); }); };
+    ws.onmessage = e => {
+      if (me !== ws) return;   // stara veza (posle obnove)
+      lastMsg = Date.now();
+      const d = JSON.parse(e.data);
+      if (d.state) { S = d.state; render(); }
+      if (d.irsig) irSignal(d.irsig);
+      if (d.rid != null && pend.has(d.rid)) { pend.get(d.rid)(d); pend.delete(d.rid); }
+    };
+    ws.onclose = () => { clearTimeout(openTimer); if (me !== ws) return; offline(true); reconnT = setTimeout(connect, outbox.length ? 300 : 2000); };
+  }
+  function send(c, a = {}) {
+    return new Promise(res => {
+      if (!fresh()) {   // zastarela ili prekinuta veza: sačuvaj komandu, obnovi vezu, pošalji čim se poveže
+        const id = ++rid, m = { id, c, a, res };
+        m.t = setTimeout(() => { outbox = outbox.filter(x => x !== m); res({ err: 'Nema veze sa Teco.Pi.' }); }, 8000);
+        outbox.push(m);
+        reconnectNow();
+        return;
+      }
+      const id = ++rid; pend.set(id, res);
+      ws.send(JSON.stringify({ ...a, c, rid: id, tok }));
+      setTimeout(() => { if (pend.has(id)) { pend.delete(id); res({ err: 'Teco.Pi nije odgovorio.' }); } }, 120000);
+    });
+  }
+  const act = async (c, a) => { const r = await send(c, a); if (r.err) toast(r.err); else if (r.ok) toast(r.ok); return r; };
+
+  /* ---------------- admin i PIN ---------------- */
+  const isAdmin = () => document.documentElement.classList.contains('admin');
+  function setAdmin(on, quiet) {
+    document.documentElement.classList.toggle('admin', on);
+    $('#adminSw').setAttribute('aria-checked', on);
+    $('#lockIco').setAttribute('href', on ? '#i-unlock' : '#i-lock');
+    if (!on) { tok = null; store.set('teco-tok', null); resetWiz(); }
+    if (!quiet) toast(on ? 'Admin režim uključen' : 'Admin režim isključen');
+    if (S) render();
+    // Admin je posebna stranica: uključivanje vodi na nju, isključivanje vraća na Multimediju
+    if (goView) { if (on) goView('admin'); else if (document.body.dataset.view === 'admin') goView('media'); }
+  }
+  var goView = null;   // = setView (definiše se niže, kod menija)
+  let pinMode = 'auth';
+  function openPin(mode) {
+    pinMode = mode;
+    const setting = mode !== 'auth';
+    $('#pinTitle').textContent = mode === 'first' ? 'Postavi Admin PIN' : mode === 'change' ? 'Novi PIN' : 'Admin režim';
+    $('#pinHelp').textContent = mode === 'first' ? 'Ovo je prvo uključivanje. Izaberi PIN od 4 do 8 cifara.' : mode === 'change' ? 'Unesi novi PIN od 4 do 8 cifara.' : 'Unesi PIN da otključaš izmene.';
+    $('#pinOk').textContent = setting ? 'Sačuvaj PIN' : 'Otključaj';
+    $('#pinIn2').hidden = !setting; $('#pinIn').value = $('#pinIn2').value = ''; $('#pinErr').textContent = '';
+    $('#pinModal').hidden = false; setTimeout(() => $('#pinIn').focus(), 50);
+  }
+  $('#adminSw').onclick = async () => {
+    if (isAdmin()) return goView && goView('admin');   // već uključen: samo otvori Admin stranicu (izlaz: „Izađi“)
+    if (S && S.pin_set && !S.pin_required) {   // PIN je isključen: otključaj odmah
+      const r = await send('auth', {});
+      if (r.tok) { tok = r.tok; store.set('teco-tok', tok); return setAdmin(true); }
+    }
+    openPin(S && !S.pin_set ? 'first' : 'auth');
+  };
+  $('#pinReq').onclick = () => act('pin_req', { v: !S.pin_required }).then(r => { if (!r.err) toast(S.pin_required ? 'Admin više ne traži PIN' : 'Admin traži PIN'); });
+  $('#pinChange').onclick = () => openPin('change');
+  $('#pinCancel').onclick = () => { $('#pinModal').hidden = true; };
+  $('#pinForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const p = $('#pinIn').value.trim();
+    if (!/^\d{4,8}$/.test(p)) { $('#pinErr').textContent = 'PIN mora imati 4 do 8 cifara.'; return; }
+    if (pinMode !== 'auth' && p !== $('#pinIn2').value.trim()) { $('#pinErr').textContent = 'PIN-ovi se ne poklapaju.'; return; }
+    const r = await send(pinMode === 'auth' ? 'auth' : 'set_pin', { pin: p });
+    if (!r.tok) { $('#pinErr').textContent = r.err || 'Nije uspelo.'; $('#pinIn').select(); return; }
+    tok = r.tok; store.set('teco-tok', tok); $('#pinModal').hidden = true;
+    if (pinMode === 'change') toast('PIN je promenjen'); setAdmin(true, pinMode === 'change');
+  });
+  if (tok) setAdmin(true, true);
+
+  /* ---------------- ilustracije konzola ---------------- */
+  let CONSOLES = { other: { n: 'Konzola', svg: '' } };   // pravi crteži stižu iz /static/consoles.json (isti fajl koristi i server)
+  // poreklo videa: pušten preko Cast-a (YouTube aplikacija) ili preko linka
+  const srcBadge = k => k === 'cast' ? '<span class="srcb cast" title="Pušteno preko Cast-a"><svg class="i"><use href="#i-cast"/></svg></span>' : '<span class="srcb" title="Pušteno preko linka"><svg class="i"><use href="#i-link"/></svg></span>';
+  const srcName = s => s === 'av1' ? 'YouTube' : s === 'fm' ? 'FM radio' : s === 'st' ? 'Radio' : s === 'tv' ? 'TV' : (S.names[s] || (CONSOLES[S.cons[s]] || CONSOLES.other).n);
+
+  /* ---------------- komande: plejer ---------------- */
+  $('#bPlay').onclick = () => act('play');
+  $('#hPrev').onclick = () => act('prev');
+  $('#hNext').onclick = () => act('next');
+  /* haptika (kratka vibracija) na dugmićima plejera i daljinskog.
+     Android: navigator.vibrate. iPhone nema vibrate, ali Safari (iOS 18+) zavibrira kad se klikne
+     prekidač <input type="checkbox" switch>, pa se klikne skriven prekidač. Ostali uređaji: ništa. */
+  const haptic = (() => {
+    if (navigator.vibrate) return () => { try { navigator.vibrate(8); } catch (e) {} };
+    const lb = document.createElement('label'), sw = document.createElement('input');
+    sw.type = 'checkbox'; sw.setAttribute('switch', ''); lb.appendChild(sw);
+    lb.style.cssText = 'position:fixed;left:-99px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
+    lb.setAttribute('aria-hidden', 'true'); sw.tabIndex = -1; document.body.appendChild(lb);
+    return () => { try { lb.click(); } catch (e) {} };
+  })();
+  const HAPTIC = '.transport button, .volbox button, .fmctl button, .mbar button, #remote .rk, #remote .dp, #remote .rocker button, #remote .ck, .src, .avpick button, .standby';
+  // na klik, ne na dodir: iPhone ne pošalje klik dugmetu ako se tokom dodira nešto promeni (skriveni prekidač),
+  // pa je npr. pilula „2“ na AV-u ostajala bez dejstva
+  let lastPtr = 'mouse';
+  document.addEventListener('pointerdown', e => { lastPtr = e.pointerType; }, { passive: true, capture: true });
+  document.addEventListener('click', e => { if (lastPtr !== 'mouse' && e.isTrusted && e.target.closest(HAPTIC)) setTimeout(haptic, 0); }, true);
+  /* dugme koje na kratak klik uradi jedno, a dok se drži ponavlja (brzo premotavanje) */
+  function holdable(el, tap, rep, every = 350) {
+    let timer = null, held = false;
+    const stop = () => { clearTimeout(timer); clearInterval(timer); timer = null; };
+    el.addEventListener('pointerdown', () => {
+      held = false; stop();
+      timer = setTimeout(() => { held = true; let n = 0; rep(n++); timer = setInterval(() => rep(n++), every); }, 400);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, stop));
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    el.addEventListener('click', e => { if (held) { held = false; e.preventDefault(); return; } tap(); });
+  }
+  const ffStep = n => n < 4 ? 10 : n < 10 ? 30 : 60;   // sve brže što se duže drži
+  /* jačina: dok se drži + ili −, ide sve brže; broj se menja odmah (ne čeka server), a server dobija svaku vrednost */
+  let volT = null;   // jačina koju šaljemo dok se drži (server kasni ~100 ms, pa ne računamo od S.vol)
+  function volShow(v, mute = false) {
+    $('#volV').textContent = mute ? 'utišano' : v + '%'; $('#mbVol').textContent = mute ? '' : v;
+    $$('i', $('#vbar')).forEach((x, i) => x.classList.toggle('on', v >= (i + 1) * 10 - 5));
+    $('#vbar').classList.toggle('muted', mute);
+    ['#volV', '#mbVol'].forEach(q => { const e = $(q); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); });
+  }
+  function volStep(d, buzz) {   // buzz: dok se drži, kvrc za svaki korak (dodir već ima svoj)
+    const was = volT ?? S.vol ?? 0;
+    volT = Math.max(0, Math.min(100, was + d));
+    if (buzz && volT !== was) haptic();
+    volShow(volT); act('vol', { v: volT });
+    return volT;
+  }
+  const volRep = n => (n < 5 ? 2 : n < 12 ? 4 : 6);   // korak raste što se duže drži
+  function volHold(el, dir, tapStep, onStep) {
+    holdable(el, () => { volT = null; const v = volStep(dir * tapStep); volT = null; onStep && onStep(v); },
+      n => { if (n === 0) volT = null; const v = volStep(dir * volRep(n), true); onStep && onStep(v); }, 110);
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, () => setTimeout(() => { volT = null; }, 400)));
+  }
+  holdable($('#hBack'), () => act('seek_rel', { s: -10 }), n => act('seek_rel', { s: -ffStep(n) }));
+  holdable($('#hFwd'), () => act('seek_rel', { s: 10 }), n => act('seek_rel', { s: ffStep(n) }));
+  let seeking = false;
+  $('#seek').addEventListener('input', e => { seeking = true; setFill(e.target); $('#tCur').textContent = fmt(e.target.value); });
+  // zaštita od slučajnog premotavanja na telefonu: važi samo namerno vođenje prsta levo-desno (ne dodir ni skrol)
+  let sk = null;
+  $('#seek').addEventListener('pointerdown', e => { sk = { x: e.clientX, y: e.clientY, touch: e.pointerType !== 'mouse', dx: 0, bad: false }; });
+  $('#seek').addEventListener('pointermove', e => { if (!sk) return; const dx = Math.abs(e.clientX - sk.x), dy = Math.abs(e.clientY - sk.y); sk.dx = Math.max(sk.dx, dx); if (dy > 12 && dy > dx) sk.bad = true; });
+  $('#seek').addEventListener('pointercancel', () => { if (sk) sk.bad = true; });
+  $('#seek').addEventListener('change', e => {
+    const ok = !sk || !sk.touch || (!sk.bad && sk.dx >= 12); sk = null;
+    if (!ok) { seeking = false; e.target.value = S.pos || 0; setFill(e.target); $('#tCur').textContent = fmt(S.pos); return; }
+    act('seek', { pos: +e.target.value }); setTimeout(() => seeking = false, 600);
+  });
+  ['gesturestart', 'gesturechange'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));   // iPhone: zumiranje sa dva prsta
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  $('#admExit').onclick = () => { setAdmin(false); admTab = null; window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // Admin se sam isključi posle 10 minuta bez dodira, da ne ostane uključen
+  let lastTouch = Date.now();
+  ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { lastTouch = Date.now(); }, true));
+  setInterval(() => { if (isAdmin() && Date.now() - lastTouch > 600000) { setAdmin(false, true); admTab = null; toast('Admin režim je isključen posle 10 minuta'); } }, 30000);
+  // brzi daljinski: isti daljinski se prebaci u prozor i vrati kad se zatvori
+  const remoteEl = $('#remote'), remoteHome = remoteEl.parentNode, remoteNext = remoteEl.nextSibling;
+  // daljinski + „Zatvori“ uvek stanu na ekran: na nižim ekranima (telefon) daljinski se malo smanji
+  const fitRemote = () => { if ($('#rSheet').hidden) return; remoteEl.style.zoom = '';
+    const h = remoteEl.offsetHeight + 44 + 12 + 32;   // daljinski + dugme + razmak + ivice
+    const z = Math.min(1, (window.innerHeight - 8) / h); if (z < 1) remoteEl.style.zoom = z.toFixed(3); };
+  const openRemote = () => { $('#rSlot').appendChild(remoteEl); $('#rSheet').hidden = false; document.body.classList.add('rsheet-open'); fitRemote(); };
+  const closeRemote = () => { remoteEl.style.zoom = ''; remoteHome.insertBefore(remoteEl, remoteNext); $('#rSheet').hidden = true; document.body.classList.remove('rsheet-open'); };
+  addEventListener('resize', fitRemote);
+  $('#rTop').onclick = openRemote;
+  // mini plejer na dnu: pojavi se kad glavni plejer (Hub) izađe iz ekrana
+  $('#mbPrev').onclick = () => act('rc', { k: 'prev' });
+  $('#mbNext').onclick = () => act('rc', { k: 'next' });
+  $('#mbPlay').onclick = () => act('rc', { k: 'play' });
+  volHold($('#mbVd'), -1, 5); volHold($('#mbVu'), 1, 5);
+  $('#mbMute').onclick = () => act('mute');
+  $('#mbRc').onclick = openRemote;
+  let heroOut = false;
+  // glavni plejer je van ekrana kad mu je donja ivica iznad vrha prozora (skrol) — radi i na starijim telefonima
+  // mini plejer se pojavi čim kontrole plejera (dugmad i jačina) odu iznad vrha ekrana, ne tek kad ceo Hub nestane
+  const heroCheck = () => { const v = $('.volbox'), r = (v && v.offsetParent ? v : $('#hero')).getBoundingClientRect();
+    const top = $('header.top').getBoundingClientRect().bottom;   // mini plejer kreće čim se kontrole približe gornjoj traci
+    const o = r.top < top + (heroOut ? 110 : 90) || $('#hero').getBoundingClientRect().top > innerHeight;
+    if (o !== heroOut) { heroOut = o; mbarShow(); } };
+  addEventListener('scroll', heroCheck, { passive: true }); addEventListener('resize', heroCheck);
+  function mbarShow() { const on = heroOut && !isAdmin(), m = $('#mbar'); m.hidden = false; m.classList.toggle('show', on); m.inert = !on; document.body.classList.toggle('mb-on', on);
+    if (on && mbWant != null && mbLast == null) mbTitle(mbWant, true); }
+  // Sistem: iskačući prozor sa čipa u zaglavlju (CPU, temperatura, RAM, napajanje)
+  const openSys = () => { $('#sysSheet').hidden = false; document.body.classList.add('rsheet-open'); };
+  const closeSys = () => { $('#sysSheet').hidden = true; document.body.classList.remove('rsheet-open'); };
+  $('#sysChip').onclick = openSys;
+  $('#sysClose').onclick = closeSys;
+  $('#sysSheet').addEventListener('click', e => { if (e.target.id === 'sysSheet') closeSys(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sysSheet').hidden) closeSys(); });
+  $('#rClose').onclick = closeRemote;
+  $('#rSheet').addEventListener('click', e => { if (e.target.id === 'rSheet') closeRemote(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#rSheet').hidden) closeRemote(); });
+  // u Admin režimu izvor se samo bira za podešavanje (ne menja šta se pušta)
+  let admTab = null;
+  const AVS = ['av2', 'av3', 'av4'], AVL = { av2: 'AV1', av3: 'AV2', av4: 'AV3' };   // av1 je YouTube, konzole su AV1-AV3
+  const pickSrc = s => { if (isAdmin()) { admTab = s; render(); } else act('source', { s }); };
+  let curAv = 'av2';   // AV ulaz koji dugme AV bira (poslednji korišćeni)
+  $$('.src').forEach(b => b.onclick = e => { const p = e.target.closest('.avpick button'); pickSrc(p ? p.dataset.av : b.dataset.src === 'av' ? curAv : b.dataset.src); });
+  // pilule 1-3 imaju svoj klik (i kad AV nije izabran): odmah taj ulaz, bez prolaska kroz pločicu
+  $$('.avpick button').forEach(p => p.addEventListener('click', e => { e.stopPropagation(); curAv = p.dataset.av; pickSrc(p.dataset.av); }));
+  // držanje dugmeta izvora 2,5 s = nasumično u toj kategoriji: AV1-AV3, internet radio stanica, TV kanal
+  [['av1', 'Nasumičan video', 'yt'], ['av', 'Nasumičan AV ulaz', 'av'], ['st', 'Nasumična stanica', 'st'], ['tv', 'Nasumičan kanal', 'tv']].forEach(([src, what, kind]) => {
+    const el = $(`.src[data-src="${src}"]`); if (!el) return;
+    el.classList.add('hold'); el.title = 'Drži 2,5 sekunde: ' + what.toLowerCase();
+    el.insertAdjacentHTML('beforeend', '<span class="rndmsg" aria-hidden="true"><svg class="i"><use href="#i-shuffle"/></svg><span class="rt">' + what + '</span><span class="rc"></span></span><span class="rndbar"><i></i></span>');
+    let hold = null, tick = null, held = false;
+    const stop = () => { clearTimeout(hold); clearInterval(tick); hold = null; el.classList.remove('holding'); };
+    el.addEventListener('contextmenu', e => e.preventDefault());   // dugo držanje na telefonu ne otvara meni
+    el.addEventListener('pointerdown', e => { if (e.target.closest('.avpick') || isAdmin()) return; held = false;
+      let left = 2; const rc = el.querySelector('.rc'); rc.textContent = 'za ' + left;
+      // posle pola sekunde se vidi odbrojavanje, da kratak klik ostane običan klik
+      hold = setTimeout(() => { el.classList.add('holding'); tick = setInterval(() => { left--; rc.textContent = left > 0 ? 'za ' + left : 'sad!'; }, 1000);
+        hold = setTimeout(() => { held = true; stop(); act('random', { what: kind }); }, 2000); }, 500); });   // ukupno 2,5 s
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => el.addEventListener(ev, stop));
+    el.addEventListener('click', e => { if (held) { e.stopImmediatePropagation(); held = false; } }, true);
+  });
+  $('.avsrc').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); pickSrc(curAv); } });
+
+  const vbar = $('#vbar'); for (let i = 0; i < 10; i++) { const s = document.createElement('i'); s.dataset.v = (i + 1) * 10; vbar.appendChild(s); }
+  volHold($('#vUp'), 1, 10); volHold($('#vDown'), -1, 10);
+  $('#vMute').onclick = () => act('mute');
+  vbar.addEventListener('click', e => { const s = e.target.closest('i'); if (s) act('vol', { v: +s.dataset.v }); });
+  vbar.addEventListener('keydown', e => { const d = { ArrowRight: 10, ArrowUp: 10, ArrowLeft: -10, ArrowDown: -10 }[e.key]; if (d) { e.preventDefault(); act('vol', { v: S.vol + d }); } });
+
+  function addLink(now) {
+    const url = $('#addUrl').value.trim(), st = $('#addStatus');
+    if (!/youtu\.?be/.test(url)) { st.textContent = 'To nije YouTube link. Adresa treba da sadrži youtube.com ili youtu.be.'; return; }
+    st.textContent = ''; $('#addUrl').value = ''; $('#addUrl').focus();
+    act('add_yt', { url, now });   // ne čekamo: stavka se odmah vidi na listi, a polje je slobodno za sledeći link
+  }
+  $('#addForm').addEventListener('submit', e => { e.preventDefault(); addLink(true); });
+  $('#addQueue').onclick = () => addLink(false);
+
+  /* ---------------- FM ---------------- */
+  const FMIN = 87.5, FMAX = 108, pct = f => (f - FMIN) / (FMAX - FMIN) * 100, dial = $('#dial');
+  for (let f = 88; f <= 108; f += 0.5) {
+    const t = document.createElement('span'); t.className = 'tk' + (f % 2 === 0 ? ' maj' : ''); t.style.left = pct(f) + '%'; dial.appendChild(t);
+    if (f % 4 === 0) { const l = document.createElement('span'); l.className = 'tl'; l.style.left = pct(f) + '%'; l.textContent = f; dial.appendChild(l); }
+  }
+  let dialF = null;
+  const showFreq = f => { $('#fmFreq').textContent = f.toFixed(1); $('#needle').style.left = pct(f) + '%'; };
+  const fFromX = x => { const r = dial.getBoundingClientRect(); return Math.round((FMIN + Math.max(0, Math.min(1, (x - r.left) / r.width)) * (FMAX - FMIN)) * 10) / 10; };
+  // FM skala: mišem odmah, prstom tek kad se jasno povuče levo-desno (skrol i slučajan dodir ne menjaju stanicu)
+  let dS = null;
+  const dialGo = e => { dS.on = true; dial.setPointerCapture(e.pointerId); dial.classList.add('drag'); dialF = fFromX(e.clientX); showFreq(dialF); };
+  const dialEnd = send => { dial.classList.remove('drag'); if (send && dS && dS.on && dialF != null) act('fm_tune', { f: dialF }); else if (S) showFreq(S.fm.f); dialF = null; dS = null; };
+  dial.addEventListener('pointerdown', e => { dS = { x: e.clientX, y: e.clientY, on: false }; if (e.pointerType === 'mouse') dialGo(e); });
+  dial.addEventListener('pointermove', e => {
+    if (!dS) return;
+    if (!dS.on) { const dx = Math.abs(e.clientX - dS.x), dy = Math.abs(e.clientY - dS.y);
+      if (dy > 10 && dy > dx) { dS = null; return; }   // to je skrol
+      if (dx < 12) return; dialGo(e); }
+    dialF = fFromX(e.clientX); showFreq(dialF);
+  });
+  dial.addEventListener('pointerup', () => dialEnd(true));
+  dial.addEventListener('pointercancel', () => dialEnd(false));
+  dial.addEventListener('keydown', e => { const d = { ArrowRight: .1, ArrowUp: .1, ArrowLeft: -.1, ArrowDown: -.1 }[e.key]; if (d) { e.preventDefault(); act('fm_tune', { f: S.fm.f + d }); } });
+  $('#fmUp').onclick = () => act('fm_tune', { f: S.fm.f + 0.1 });
+  $('#fmDn').onclick = () => act('fm_tune', { f: S.fm.f - 0.1 });
+  $('#fmSeekUp').onclick = () => act('fm_seek', { d: 1 });
+  $('#fmSeekDn').onclick = () => act('fm_seek', { d: -1 });
+  $('#fmForm').addEventListener('submit', e => {
+    e.preventDefault(); const v = parseFloat($('#fmInput').value.replace(',', '.'));
+    if (isNaN(v) || v < FMIN || v > FMAX) { toast('Unesi frekvenciju između 87,5 i 108 MHz'); return; }
+    act('fm_tune', { f: v }); $('#fmInput').value = '';
+  });
+  $('#fmSaveForm').addEventListener('submit', e => { e.preventDefault(); act('fm_save', { n: $('#fmSaveName').value }).then(r => { if (!r.err) toast('Stanica je sačuvana'); }); $('#fmSaveName').value = ''; });
+  $('#qClear').onclick = () => act('q_clear');
+  let wifiOpen = null;   // mreža kojoj je otvoreno polje za lozinku
+  $('#wifiScan').onclick = () => act('wifi_scan');
+  const renderWifi = w => {
+    const box = $('#wifiList');
+    if (box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+    box.innerHTML = '';
+    if (!w.list.length) { box.innerHTML = '<span class="muted" style="font-size:13px">' + (w.scanning ? 'Tražim mreže...' : 'Dodirni „Traži mreže”.') + '</span>'; return; }
+    w.list.forEach(n => {
+      const d = document.createElement('div'); d.className = 'wn' + (n.on ? ' on' : '');
+      const bars = [25, 50, 70, 85].map(t => `<i class="${n.sig >= t ? 'f' : ''}"></i>`).join('');
+      const st = w.busy === n.ssid ? 'Povezujem...' : n.on ? 'Povezano' : n.saved ? 'Sačuvana' : '';
+      d.innerHTML = `<button class="wn-row" type="button"><span class="wbars">${bars}</span><b>${esc(n.ssid)}</b>${n.lock ? '<svg class="i"><use href="#i-lock"/></svg>' : ''}<small>${st}</small></button>`;
+      if (wifiOpen === n.ssid) {
+        const f = document.createElement('form'); f.className = 'wn-form';
+        f.innerHTML = (n.on ? '' : (n.lock && !n.saved ? '<input class="field" type="password" placeholder="Lozinka" autocomplete="off">' : '') + '<button class="btn gel" type="submit"><span>Poveži</span></button>')
+          + (n.saved ? '<button class="btn ghost" type="button" data-a="forget">Zaboravi</button>' : '');
+        f.onsubmit = e => { e.preventDefault(); const pw = f.querySelector('input'); act('wifi_connect', { ssid: n.ssid, pw: pw ? pw.value : '' }); wifiOpen = null; };
+        const fg = f.querySelector('[data-a="forget"]'); if (fg) fg.onclick = () => { act('wifi_forget', { ssid: n.ssid }); wifiOpen = null; };
+        d.appendChild(f);
+        setTimeout(() => { const i = f.querySelector('input'); if (i) i.focus(); });
+      }
+      d.querySelector('.wn-row').onclick = () => { wifiOpen = wifiOpen === n.ssid ? null : n.ssid; renderWifi(S.wifi); };
+      box.appendChild(d);
+    });
+  };
+  $$('#rcSeg button').forEach(b => b.onclick = () => act('radio_clock', { v: +b.dataset.v }));
+  let tvCat = '';
+  const TVCAT = { news: 'Vesti', movies: 'Filmovi', series: 'Serije', documentary: 'Dokumentarni', music: 'Muzika', kids: 'Deca',
+    sports: 'Sport', entertainment: 'Zabava', classic: 'Klasici', comedy: 'Komedija', Region: 'Region', my: 'Moji' };
+  $('#tvPrev').onclick = () => act('tv_play', { d: -1 });
+  $('#tvNext').onclick = () => act('tv_play', { d: 1 });
+  $('#tvPlay').onclick = () => S.tv.on ? act('play') : S.tv.u ? act('tv_play', { u: S.tv.u }) : act('tv_play', { d: 1 });
+  $('#tvForm').addEventListener('submit', e => {
+    e.preventDefault();
+    act('tv_add', { n: $('#tvN').value, u: $('#tvU').value.trim() }).then(r => { if (r && !r.err) { $('#tvN').value = ''; $('#tvU').value = ''; toast('Kanal je dodat'); } });
+  });
+  $('#bootSel').onchange = e => act('boot', { v: e.target.value });
+  $$('#themeSeg button').forEach(b => b.onclick = () => act('theme', { v: b.dataset.v }));
+  /* meni sa strane: delovi Multimedija / Alarm / CCTV (pamti se izbor, adresa #/alarm radi i kao link) */
+  const VIEWS = ['media', 'alarm', 'cctv', 'admin'];
+  const navOpen = on => { document.body.classList.toggle('nav-open', on); $('#sideBg').hidden = !on; $('#navBtn').setAttribute('aria-expanded', on); };
+  function setView(v, target) {
+    if (!VIEWS.includes(v)) v = 'media';
+    if (v === 'admin' && !isAdmin()) { $('#adminSw').click(); return; }   // PIN; posle uključenja setAdmin vodi ovde
+    if (v !== 'admin' && isAdmin()) setAdmin(false);                        // odlazak sa Admin stranice = izlaz iz admina
+    const changedView = document.body.dataset.view !== v;
+    document.body.dataset.view = v;
+    $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v));
+    $('#ptTxt').textContent = { media: 'Multimedija', alarm: 'Alarm', cctv: 'CCTV', admin: 'Admin' }[v];
+    $('#ptIco').setAttribute('href', { media: '#i-media', alarm: '#i-shield', cctv: '#i-cam', admin: '#i-unlock' }[v]);
+    store.set('teco-view', v);
+    try { if (location.hash !== '#/' + v) history.replaceState(null, '', '#/' + v); } catch (e) {}
+    navOpen(false);
+    const el = target && $(target);
+    if (el) { if (el.tagName === 'DETAILS') el.open = true; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+      el.classList.remove('navflash'); void el.offsetWidth; el.classList.add('navflash'); }   // kratko zasvetli: vidi se gde si stigao
+    else if (changedView) window.scrollTo(0, 0);
+    if (typeof heroCheck === 'function') heroCheck();
+  }
+  goView = setView;
+  { let v0 = (location.hash.match(/^#\/(\w+)/) || [])[1] || store.get('teco-view') || 'media';
+    if (v0 === 'admin' && !isAdmin()) v0 = 'media';   // bez PIN prozora pri otvaranju stranice
+    setView(v0); }
+  $('#navBtn').onclick = () => navOpen(!document.body.classList.contains('nav-open'));
+  $('#sideBg').onclick = () => navOpen(false);
+  $('#adminSw').addEventListener('click', () => navOpen(false));   // telefon: fioka se zatvori (PIN / admin traka)
+  addEventListener('keydown', e => { if (e.key === 'Escape') navOpen(false); });
+  $$('.tsec[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));   // Admin (bez data-view) ima svoj klik
+  $$('.titems a').forEach(a => a.onclick = e => { e.preventDefault();
+    if (a.hasAttribute('data-remote') && !isAdmin()) { navOpen(false); openRemote(); return; }   // daljinski je prozor na sredini
+    setView(a.dataset.view, a.getAttribute('href')); });
+  addEventListener('hashchange', () => { const v = (location.hash.match(/^#\/(\w+)/) || [])[1]; if (v && v !== document.body.dataset.view) setView(v); });
+  /* ---------------- alarm: pregled svih alarma → detaljan prikaz jednog ---------------- */
+  let alZf = 'all', alEf = 'all', alSel = null;   // alSel: id alarma u detaljnom prikazu (null = pregled)
+  const alList = () => (S && S.alarm ? [S.alarm] : []);   // za sada jedan; server je spreman za listu
+  const alGet = () => alList().find(a => a.id === alSel);
+  function alOpen(id) { alSel = id; if (S) alRender(S.alarm, true); window.scrollTo(0, 0); }
+  $('#alBack').onclick = () => alOpen(null);
+  $('#alTiles').addEventListener('click', e => { const t = e.target.closest('.altile'); if (t) alOpen(t.dataset.id); });
+  $$('#alZf button').forEach(b => b.onclick = () => { alZf = b.dataset.v; $$('#alZf button').forEach(x => x.setAttribute('aria-pressed', x === b)); if (S) alRender(S.alarm, true); });
+  $$('#alEf button').forEach(b => b.onclick = () => { alEf = b.dataset.v; $$('#alEf button').forEach(x => x.setAttribute('aria-pressed', x === b)); if (S) alRender(S.alarm, true); });
+  $('#alSave').onclick = () => act('alarm_cfg', { enabled: $('#alEn').checked, name: $('#alName').value.trim(), host: $('#alHost').value.trim(), port: $('#alPort').value.trim(),
+    ip_password: $('#alIpPw').value, pc_password: $('#alPcPw').value }).then(r => { if (!r.err) { $('#alIpPw').value = ''; $('#alPcPw').value = ''; } });
+  const ALM = { arm: 'Regular: ceo objekat, sa izlaznim/ulaznim vremenom', arm_stay: 'Stay: kod kuće (unutrašnje zone ne rade)',
+    arm_instant: 'Instant: kao Stay, ali bez ulaznog vremena', arm_force: 'Force: uključi i kad je neka zona otvorena (ona se preskače)', disarm: 'Isključi' };
+  // uključivanje držanjem (umesto iskačuće potvrde): dugme se puni 1,5 s, pa se šalje komanda; isključi = jedan dodir
+  { let t = null, btn = null;
+    const stop = () => { clearTimeout(t); t = null; if (btn) { btn.classList.remove('holding'); btn = null; } };
+    const box = $('#alParts');
+    box.addEventListener('pointerdown', e => { const b = e.target.closest('button[data-cmd]'); if (!b || b.disabled || b.dataset.cmd === 'disarm') return;
+      stop(); btn = b; b.classList.add('holding'); haptic();
+      t = setTimeout(() => { const cmd = b.dataset.cmd, p = b.closest('.alp').dataset.key; stop(); b.classList.add('sent'); haptic();
+        act('alarm', { cmd, p }).finally(() => b.classList.remove('sent')); }, 1500); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => box.addEventListener(ev, e => { if (t && btn && (ev !== 'pointerleave' || e.target === btn)) {
+      toast('Drži dugme 1,5 s: ' + ALM[btn.dataset.cmd]); stop(); } }, true));
+    box.addEventListener('contextmenu', e => { if (e.target.closest('button[data-cmd]')) e.preventDefault(); });
+    box.addEventListener('click', e => { const b = e.target.closest('button[data-cmd="disarm"]'); if (!b) return;
+      b.disabled = true; act('alarm', { cmd: 'disarm', p: b.closest('.alp').dataset.key }).finally(() => { b.disabled = false; }); }); }
+  $('#alZones').addEventListener('click', e => { const b = e.target.closest('.zmon'); if (!b) return;
+    const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on); act('alarm_monitor', { zone: +b.dataset.z, on }); });
+  // brisanje: dva dodira (prvi „Sigurno?“), da se ne obriše slučajno
+  const twoTap = (id, c) => { const b = $(id), sp = b.querySelector('span'), t0 = sp.textContent; let armed = null;
+    b.onclick = () => { if (!armed) { sp.textContent = 'Sigurno? Dodirni ponovo'; b.classList.add('armed'); armed = setTimeout(() => { armed = null; sp.textContent = t0; b.classList.remove('armed'); }, 3500); return; }
+      clearTimeout(armed); armed = null; sp.textContent = t0; b.classList.remove('armed'); act(c); }; };
+  twoTap('#alMemClr', 'alarm_mem_clear'); twoTap('#alEvClr', 'alarm_ev_clear');
+  $('#alQuick').addEventListener('click', e => { const b = e.target.closest('.qpg'); if (!b || b.classList.contains('run')) return;
+    haptic(); b.classList.add('run'); const s = b.querySelector('small'); let left = 5; s.textContent = 'Aktivno · još ' + left + ' s';
+    const tk = setInterval(() => { left--; s.textContent = left > 0 ? 'Aktivno · još ' + left + ' s' : 'Isključuje se…'; }, 1000);
+    act('alarm', { pgm: b.dataset.key, cmd: 'pulse' }).then(r => { if (r.err) left = 0; });
+    setTimeout(() => { clearInterval(tk); b.classList.remove('run'); s.textContent = 'Aktiviraj na 5 s'; }, 5600); });
+  $('#alPgms').addEventListener('click', e => { const b = e.target.closest('button[data-pcmd]'); if (!b) return;
+    b.disabled = true; act('alarm', { pgm: b.closest('.alg').dataset.key, cmd: b.dataset.pcmd }).finally(() => { b.disabled = false; }); });
+  // stanje particije iz PAI polja (EVO): alarm, odlaganje, uključen (Regular/Stay/Instant), isključen
+  function alPartState(p) {
+    const cs = p.current_state || '';
+    if (p.alarm || p.audible_alarm || p.silent_alarm || p.fire_alarm || p.panic_alarm || cs === 'triggered') return ['alarm', 'ALARM!'];
+    if (p.exit_delay || cs === 'arming') return ['delay', 'Izlazno vreme — izađi iz objekta'];
+    if (p.entry_delay || cs === 'pending') return ['delay', 'Ulazno vreme — isključi alarm'];
+    if (p.arm_stay || p.arm_sleep || cs === 'armed_home' || cs === 'armed_night') return ['stay', 'Uključen · Stay (kod kuće)'];
+    if (p.arm_no_entry) return ['armed', 'Uključen · Instant'];
+    if (p.arm || p.arm_away || cs === 'armed_away') return ['armed', 'Uključen · Regular'];
+    return ['off', p.ready === false || p.ready_status === false ? 'Isključen · nije spreman (otvorena zona)' : 'Isključen · spreman'];
+  }
+  // smetnje centrale (PAI nazivi) na srpskom
+  const TRB = { ac_trouble: 'Nema AC napajanja (220 V)', battery_failure_trouble: 'Akumulator prazan ili neispravan', bell_absent_trouble: 'Sirena nije povezana',
+    bell_limit_trouble: 'Preopterećen izlaz sirene', aux_limit_trouble: 'Preopterećen AUX izlaz', time_lost_trouble: 'Centrala je izgubila tačno vreme',
+    zone_fault_trouble: 'Kvar zone', zone_low_battery_trouble: 'Slaba baterija bežičnog senzora', zone_tamper_trouble: 'Sabotaža zone',
+    module_supervision_trouble: 'Nadzor modula (BusCom)', module_trouble: 'Smetnja modula', dialer_trouble: 'Smetnja dojavnika', system_trouble: 'Sistemska smetnja',
+    panel_tamper_trouble: 'Sabotaža centrale (otvorena kutija)', rom_error_trouble: 'Greška memorije centrale', com_pc_trouble: 'Greška veze sa PC-jem',
+    tlm_trouble: 'Nema telefonske linije', fail_central_1_trouble: 'Dojava centru 1 nije uspela', fail_central_2_trouble: 'Dojava centru 2 nije uspela',
+    fail_central_3_trouble: 'Dojava centru 3 nije uspela', fail_central_4_trouble: 'Dojava centru 4 nije uspela', module_aux_trouble: 'Modul: AUX izlaz',
+    module_battery_fail: 'Modul: akumulator', module_ac_trouble: 'Modul: nema AC napajanja', module_printer_trouble: 'Modul: štampač',
+    module_fail_to_com_trouble: 'Modul: dojava nije uspela', module_tlm_trouble: 'Modul: telefonska linija', module_rom_error_trouble: 'Modul: greška memorije',
+    module_tamper_trouble: 'Modul: sabotaža', mdl_com_error: 'Greška komunikacije sa modulom', bus_overload_trouble: 'Preopterećena magistrala',
+    bus_global_fail: 'Kvar magistrale', safety_mismatch_trouble: 'Neslaganje bezbednosnih podešavanja', missing_module_trouble: 'Nedostaje modul',
+    missing_keypad_trouble: 'Nedostaje tastatura', trouble: 'Smetnja' };
+  const trName = k => TRB[k] || k.replace(/_trouble$/, '').replace(/_/g, ' ');
+  // događaj: srpski tekst gde znamo (promena zone/particije), inače originalna poruka centrale
+  function evText(e) {
+    const c = e.change || {}, L = (e.label || '').replace(/_/g, ' ');
+    if (e.type === 'zone') {
+      if ('open' in c) return ['Zona ' + L, c.open ? 'otvorena' : 'zatvorena', c.open ? 'open' : 'ok'];
+      if ('alarm' in c) return ['Zona ' + L, c.alarm ? 'ALARM' : 'alarm završen', c.alarm ? 'alarm' : 'ok'];
+      if ('tamper' in c) return ['Zona ' + L, c.tamper ? 'sabotaža' : 'sabotaža otklonjena', c.tamper ? 'alarm' : 'ok'];
+      if ('bypassed' in c) return ['Zona ' + L, c.bypassed ? 'isključena iz rada' : 'vraćena u rad', 'info'];
+      if ('generated_alarm' in c) return ['Zona ' + L, c.generated_alarm ? 'upisana u memoriju alarma' : 'memorija alarma obrisana', c.generated_alarm ? 'alarm' : 'info'];
+    }
+    if (e.type === 'partition') {
+      if ('all_zone_closed' in c) return ['Particija ' + L.replace(/_/g, ' '), c.all_zone_closed ? 'sve zone zatvorene' : 'ima otvorenih zona', c.all_zone_closed ? 'ok' : 'open'];
+      if ('ready' in c) return ['Particija ' + L.replace(/_/g, ' '), c.ready ? 'spremna za uključivanje' : 'nije spremna', c.ready ? 'ok' : 'open'];
+      if ('arm' in c) return ['Particija ' + L, c.arm ? 'uključena' : 'isključena', c.arm ? 'armed' : 'ok'];
+      if ('alarm' in c) return ['Particija ' + L, c.alarm ? 'ALARM' : 'alarm završen', c.alarm ? 'alarm' : 'ok'];
+      if ('exit_delay' in c && c.exit_delay) return ['Particija ' + L, 'izlazno vreme', 'info'];
+      if ('entry_delay' in c && c.entry_delay) return ['Particija ' + L, 'ulazno vreme', 'info'];
+    }
+    if (e.type === 'system' && L.endsWith('trouble') && Object.keys(c).length) { const on = Object.values(c)[0]; return [trName(L), on ? 'smetnja' : 'otklonjeno', on ? 'warn' : 'ok']; }
+    const tags = e.tags || [];
+    // dojava (telefonska linija, dojavni centar, glasovna dojava)
+    const msg = e.msg || '';
+    const tel = (msg.match(/#\s*(\d)/) || [])[1];
+    const REP = [[/kiss.?off/i, 'Dojava primljena', 'potvrđena (kiss off)', 'ok'], [/telephone ring/i, 'Telefonska linija', 'zvoni', 'info'],
+      [/test report/i, 'Test dojava', 'poslata', 'info'], [/ground start/i, 'Telefonska linija', 'zauzimanje linije', 'info'],
+      [/fail(ed)? to communicate.*restore/i, 'Dojava' + (tel ? ' (tel. ' + tel + ')' : ''), 'ponovo radi', 'ok'],
+      [/voice report(ing)? failed|fail to communicate to voice report/i, 'Glasovna dojava', 'nije uspela', 'alarm'],
+      [/fail(ed)? to communicate on telephone number/i, 'Dojava na telefonski broj', 'nije uspela', 'alarm'],
+      [/fail(ed)? to communicate.*monitoring station/i, 'Dojava centru' + (tel ? ' (tel. ' + tel + ')' : ''), 'nije uspela', 'alarm'],
+      [/fail(ed)? to communicate.*ip receiver/i, 'Dojava IP prijemniku', 'nije uspela', 'alarm'],
+      [/fail(ed)? to communicate/i, 'Dojava', 'nije uspela', 'alarm'],
+      [/tlm trouble restore/i, 'Telefonska linija', 'vraćena', 'ok'], [/tlm (trouble|alarm)/i, 'Telefonska linija', 'NEMA LINIJE', 'alarm'],
+      [/trouble in dialer/i, 'Dojavnik', 'smetnja', 'warn'], [/listen-in/i, 'Dojava', 'zahtev za prisluškivanje', 'info']];
+    for (const [re, a, b, k] of REP) if (re.test(msg)) return [a, b, k];
+    for (const [k0, v] of Object.entries(c)) if (/tlm_trouble|dialer_trouble|fail_central/.test(k0)) return [trName(k0), v ? 'smetnja' : 'otklonjeno', v ? 'alarm' : 'ok'];
+    // poruke centrale (engleski) koje prepoznajemo → srpski
+    const EVT = [[/ disarmed$/i, 'isključena', 'ok'], [/ armed( .*)?$/i, 'uključena', 'armed'], [/ triggered alarm$/i, 'ALARM!', 'alarm'],
+      [/ alarm restored$/i, 'alarm prestao', 'ok'], [/ was in alarm$/i, 'bila u alarmu', 'alarm'], [/ was not in alarm$/i, 'nije u alarmu', 'info'],
+      [/ alarm is silent$/i, 'tihi alarm', 'alarm'], [/ alarm is audible$/i, 'zvučni alarm (sirena)', 'alarm'], [/ has alarm in memory$/i, 'alarm u memoriji', 'alarm'],
+      [/ has no alarm in memory$/i, 'memorija alarma prazna', 'ok'], [/ (open|opened)$/i, 'otvorena', 'open'], [/ closed$/i, 'zatvorena', 'ok'],
+      [/ in exit delay$/i, 'izlazno vreme', 'info'], [/ in entry delay$/i, 'ulazno vreme', 'info'], [/ tamper$/i, 'sabotaža', 'alarm'], [/ bypassed$/i, 'isključena iz rada', 'info']];
+    { const mm = (e.msg || '').match(/^(Partition|Zone) (.+)$/i);
+      if (mm) for (const [re, sr, k] of EVT) { const x = mm[2].replace(re, ''); if (x !== mm[2]) return [(/^p/i.test(mm[1]) ? 'Particija ' : 'Zona ') + x.replace(/_/g, ' '), sr, k]; } }
+    let m = (e.msg || '').match(/^Partition (.+?) (not )?all zones closed$/i);
+    if (m) return ['Particija ' + m[1].replace(/_/g, ' '), m[2] ? 'ima otvorenih zona' : 'sve zone zatvorene', m[2] ? 'open' : 'ok'];
+    m = (e.msg || '').match(/^Zone (.+?) (open|opened|closed)$/i);
+    if (m) return ['Zona ' + m[1].replace(/_/g, ' '), /close/i.test(m[2]) ? 'zatvorena' : 'otvorena', /close/i.test(m[2]) ? 'ok' : 'open'];
+    return [(e.msg || (e.type + ' ' + L)).replace(/_/g, ' '), '', tags.includes('alarm') ? 'alarm' : tags.includes('arm') ? 'armed' : tags.includes('disarm') ? 'ok' : tags.includes('trouble') ? 'warn' : 'info'];
+  }
+  const evTime = t => { const d = new Date(t * 1000), now = new Date(); const hm = d.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toDateString() === now.toDateString() ? hm : d.toLocaleDateString('sr-RS', { day: 'numeric', month: 'numeric' }) + ' ' + hm; };
+  const alOverall = al => { const st = (al.parts || []).map(alPartState).map(x => x[0]);
+    return !al.on ? ['idle', 'Nije povezan'] : al.run !== 'run' ? ['err', 'Nema veze'] : st.includes('alarm') ? ['alarm', 'ALARM!'] : st.includes('delay') ? ['delay', 'Izlazno/ulazno vreme']
+      : st.includes('armed') ? ['armed', 'Uključen'] : st.includes('stay') ? ['stay', 'Uključen · Stay'] : ['off', 'Isključen']; };
+  function alRender(al, force) {
+    if (!al || !changed('alarm', [al, alZf, alEf, alSel, isAdmin()]) && !force) return;
+    const list = alList();
+    if (alSel && !alGet()) alSel = null;
+    $('#alList').hidden = !!alSel; $('#alCard').hidden = !alSel;
+    const [ov] = alOverall(al);
+    $('#navAlDot').dataset.s = !al.on ? '' : ov === 'err' ? 'err' : ov === 'alarm' ? 'alarm' : ov === 'off' ? 'off' : 'armed';
+    // pregled: kartica po alarmu
+    $('#alCount').textContent = list.length === 1 ? '1 alarm' : list.length + ' alarma';
+    $('#alTiles').innerHTML = list.map(a => {
+      const [s, txt] = alOverall(a), tr = a.troubles || [], last = (a.events || []).slice(-1)[0];
+      const lt = last ? evText(last) : null, pw = a.power || {};
+      return `<button class="altile" data-id="${esc(a.id)}" data-s="${s}" type="button">
+        <span class="ati"><svg class="i"><use href="#i-shield"/></svg></span>
+        <span class="atx"><b>${esc(a.name)}</b><small class="ast">${esc(txt)}</small>
+          <small class="amet">${a.run === 'run' ? (tr.length ? '<em class="bad">⚠ ' + tr.length + (tr.length === 1 ? ' smetnja' : ' smetnje') + '</em>' : '<em class="good">bez smetnji</em>') : ''}
+          ${pw.battery ? ' · aku ' + pw.battery.toFixed(1) + ' V' : ''}${lt ? ' · ' + esc(lt[0] + (lt[1] ? ' ' + lt[1] : '')) + ' (' + evTime(last.t) + ')' : ''}</small></span>
+        <svg class="i achev"><use href="#i-right"/></svg></button>`;
+    }).join('') || '<p class="muted" style="margin:0;font-size:13px">Nema dodatih alarma. Dodaje se u Admin → Alarm · veza.</p>';
+    // admin forma
+    if (!$('#alCfg').contains(document.activeElement)) {
+      $('#alEn').checked = !!al.on; $('#alHost').value = al.cfg.host || ''; $('#alPort').value = al.cfg.port || 10000; $('#alName').value = al.cfg.name || '';
+      $('#alIpPw').placeholder = al.cfg.ip_pw ? '•••• (sačuvano)' : 'podrazumevano: paradox';
+      $('#alPcPw').placeholder = al.cfg.pc_pw ? '•••• (sačuvano)' : '4 cifre, npr. 0000';
+    }
+    if (!alSel) return;
+    // detaljan prikaz
+    const run = al.run, pill = $('#alPill');
+    $('#h-al').textContent = al.name;
+    const [pt, pc] = !al.on ? ['Isključeno', 'var(--faint)'] : run === 'run' ? ['Povezano' + (al.panel ? ' · ' + al.panel : ''), 'var(--ok)']
+      : run === 'error' ? ['Greška', 'var(--crit)'] : ['Povezujem se…', 'var(--warn)'];
+    $('#alPillTxt').textContent = pt; pill.style.color = pc; pill.style.background = `color-mix(in srgb, ${pc} 14%, transparent)`; pill.querySelector('.sdot').style.background = pc;
+    $('#alErr').hidden = !(!al.on || (al.err && run !== 'run'));
+    $('#alErr').textContent = al.on ? al.err || '' : 'Alarm nije povezan. Podešava se u Admin → Alarm · veza.';
+    const live = al.on && run === 'run';
+    $('#alParts').innerHTML = (al.parts || []).filter(p => p.label || p.key).map(p => {
+      const [s, txt] = alPartState(p), on = s !== 'off';
+      return `<div class="alp" data-s="${s}" data-key="${esc(p.key)}"><span class="t"><b>${esc(p.label || p.key)}</b><small>${esc(txt)}</small></span>
+        <span class="b">${on ? `<button class="btn dis" data-cmd="disarm"${live ? '' : ' disabled'}>Isključi</button>`
+          : [['arm', 'Regular', 'arm'], ['arm_stay', 'Stay', ''], ['arm_instant', 'Instant', ''], ['arm_force', 'Force', '']]
+              .map(([c, t, cl]) => `<button class="btn hold ${cl}" data-cmd="${c}"${live ? '' : ' disabled'} title="Drži 1,5 s · ${ALM[c]}"><span>${t}</span></button>`).join('')}</span>
+        ${s === 'delay' ? '<span class="aldelay"><i></i></span>' : ''}</div>`;
+    }).join('') || (al.on ? '<p class="muted" style="margin:0;font-size:13px">' + (live ? 'Nema particija.' : 'Čekam podatke sa centrale…') + '</p>' : '');
+    // stanje sistema: napajanje, akumulator, sirena, sabotaža + spisak smetnji
+    const tr = al.troubles || [], pw = al.power || {}, has = k => tr.includes(k);
+    const tile = (ic, name, ok, val) => `<div class="als ${ok ? 'ok' : 'bad'}"><span class="sic"><svg class="i"><use href="#${ic}"/></svg></span><span><b>${name}</b><small>${val}</small></span></div>`;
+    $('#alSys').innerHTML = !live ? '' : [
+      tile('i-plug', 'AC napajanje', !has('ac_trouble'), has('ac_trouble') ? 'nema 220 V' : 'u redu' + (pw.vdc ? ' · ' + pw.vdc.toFixed(1) + ' V' : '')),
+      tile('i-zap', 'Akumulator', !has('battery_failure_trouble'), (has('battery_failure_trouble') ? 'neispravan' : 'u redu') + (pw.battery ? ' · ' + pw.battery.toFixed(1) + ' V' : '')),
+      tile('i-vol', 'Sirena', !has('bell_absent_trouble') && !has('bell_limit_trouble'), has('bell_absent_trouble') ? 'nije povezana' : has('bell_limit_trouble') ? 'preopterećena' : 'u redu'),
+      (() => {   // dojava: smetnje linije/dojavnika + poslednja potvrđena i poslednja neuspela dojava iz dnevnika
+        const bad = tr.some(k => /tlm|dialer|fail_central|fail_to_com/.test(k));
+        const rep = (al.events || []).filter(e => e.cat === 'report');
+        const ok = rep.filter(e => /kiss.?off/i.test(e.msg)).slice(-1)[0], fail = rep.filter(e => /fail|tlm trouble$/i.test(e.msg)).slice(-1)[0];
+        const txt = has('tlm_trouble') ? 'nema telefonske linije' : bad ? 'dojava ne uspeva'
+          : fail && (!ok || fail.t > ok.t) ? 'poslednja nije uspela (' + evTime(fail.t) + ')' : ok ? 'poslednja potvrđena ' + evTime(ok.t) : 'linija u redu';
+        return tile('i-phone', 'Dojava', !bad && !(fail && (!ok || fail.t > ok.t)), txt);
+      })(),
+      tile('i-lock', 'Sabotaža', !has('panel_tamper_trouble') && !has('zone_tamper_trouble') && !has('module_tamper_trouble'), (has('panel_tamper_trouble') || has('zone_tamper_trouble') || has('module_tamper_trouble')) ? 'aktivna' : 'nema'),
+    ].join('');
+    $('#alTr').innerHTML = !live ? '' : tr.length ? tr.map(k => `<span class="altrb"><svg class="i"><use href="#i-alert"/></svg>${esc(trName(k))}</span>`).join('')
+      : '<span class="altrb ok"><svg class="i"><use href="#i-check"/></svg>Nema smetnji</span>';
+    // memorija alarma: zone u kojima je bio alarm
+    const zs = al.zones || [], mem = zs.filter(z => z.generated_alarm || z.was_in_alarm);
+    $('#alMemBox').hidden = !live || !mem.length;
+    $('#alMem').innerHTML = mem.map(z => `<span class="almz"><i></i>${esc(z.label || z.key)}</span>`).join('');
+    // zone
+    const open = zs.filter(z => z.open || z.alarm);
+    $('#alZSum').textContent = zs.length ? (open.length ? open.length + ' otvoreno od ' + zs.length : 'sve zatvorene (' + zs.length + ')') : '';
+    $('#alZones').innerHTML = (alZf === 'open' ? open : zs).map(z => {
+      const cls = z.alarm ? 'alarm' : z.tamper ? 'tamper' : z.bypassed ? 'byp' : z.open ? 'open' : '';
+      const st = z.alarm ? 'alarm' : z.tamper ? 'sabotaža' : z.bypassed ? 'isklj.' : z.open ? 'otvorena' : 'zatvorena';
+      const m = z.generated_alarm && !z.alarm ? '<b class="mem" title="Centrala pamti da je u ovoj zoni bio alarm">memorija</b>' : '';
+      const bat = z.low_battery ? '<b class="mem" title="Slaba baterija senzora">baterija</b>' : '';
+      const mon = (al.monitor || []).includes(z.id);
+      return `<div class="alz ${cls}" title="${esc(z.label || z.key)}"><i></i><span>${esc(z.label || z.key)}</span>${m}${bat}<em>${st}</em>
+        <button class="zmon" type="button" data-z="${z.id}" aria-pressed="${mon}" title="${mon ? 'Prati se: događaji se čuvaju (klik = ne prati)' : 'Monitor: čuvaj događaje ove zone'}"><svg class="i"><use href="#i-eye"/></svg></button></div>`;
+    }).join('') || (zs.length && alZf === 'open' ? '<p class="muted" style="margin:0;font-size:13px">Nema otvorenih zona.</p>' : '');
+    $('#alZones').previousElementSibling.hidden = !zs.length;
+    // prečice: PGM1 i PGM2 „aktiviraj na 5 s“ (isključuje ih server)
+    const q = (al.pgms || []).filter(g => g.id === 1 || g.id === 2);
+    $('#alQuick').hidden = !live || !q.length;
+    const DIS = 'Isključen u programu centrale — uključi ga u WinLoad/BabyWare';
+    if (!$('#alQuick .qpg.run')) $('#alQuick').innerHTML = q.map(g => `<button class="qpg${g.disabled ? ' dis' : ''}" data-key="${esc(g.key)}" type="button"${g.disabled ? ' disabled title="' + DIS + '"' : ''}>
+      <span class="qic"><svg class="i"><use href="#i-zap"/></svg></span><span class="qtx"><b>${esc((g.label || '').trim() || 'PGM ' + g.id)}</b><small>${g.disabled ? 'isključen u centrali' : 'Aktiviraj na 5 s'}</small></span><i class="qbar"></i></button>`).join('');
+    // PGM: samo dva zalemljena na centrali (PGM1, PGM2)
+    const pg = (al.pgms || []).filter(g => g.id <= 2);
+    $('#alPgmBox').hidden = !pg.length || !live;
+    $('#alPgms').innerHTML = pg.map(g => `<div class="alg${g.disabled ? ' dis' : ''}" data-key="${esc(g.key)}"><i class="${g.on ? 'on' : ''}"></i><span>${esc((g.label || '').trim() || 'PGM ' + g.id)}${g.disabled ? '<small>' + DIS + '</small>' : ''}</span>
+      <span class="b"><button class="btn" data-pcmd="on"${g.disabled ? ' disabled' : ''}>Uključi</button><button class="btn" data-pcmd="off"${g.disabled ? ' disabled' : ''}>Isključi</button><button class="btn ghost" data-pcmd="release"${g.disabled ? ' disabled' : ''} title="Vrati PGM na automatski rad centrale">Auto</button></span></div>`).join('');
+    const nm = (al.monitor || []).length;
+    $('#alMonTxt').textContent = nm ? 'prati se ' + nm + (nm === 1 ? ' zona' : ' zone') + ' (👁)' : 'uključi 👁 na zoni da se čuvaju njeni događaji';
+    // događaji (najnoviji gore)
+    const evs = (al.events || []).slice().reverse().filter(e => alEf === 'all' || (alEf === 'report' ? e.cat === 'report' : e.type === alEf && e.cat !== 'report'));
+    $('#alEv').innerHTML = evs.slice(0, 60).map(e => { const [a, b, k] = evText(e);
+      return `<li class="ale" data-k="${k}"><i></i><span><b>${esc(a)}</b>${b ? ' <em>' + esc(b) + '</em>' : ''}</span><time>${evTime(e.t)}</time></li>`; }).join('')
+      || '<li class="muted" style="font-size:13px;list-style:none">Još nema događaja. Beleže se od sada (otvaranje zona, uključivanje, smetnje…).</li>';
+  }
+  let stCat = '';
+  const STCAT = { world: 'Svet', r80: 'Rok 80-e', r90: 'Rok 90-e', r00: 'Rok 2000-e', rclassic: 'Klasični rok', rock: 'Rok', ralt: 'Alternativa i metal', my: 'Moje' };
+  // Stand by: drži 2 s (odbrojavanje), da se ne pritisne slučajno.
+  // Zaštita: odbrojavanje kreće tek posle 0,5 s mirnog držanja; pomeranje prsta (skrol) ga prekida.
+  { const b = $('#standbyBtn'), c = b.querySelector('.sbc'); let pre = null, t = null, tick = null, done = false, x0 = 0, y0 = 0, down = 0;
+    const stop = () => { clearTimeout(pre); clearTimeout(t); clearInterval(tick); pre = t = null; b.classList.remove('holding'); };
+    b.addEventListener('contextmenu', e => e.preventDefault());
+    b.addEventListener('pointerdown', e => { done = false; x0 = e.clientX; y0 = e.clientY; down = Date.now(); stop();
+      pre = setTimeout(() => { let left = 2; c.textContent = 'Stand by za ' + left; b.classList.add('holding');
+        tick = setInterval(() => { left--; c.textContent = left > 0 ? 'Stand by za ' + left : 'Stand by'; }, 1000);
+        t = setTimeout(() => { done = true; stop(); act('standby'); }, 2000); }, 500); });
+    b.addEventListener('pointermove', e => { if ((pre || t) && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) stop(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
+    window.addEventListener('scroll', () => { if (pre || t) stop(); }, { passive: true });
+    b.addEventListener('click', () => { if (!done && Date.now() - down < 500) toast('Drži dugme 2 sekunde za Stand by'); done = false; }); }
+  // YouTube kolačići (admin)
+  $('#ytckFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('file', f, f.name);
+    try { const r = await fetch('/api/yt-cookies', { method: 'POST', headers: { 'X-Teco-Token': tok || '' }, body: fd }).then(x => x.json()); toast(r.err || r.ok); }
+    catch (err) { toast('Otpremanje nije uspelo.'); }
+    e.target.value = '';
+  };
+  $('#ytckDel').onclick = () => act('yt_cookies_del');
+  $('#stRnd').onclick = () => act('random', { what: 'st' });
+  $('#tvRnd').onclick = () => act('random', { what: 'tv' });
+  $('#stPrev').onclick = () => act('st_play', { d: -1 });
+  $('#stNext').onclick = () => act('st_play', { d: 1 });
+  $('#stPlay').onclick = () => S.stream.on ? act('mute') : act('st_play', { i: S.stream.cur });
+  $('#stForm').addEventListener('submit', e => {
+    e.preventDefault();
+    act('st_add', { n: $('#stN').value, u: $('#stU').value.trim() }).then(r => { if (r && !r.err) { $('#stN').value = ''; $('#stU').value = ''; toast('Stanica je dodata'); } });
+  });
+  const fmErrEl = document.createElement('p'); fmErrEl.className = 'fm-err'; fmErrEl.hidden = true; $('#fmPanel').appendChild(fmErrEl);
+
+  /* ---------------- konzole (admin) ---------------- */
+  ['av2', 'av3', 'av4'].forEach(s => {
+    const suf = s[0].toUpperCase() + s.slice(1), cs = $('#cs' + suf), nm = $('#nm' + suf);
+    cs.addEventListener('change', () => act('cons', { s, v: cs.value }));
+    nm.addEventListener('change', () => act('name', { s, v: nm.value }).then(r => { if (!r.err) toast(s.toUpperCase() + ' se sada zove ' + srcName(s)); }));
+  });
+
+  /* ---------------- slike (admin) ---------------- */
+  const DURS = [5, 10, 30, 60];
+  $$('#dur button').forEach((b, i) => b.onclick = () => act('slide_sec', { v: DURS[i] }));
+  $$('#idleSeg button').forEach(b => b.onclick = () => act('idle', { v: b.dataset.v }));
+  $('#btScan').onclick = () => act('bt_scan');
+  /* mreža: automatski (DHCP) ili ručno */
+  let netMode = 'dhcp';
+  const showNetMode = () => { $$('#netMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === netMode)); $('#netStatic').hidden = netMode !== 'static'; };
+  $$('#netMode button').forEach(b => b.onclick = () => { netMode = b.dataset.v; showNetMode(); });
+  $('#netApply').onclick = () => act('net_set', { mode: netMode, ip: $('#netIp').value.trim().split('/')[0] + '/' + $('#netMask').value, gw: $('#netGw').value });
+  let dnsMode = 'auto';
+  const showDnsMode = () => { $$('#dnsMode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === dnsMode)); $('#dnsManual').hidden = dnsMode !== 'manual'; };
+  $$('#dnsMode button').forEach(b => b.onclick = () => { dnsMode = b.dataset.v; showDnsMode(); });
+  $$('.npre button').forEach(b => b.onclick = () => { const f = $('#' + b.parentNode.dataset.for); f.value = b.dataset.v; f.focus(); });
+  $('#dnsApply').onclick = () => act('dns_set', { mode: dnsMode, servers: $('#dnsSrv').value });
+  $('#ntpApply').onclick = () => act('ntp_set', { servers: $('#ntpSrv').value });
+  { let armed = null; const rb = $('#rebootBtn'), rt = rb.querySelector('span');
+    rb.onclick = () => {
+      if (!armed) { rt.textContent = 'Sigurno? Dodirni ponovo'; armed = setTimeout(() => { armed = null; rt.textContent = 'Restartuj Teco.Pi'; }, 4000); return; }
+      clearTimeout(armed); armed = null; rt.textContent = 'Restartuje se…'; act('reboot');
+      setTimeout(() => { rt.textContent = 'Restartuj Teco.Pi'; }, 40000);
+    }; }
+  $('#castSw').onclick = () => act('cast', { v: !(S.cast && S.cast.on) });
+
+  /* slanje linka sa drugih uređaja: dugme za obeleživače i adresa za iPhone prečicu */
+  const hostName = location.host.endsWith('.local') || /^\d+\.\d+\.\d+\.\d+/.test(location.host) ? location.host : 'tecopi.local';
+  // dugme u pregledaču: pauzira video na stranici i šalje link sa trenutnim vremenom, da Teco.Pi nastavi odatle
+  $('#bmLink').href = `javascript:(()=>{const v=document.querySelector('video');let t=0;if(v){t=Math.floor(v.currentTime);v.pause();}window.open('http://${hostName}/send?url='+encodeURIComponent(location.href)+'&t='+t,'teco','width=380,height=220')})()`;
+  $('#bmLink').addEventListener('click', e => { e.preventDefault(); toast('Prevuci dugme na traku sa obeleživačima'); });
+  // na telefonu/tabletu nema trake sa obeleživačima: taj način se ne prikazuje
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('#wayPc').hidden = isMobile;
+  $('#upl').addEventListener('change', async e => {
+    const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+    const fd = new FormData(); files.forEach(f => fd.append('file', f, f.name));
+    toast('Otpremam ' + files.length + (files.length === 1 ? ' sliku...' : ' slike...'));
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', headers: { 'X-Teco-Token': tok || '' }, body: fd }).then(x => x.json());
+      toast(r.err ? r.err : 'Sačuvano slika: ' + r.saved.length);
+    } catch (err) { toast('Otpremanje nije uspelo.'); }
+  });
+
+  /* ---------------- daljinski ---------------- */
+  const KEYS = { 'Power': '10EF', 'Mute': '906F', 'Menu': 'C23D', 'Levo': 'E01F', 'Desno': '609F', 'Play': 'A25D', 'Stop': '8D72', 'OK': '22DD',
+    'Vol +': '40BF', 'Vol −': 'C03F', 'CH +': '00FF', 'CH −': '807F', 'Nazad': '14EB', '1': '8877', '2': '48B7', '3': 'C837', '4': '28D7', '5': 'A857', '6': '6897', '7': 'E817', '8': '18E7', '9': '9867',
+    'Crveno': '4EB1', 'Zeleno': '8E71', 'Žuto': 'C639', 'Plavo': '8679' };
+  Object.keys(KEYS).forEach(k => KEYS[k] = 'NEC 0x20DF' + KEYS[k]);
+  const keyOf = code => Object.keys(KEYS).find(k => KEYS[k] === code);
+  const cmdList = () => [
+    ['Plejer', [['play', 'Pusti / pauza'], ['stop', 'Zaustavi (na početak)'],['next', 'Sledeći video'], ['prev', 'Prethodni video'], ['fwd', 'Napred 10 s'], ['back', 'Nazad 10 s'], ['volup', 'Jače'], ['voldn', 'Tiše'], ['mute', 'Utišaj / vrati zvuk']]],
+    ['Izvor slike', [['av1', 'Izvor YT · YouTube'], ['av2', 'Izvor AV1 · ' + srcName('av2')], ['av3', 'Izvor AV2 · ' + srcName('av3')], ['av4', 'Izvor AV3 · ' + srcName('av4')], ['fm', 'Izvor FM · radio'], ['st', 'Izvor IR · internet radio'], ['tv', 'Izvor TV · uživo'], ['random', 'Nasumično (YT, FM, radio ili TV i sadržaj u njemu)'], ['standby', 'Stand by (slike ili sat)']]],
+    ['Releji', S.relays.map((r, i) => ['r' + i, r.n + ' · uključi/isključi'])],
+  ];
+  const label = id => { for (const [, l] of cmdList()) for (const [k, t] of l) if (k === id) return t; return id; };
+  const group = id => (cmdList().find(([, l]) => l.some(([k]) => k === id)) || ['Ostalo'])[0];
+
+  let rLast = '';
+  function rdraw(top, line) {
+    if (rLast === top + '\n' + line) return;   // isti tekst: ne prekidaj pomeranje
+    rLast = top + '\n' + line;
+    $('#rDisp').innerHTML = '<span class="l1"><span></span><span>IR</span></span><span class="l2"><span class="mq"></span></span>';
+    $('#rDisp .l1 span').textContent = top;
+    const box = $('#rDisp .l2'), mq = $('#rDisp .mq'); mq.textContent = line;
+    if (mq.scrollWidth > box.clientWidth + 2) {   // dugačak tekst klizi kao na pravom displeju
+      mq.textContent = line + '      ' + line + '      '; box.classList.add('marq');
+      mq.style.animationDuration = Math.max(6, line.length * 0.28) + 's';
+    }
+  }
+  // naziv u mini plejeru: dugačak tekst klizi kao na displeju daljinskog
+  var mbLast = null, mbWant = null;   // var: mbarShow (gore) ih koristi i pre ove linije
+  function mbTitle(line, force) {
+    if (line === mbLast && !force) return;   // isti tekst: ne prekidaj pomeranje
+    mbLast = line;
+    const box = $('#mbTitle'); box.classList.remove('marq'); box.innerHTML = '<span class="mq"></span>';
+    const mq = box.firstChild; mq.textContent = line;
+    if (!box.clientWidth) { mbLast = null; mbWant = line; return; }   // skriven: izmeri kad se pojavi
+    if (mq.scrollWidth > box.clientWidth + 2) {
+      mq.textContent = line + '      ' + line + '      '; box.classList.add('marq');
+      mq.style.animationDuration = Math.max(6, line.length * 0.28) + 's';
+    }
+  }
+  addEventListener('resize', () => mbLast != null && mbTitle(mbLast, true));
+  let rdispUntil = 0;
+  function rdisp(top, line) { rdraw(top, line); rdispUntil = Date.now() + 3000; }   // poruka posle tastera, 3 s
+  const SRC_SHORT = { av1: 'YT', av2: 'AV1', av3: 'AV2', av4: 'AV3', fm: 'FM', st: 'Radio', tv: 'TV' };
+  // šta taster radi na trenutnom izvoru (npr. „Sledeći” je video, stanica ili kanal)
+  function ctxLabel(cmd) {
+    const s = S ? S.source : 'av1', radio = s === 'fm' || s === 'st', av = ['av2', 'av3', 'av4'].includes(s);
+    const pick = (yt, r, tv, fm) => av ? 'Nema na AV ulazu' : s === 'av1' ? yt : s === 'tv' ? tv : s === 'fm' && fm ? fm : r;
+    const t = {
+      play: pick('Pusti / pauza', 'Utišaj / vrati zvuk', 'Pauza / nastavi'),
+      stop: pick('Zaustavi (na početak)', 'Utišaj', 'Pauza'),
+      next: pick('Sledeći video', 'Sledeća stanica', 'Sledeći kanal'),
+      prev: pick('Prethodni video', 'Prethodna stanica', 'Prethodni kanal'),
+      fwd: pick('Napred 10 s', 'Nema na radiju', 'Nema na TV-u', 'FM +0,1 MHz'),
+      back: pick('Nazad 10 s', 'Nema na radiju', 'Nema na TV-u', 'FM −0,1 MHz'),
+      random: 'Nasumično: izvor i sadržaj',
+      standby: 'Stand by',
+    }[cmd];
+    return t || label(cmd);
+  }
+  // ekran daljinskog u mirovanju: izvor i šta se pušta
+  // šta se sada pušta, za ekran daljinskog i mini plejer: [izvor, tekst]
+  function nowLine() {
+    const s = S.source; let line = 'Spremno';
+    if (s === 'av1') line = S.mode === 'yt' ? (S.title || 'YouTube') : S.mode === 'slides' ? 'Slike' : 'Spremno';
+    else if (['av2', 'av3', 'av4'].includes(s)) line = srcName(s);
+    else if (s === 'fm') line = S.fm.f.toFixed(1) + ' MHz' + (S.fm.ps ? ' · ' + S.fm.ps : '');
+    else if (s === 'st') { const a = [...S.stream.sys, ...S.stream.my][S.stream.cur]; line = a ? a.n + (S.stream.title ? ' · ' + S.stream.title : '') : 'Radio'; }
+    else if (s === 'tv') { const c = S.tv.all.find(x => x.u === S.tv.u); line = c ? c.n : 'TV'; }
+    return [SRC_SHORT[s] || 'Teco.Pi', line];
+  }
+  function rIdle() {
+    if (!S || capTimer || Date.now() < rdispUntil) return;
+    const s = S.source; let line = 'Spremno';
+    if (s === 'av1') line = S.mode === 'yt' ? (S.paused ? 'Pauza · ' : '') + (S.title || 'YouTube') : S.mode === 'slides' ? 'Slike' : 'Spremno';
+    else if (['av2', 'av3', 'av4'].includes(s)) line = srcName(s);
+    else if (s === 'fm') line = S.fm.f.toFixed(1) + ' MHz' + (S.fm.ps ? ' · ' + S.fm.ps : '');
+    else if (s === 'st') { const a = [...S.stream.sys, ...S.stream.my][S.stream.cur]; line = a ? a.n : 'Radio'; }
+    else if (s === 'tv') { const c = S.tv.all.find(x => x.u === S.tv.u); line = c ? c.n : 'TV'; }
+    rdraw(SRC_SHORT[s] || 'Teco.Pi', (S.mute ? 'Utišano · ' : '') + line);
+  }
+  setInterval(rIdle, 1000);
+  function flashKey(k) { const b = $(`#remote [data-k="${k}"]`); if (b) { b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 160); }
+    const led = $('#rLed'); led.classList.add('hit'); setTimeout(() => led.classList.remove('hit'), 180); }
+  let lastSig = null;
+  function signal(code) { lastSig = Date.now(); $('#irLast').textContent = code; $('#irAgo').textContent = 'upravo';
+    const d = $('#irLed'); d.classList.add('hit'); setTimeout(() => d.classList.remove('hit'), 400); }
+  async function pressCode(code) {
+    const k = keyOf(code); if (k) flashKey(k); signal(code);
+    if (capTimer) { finishCapture(code, k); return; }
+    const r = await send('ir_press', { code });
+    if (r.ir && r.ir.cmd) { rdisp(r.ir.key, ctxLabel(r.ir.cmd)); const row = $(`.map[data-code="${CSS.escape(code)}"]`); if (row) { row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 450); } }
+    else rdisp(k || 'Taster', r.err || 'Nije dodeljen');
+  }
+  // signal sa pravog daljinskog (TSOP): snimanje u adminu ili prikaz šta je urađeno
+  function irSignal(x) {
+    const k = keyOf(x.code); if (k) flashKey(k); signal(x.code);
+    if (capTimer) { finishCapture(x.code, k); return; }
+    if (x.cmd) { rdisp(x.key, ctxLabel(x.cmd)); const row = $(`.map[data-code="${CSS.escape(x.code)}"]`); if (row) { row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 450); } }
+    else rdisp('Taster', 'Nije dodeljen');
+  }
+  $$('#remote [data-k]').forEach(b => {
+    const code = () => KEYS[b.dataset.k];
+    if (b.dataset.k === 'Levo' || b.dataset.k === 'Desno') holdable(b, () => pressCode(code()), () => pressCode(code()));
+    else if (b.dataset.k === 'Power') {   // Stand by: drži 2 s (odbrojavanje na displeju), kao dugme na stranici
+      let t = null, tick = null, fired = false, x0 = 0, y0 = 0;
+      const stop = () => { clearTimeout(t); clearInterval(tick); t = tick = null; b.classList.remove('arming'); };
+      b.addEventListener('contextmenu', e => e.preventDefault());
+      b.addEventListener('pointerdown', e => {
+        fired = false; x0 = e.clientX; y0 = e.clientY; stop();
+        if (capTimer) return;   // učenje tastera: običan pritisak
+        let left = 2; b.classList.add('arming'); rdisp('Stand by', 'Drži još ' + left + ' s…');
+        tick = setInterval(() => { left--; if (left > 0) rdisp('Stand by', 'Drži još ' + left + ' s…'); }, 1000);
+        t = setTimeout(() => { fired = true; stop(); haptic(); pressCode(code()); }, 2000);
+      });
+      b.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) { stop(); rdispUntil = 0; } });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, () => { if (t) { stop(); rdisp('Stand by', 'Drži taster 2 sekunde'); } }));
+      b.addEventListener('click', () => { if (capTimer) pressCode(code()); fired = false; });
+    }
+    else if (b.dataset.k === 'Vol +' || b.dataset.k === 'Vol −') {   // kratko = taster (IR komanda), držanje = brzo menjanje jačine
+      const dir = b.dataset.k === 'Vol +' ? 1 : -1;
+      holdable(b, () => pressCode(code()), n => {
+        if (capTimer) return;
+        if (n === 0) volT = null;
+        const v = volStep(dir * volRep(n), true); flashKey(b.dataset.k); rdisp(b.dataset.k, 'Jačina ' + v + '%');
+      }, 110);
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => setTimeout(() => { volT = null; }, 400)));
+    }
+    else b.addEventListener('click', () => pressCode(code()));
+  });
+
+  /* čarobnjak za tastere (admin) */
+  let editCode = null, captured = null, capTimer = null;
+  const steps = n => $$('#steps li').forEach((li, i) => { li.className = i < n - 1 ? 'ok' : i === n - 1 ? 'on' : ''; li.querySelector('.n').textContent = i < n - 1 ? '✓' : i + 1; });
+  const capState = (st, html) => { $('#cap').className = 'cap' + (st ? ' ' + st : ''); $('#capMsg').innerHTML = html; };
+  function checkDup() {
+    const d = captured ? S.ir.find(m => m.code === captured && m.code !== editCode) : null;
+    $('#dup').hidden = !d;
+    if (d) $('#dupTxt').textContent = `Ovaj taster je već dodeljen: „${d.key}“ → ${label(d.cmd)}. Ako sačuvaš, preusmeriće se na novu komandu.`;
+    return d;
+  }
+  function resetWiz() {
+    if (capTimer) send('ir_learn', { on: false });
+    clearInterval(capTimer); capTimer = null; captured = null; editCode = null;
+    $('#wizMode').textContent = 'Novi taster'; $('#capTxt').textContent = 'Snimi taster'; $('#bCap').disabled = false;
+    $('#irName').value = ''; $('#bSave').disabled = true; $('#timer').hidden = true; $('#dup').hidden = true;
+    capState('', '<b>Spremno za snimanje</b><span class="muted">Prijemnik čeka tvoj signal.</span>'); steps(1);
+  }
+  $('#irCmd').addEventListener('change', () => { if (!captured) steps(2); });
+  $('#bCap').onclick = () => {
+    if (capTimer) return;
+    steps(2); captured = null; $('#bSave').disabled = true; $('#dup').hidden = true; send('ir_learn', { on: true });
+    capState('wait', '<b>Slušam...</b><span class="muted">Pritisni taster na daljinskom levo.</span>'); rdisp('Učenje', 'Pritisni taster...');
+    $('#timer').hidden = false; const bar = $('#timerBar'); bar.style.transform = 'scaleX(1)';
+    let t = 0; $('#bCap').disabled = true;
+    capTimer = setInterval(() => {
+      t++; bar.style.transform = 'scaleX(' + (1 - t / 50) + ')';
+      if (t >= 50) { clearInterval(capTimer); capTimer = null; send('ir_learn', { on: false }); $('#timer').hidden = true; $('#bCap').disabled = false;
+        capState('', '<b>Nije stigao signal</b><span class="muted">Za 10 sekundi nije pritisnut nijedan taster. Pokušaj ponovo.</span>'); rdisp('Teco.Pi', 'Spremno'); }
+    }, 200);
+  };
+  function finishCapture(code, k) {
+    clearInterval(capTimer); capTimer = null; send('ir_learn', { on: false }); $('#timer').hidden = true; $('#bCap').disabled = false; $('#capTxt').textContent = 'Snimi ponovo';
+    captured = code; capState('got', '<b>Signal primljen</b><code></code>'); $('#capMsg code').textContent = code + (k ? ' · ' + k : '');
+    rdisp('Učenje', 'Primljeno: ' + (k || code));
+    const d = checkDup(); if (!$('#irName').value || !editCode) $('#irName').value = d ? d.key : (k || '');
+    steps(3); $('#bSave').disabled = false; $('#irName').focus();
+  }
+  $('#bSave').onclick = async () => {
+    if (!captured) return;
+    const key = $('#irName').value.trim() || keyOf(captured) || 'Taster';
+    const r = await act('ir_save', { key, code: captured, cmd: $('#irCmd').value, old: editCode });
+    if (!r.err) { toast('Sačuvano: ' + key + ' → ' + label($('#irCmd').value)); resetWiz(); }
+  };
+  $('#bCancel').onclick = () => resetWiz();
+  function mapAct(m, a) {
+    if (a === 'del') act('ir_del', { code: m.code }).then(r => { if (!r.err) toast('Taster „' + m.key + '“ je obrisan'); });
+    if (a === 'edit') {
+      resetWiz(); editCode = m.code; captured = m.code;
+      $('#wizMode').textContent = 'Preusmeri taster „' + m.key + '“'; $('#irCmd').value = m.cmd; $('#irName').value = m.key;
+      capState('got', '<b>Isti taster: <code></code></b><span class="muted">Izaberi novu komandu i sačuvaj, ili snimi drugi taster.</span>'); $('#capMsg code').textContent = m.code;
+      $('#capTxt').textContent = 'Snimi drugi'; $('#bSave').disabled = false; steps(1); $('#irCmd').focus();
+      $('.wiz').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  /* ---------------- iscrtavanje stanja ---------------- */
+  const memo = {};
+  let histOpen = false, qOpen = false;   // liste: prvih 10, ostalo na 
+  const histBox = document.createElement('div'); histBox.id = 'hist'; histBox.className = 'hist'; histBox.hidden = true; $('#qCard').appendChild(histBox);
+  const changed = (k, v) => { const j = JSON.stringify(v); if (memo[k] === j) return false; memo[k] = j; return true; };
+  function spark(id, arr, color) {
+    const el = $(id); if (!arr || arr.length < 2) { el.innerHTML = ''; return; }
+    const min = Math.min(...arr) - .5, max = Math.max(...arr) + .5, n = arr.length;
+    const pts = arr.map((v, i) => [i / (n - 1) * 100, 29 - (v - min) / (max - min) * 25]);
+    const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '), last = pts[n - 1];
+    el.innerHTML = `<polygon points="0,32 ${line} 100,32" fill="${color}" fill-opacity=".14"/><polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="${color}"/>`;
+  }
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  function render() {
+    const s = S, adm = isAdmin();
+    if (!s.mpv) { $('#connTxt').textContent = 'Plejer (mpv) ne radi. Teco.Pi ga ponovo pokreće...'; $('#connBar').hidden = false; }
+    else if (ws && ws.readyState === 1) $('#connBar').hidden = true;
+
+    const cs = s.cast || {};
+    $('#castSw').setAttribute('aria-checked', !!cs.on);
+    $('#wayCast').hidden = !cs.on;
+    $('#sendCard').hidden = !cs.on && $('#wayPc').hidden;   // telefon bez casta: nema šta da se prikaže
+    $('#castTxt').textContent = !cs.on ? 'Isključeno' : cs.sender ? 'Povezan: ' + cs.sender : cs.run ? 'Uključeno · čeka telefon ili Chrome' : 'Pokreće se...';
+    $('#pinReq').setAttribute('aria-checked', s.pin_required !== false);
+    $('#pinReqTxt').textContent = s.pin_required !== false ? 'Admin se otključava samo uz PIN.' : 'Isključeno: svako u mreži može da uključi Admin.';
+
+    /* izvori i paneli */
+    const view = adm ? (admTab || s.source) : s.source;   // izvor čiji je panel prikazan
+    const isAv = AVS.includes(view);
+    $$('.src').forEach(b => b.setAttribute('aria-pressed', b.dataset.src === view || (b.dataset.src === 'av' && isAv)));
+    curAv = isAv ? view : (s.last_av || 'av2');
+    $$('.avpick button').forEach(b => b.setAttribute('aria-pressed', b.dataset.av === curAv && isAv));
+    $('#avSub').textContent = srcName(curAv);
+    const isFm = view === 'fm', isSt = view === 'st', isTv = view === 'tv', isCon = isAv;
+    // jačina je deo plejera: odmah ispod kontrola izabranog izvora (isti klizač svuda)
+    const ctl = isFm ? $('#fmPanel .fmctl') : isSt ? $('#stPanel .fmctl') : isTv ? $('#tvPanel .fmctl') : isCon ? $('#consPanel') : $('.transport');
+    if (ctl.nextElementSibling !== $('.volbox')) { ctl.after($('.volbox')); $('.volbox').after($('#outs')); }
+    $('#admAv1').hidden = !(adm && view === 'av1');
+    $('#fmPanel').hidden = !isFm; $('#stPanel').hidden = !isSt; $('#tvPanel').hidden = !isTv; $('#consPanel').hidden = !isCon; $('#lcd').hidden = isFm || isSt || isTv || isCon;
+    $('.transport').hidden = isFm || isSt || isTv || isCon;
+    if (document.activeElement !== $('#bootSel')) $('#bootSel').value = s.boot || 'last';
+
+    /* TV */
+    const tv = s.tv || { all: [], fav: [] }, tc = tv.all.find(x => x.u === tv.u);
+    const tfav = tv.fav.map(u => tv.all.find(x => x.u === u)).filter(Boolean), tseq = tfav.length ? tfav : tv.all, tpi = tseq.findIndex(x => x.u === tv.u);
+    $('#tvName').textContent = tc ? tc.n : 'TV';
+    $('#tvPos').textContent = tpi >= 0 ? (tpi + 1) + ' / ' + tseq.length : '';
+    $('#tvSub').textContent = tv.err || (tv.loading ? 'Učitavam kanal…' : tv.on ? (s.paused ? 'Pauzirano' : (tc && tc.g) || 'Uživo') : 'Izaberi kanal');
+    $('#tvSub').style.color = tv.err ? 'var(--crit)' : '';
+    $('#tvLcd').classList.toggle('stopped', !tv.on || s.paused);
+    $('#tvIco').setAttribute('href', tv.on && !s.paused ? '#i-pause' : '#i-play');
+    if (changed('tvList', [tv.all.length, tv.fav, tv.u, tv.on, adm, tvCat])) {
+      const item = x => {
+        const c = document.createElement('button'), cur = x.u === tv.u, fav = tv.fav.includes(x.u);
+        c.className = 'sti tvi' + (cur ? ' on' : '');
+        c.innerHTML = `<span class="ic"><svg class="i"><use href="#${cur && tv.on ? 'i-tv' : 'i-play'}"/></svg></span><span class="tt"><b>${esc(x.n)}</b><span>${esc(x.g || TVCAT[x.c] || '')}</span></span>`
+          + `<span class="star${fav ? ' on' : ''}" role="button" aria-label="${fav ? 'Ukloni iz omiljenih' : 'Dodaj u omiljene'}">${fav ? '★' : '☆'}</span>`
+          + (x.c === 'my' ? '<span class="px adm" role="button" aria-label="Obriši kanal"><svg class="i"><use href="#i-x"/></svg></span>' : '');
+        c.onclick = e => e.target.closest('.star') ? act('tv_fav', { u: x.u }) : e.target.closest('.px') ? act('tv_del', { u: x.u }) : act('tv_play', { u: x.u });
+        return c;
+      };
+      const bf = $('#tvFav'); bf.innerHTML = '';
+      tfav.forEach(x => bf.appendChild(item(x)));
+      if (!tfav.length) bf.innerHTML = '<span class="muted" style="font-size:13px">Otvori „Svi kanali” i zvezdicom ☆ označi kanale koje hoćeš ovde.</span>';
+      const cats = [...new Set(tv.all.map(x => x.c || 'news'))];
+      $('#tvCats').innerHTML = ['', ...cats].map(k => `<button type="button" data-c="${k}" aria-pressed="${k === tvCat}">${k ? TVCAT[k] || k : 'Svi'}</button>`).join('');
+      $$('#tvCats button').forEach(b => b.onclick = () => { tvCat = b.dataset.c; render(); });
+      const bl = $('#tvList'); bl.innerHTML = '';
+      const shown = tv.all.filter(x => !tvCat || (x.c || 'news') === tvCat);
+      shown.forEach(x => bl.appendChild(item(x)));
+      $('#tvCount').textContent = tv.all.length;
+    } $('.volbox').hidden = false; $('#away').hidden = true;
+    $('#qCard').hidden = s.source !== 'av1' || adm;
+    if (!adm && isCon && changed('cons', [s.source, s.cons[s.source], srcName(s.source)])) {
+      $('#consPanel').style.setProperty('--c', `var(--${s.source})`);
+      $('#consStage').innerHTML = (CONSOLES[s.cons[s.source]] || CONSOLES.other).svg;
+      $('#consName').textContent = srcName(s.source); $('#consKicker').textContent = AVL[s.source] + ' · na ekranu';
+    }
+    $('.src-names').classList.toggle('off', !isCon);
+    AVS.forEach(k => $('#cs' + k[0].toUpperCase() + k.slice(1)).closest('.sn').classList.toggle('off', view !== k));
+    if (isCon) $('.sn-head').textContent = 'Konzola na ' + AVL[view];
+    if (changed('snArt', [s.cons, s.names, Object.keys(CONSOLES).length])) AVS.forEach(k => { const suf = k[0].toUpperCase() + k.slice(1);
+      $('#art' + suf).innerHTML = (CONSOLES[s.cons[k]] || CONSOLES.other).svg.replace(/id="(g[^"]*|p[12][a-z]*)"/g, 'id="$1' + k + '"').replace(/url\(#(g[^)]*|p[12][a-z]*)\)/g, 'url(#$1' + k + ')');
+      $('#sn' + suf).textContent = srcName(k); });
+    AVS.forEach(k => { const suf = k[0].toUpperCase() + k.slice(1);
+      if (document.activeElement !== $('#cs' + suf)) $('#cs' + suf).value = s.cons[k];
+      if (document.activeElement !== $('#nm' + suf)) $('#nm' + suf).value = s.names[k] || ''; });
+
+    /* LCD */
+    const q = s.queue, ci = q.findIndex(x => x.cur);
+    const title = s.mode === 'yt' ? (s.title || 'YouTube video') : s.mode === 'slides' ? 'Slajdšou' : 'Ništa se ne pušta';
+    $('#npTitle').textContent = title;
+    $('#npKicker').textContent = s.mode === 'yt' ? (s.paused ? 'Pauzirano' : 'Sada se pušta') : s.mode === 'slides' ? 'Slike · ' + s.slide_sec + ' s po slici' : 'Spremno';
+    $('#npSub').textContent = s.mode !== 'yt' && s.pending.some(x => !x.err) ? 'Pripremam video sa YouTube-a...' :s.mode === 'yt' ? 'YouTube · ' + (ci + 1) + ' od ' + q.length : s.mode === 'slides' ? s.images.length + ' slika u folderu' : 'Dodaj YouTube link ispod';
+    $('#lcd').classList.toggle('stopped', s.paused || s.mode !== 'yt');
+    const seek = $('#seek');
+    if (!seeking) { seek.max = s.dur || 100; seek.value = s.mode === 'yt' ? s.pos : 0; setFill(seek);
+      $('#tCur').textContent = fmt(s.mode === 'yt' ? s.pos : 0); $('#tDur').textContent = '-' + fmt(s.mode === 'yt' ? Math.max(0, s.dur - s.pos) : 0); }
+    seek.disabled = s.mode !== 'yt';
+    $('#playIco').setAttribute('href', s.paused ? '#i-play' : '#i-pause');
+    $('#bPlay').setAttribute('aria-label', s.paused ? 'Pusti' : 'Pauza');
+
+    /* jačina */
+    /* jačina i utišano: plejer, mini plejer i daljinski (isti izgled svuda) */
+    if (volT == null && changed('vol', [s.vol, s.mute])) volShow(s.vol, s.mute);   // dok se drži +/−, broj vodi stranica
+    vbar.setAttribute('aria-valuenow', s.vol);
+    $('#vMute').classList.toggle('on', s.mute); $('#muteIco').setAttribute('href', s.mute ? '#i-mute' : '#i-vol');
+    $('#vMute').setAttribute('aria-label', s.mute ? 'Vrati zvuk' : 'Utišaj');
+    $('#mbMute').classList.toggle('on', s.mute);
+    const mk = $('#remote [data-k="Mute"]'); if (mk) mk.classList.toggle('cur', s.mute);
+
+    /* YouTube lista */
+    const nq = q.length + s.pending.length;
+    $('#qClear').hidden = !q.some(x => !x.cur);
+    $('#qCount').textContent = nq ? nq + (nq === 1 ? ' video' : ' videa') : '';
+    if (changed('queue', [q, s.pending, adm, s.paused, s.source, qOpen])) {
+      const ol = $('#queue'); ol.innerHTML = '';
+      if (!nq) ol.innerHTML = '<li class="empty">Lista je prazna. Dodaj YouTube link, a do tada se puštaju slike.</li>';
+      q.slice(0, qOpen ? q.length : 10).forEach((v, i) => {
+        const li = document.createElement('li'); li.className = 'q' + (v.cur ? ' cur' : '');
+        li.innerHTML = `<span class="qa" style="--art:linear-gradient(135deg,#ef4444,#7f1d1d)">${v.cur && !s.paused && s.source === 'av1' ? '<span class="eq"><i></i><i></i><i></i></span>' : ''}${srcBadge(v.src)}</span>
+          <div class="tt"><div class="t">${esc(v.t)}</div><div class="s">YouTube</div></div><span class="d mono">${v.d ? fmt(v.d) : ''}</span>
+          <div class="acts"><button class="mini adm" data-a="up" aria-label="Pomeri gore"><svg class="i"><use href="#i-up"/></svg></button><button class="mini adm" data-a="down" aria-label="Pomeri dole"><svg class="i"><use href="#i-down"/></svg></button><button class="mini danger" data-a="del" aria-label="Ukloni sa liste"><svg class="i"><use href="#i-x"/></svg></button></div>`;
+        li.onclick = e => { const b = e.target.closest('.mini'); if (b) { e.stopPropagation(); b.dataset.a === 'del' ? act('q_del', { i: v.i }) : act('q_move', { i: v.i, d: b.dataset.a === 'up' ? -1 : 1 }); } else if (!v.cur) act('q_play', { i: v.i }); };
+        ol.appendChild(li);
+      });
+      s.pending.forEach(p => {
+        const li = document.createElement('li'); li.className = 'q pend' + (p.err ? ' perr' : '');
+        li.innerHTML = `<span class="qa"><span class="spin" aria-hidden="true"></span><span class="ytm" aria-hidden="true"></span></span>
+          <div class="tt"><div class="t">${esc(p.t || 'YouTube video')}</div><div class="s">${p.err ? esc('Nije dodat: ' + p.err) : 'Pripremam...'}</div>${p.err ? '' : '<div class="pbar"><i></i></div>'}</div><span></span><span></span>`;
+        ol.appendChild(li);
+      });
+      if (q.length > 10) {
+        const li = document.createElement('li'); li.className = 'qmore';
+        const b = document.createElement('button'); b.className = 'btn ghost hist-more'; b.type = 'button';
+        b.textContent = qOpen ? 'Prikaži manje' : 'Prikaži još ' + (q.length - 10);
+        b.onclick = () => { qOpen = !qOpen; render(); };
+        li.appendChild(b); ol.appendChild(li);
+      }
+    }
+    if (changed('hist', [s.history, adm, histOpen])) {
+      const box = $('#hist'), h = (s.history || []).map((v, i) => ({ ...v, i })).filter(v => !v.now);
+      box.hidden = !h.length; box.innerHTML = '';
+      if (h.length) {
+        const hd = document.createElement('div'); hd.className = 'hist-head'; hd.innerHTML = 'Nedavno pušteno<button class="hclr" type="button">Obriši istoriju</button>'; hd.querySelector('.hclr').onclick = () => act('hist_clear'); box.appendChild(hd);
+        const ol = document.createElement('ol'); ol.className = 'queue';
+        h.slice(0, histOpen ? 30 : 10).forEach(v => { const i = v.i;
+          const li = document.createElement('li'); li.className = 'q hist';
+          li.innerHTML = `<span class="qa" style="--art:linear-gradient(135deg,#ef4444,#7f1d1d)"><svg class="i hp" aria-hidden="true"><use href="#i-play"/></svg>${srcBadge(v.src)}</span>
+            <div class="tt"><div class="t">${esc(v.t)}</div><div class="s">YouTube</div></div><span class="d mono">${v.d ? fmt(v.d) : ''}</span>
+            <div class="acts"><button class="mini danger" aria-label="Ukloni iz istorije"><svg class="i"><use href="#i-x"/></svg></button></div>`;
+          li.onclick = e => { if (e.target.closest('.mini')) { e.stopPropagation(); act('hist_del', { i }); } else act('hist_play', { i }); };
+          ol.appendChild(li);
+        });
+        box.appendChild(ol);
+        if (h.length > 10) {
+          const b = document.createElement('button'); b.className = 'btn ghost hist-more';
+          b.innerHTML = histOpen ? 'Prikaži manje' : `Prikaži još ${h.length - 10}`;
+          b.onclick = () => { histOpen = !histOpen; render(); };
+          box.appendChild(b);
+        }
+      }
+    }
+
+    /* FM */
+    if (dialF == null) showFreq(s.fm.f);
+    const p = s.fm.list.find(x => Math.abs(x.f - s.fm.f) < 0.05);
+    // sa RDA5807M tjunerom: ime stanice i tekst iz RDS-a, stereo i jačina signala
+    $('#fmName').textContent = (p ? p.n : (s.fm.ps || 'Ručno podešeno')) + (s.fm.rt ? ' · ' + s.fm.rt : '');
+    $('#fmSt').textContent = !s.fm.on ? '—' : s.fm.hw === 'rda5807' ? (s.fm.st ? 'Stereo' : 'Mono') : 'Prijem';
+    const bars = s.fm.rssi != null ? Math.min(5, Math.round(s.fm.rssi / 12)) : 3;
+    $$('#sigbar i').forEach((b, i) => b.classList.toggle('on', s.fm.on && i < bars));
+    $('.lcd-top .st', $('#fmLcd')).lastChild.textContent = s.fm.hw === 'rda5807' ? 'FM radio · RDA5807M' : 'FM radio · RTL-SDR';
+    $('#fmLcd').classList.toggle('stopped', !s.fm.on || s.mute);
+    fmErrEl.hidden = !s.fm.err; fmErrEl.textContent = s.fm.err;
+    if (changed('presets', [s.fm.list, s.fm.f, adm])) {
+      const box = $('#presets'); box.innerHTML = '';
+      [...s.fm.list].sort((a, b) => a.f - b.f).forEach(x => {
+        const c = document.createElement('button'); c.className = 'pchip' + (Math.abs(x.f - s.fm.f) < 0.05 ? ' on' : '');
+        c.innerHTML = `<span>${esc(x.n)}</span><code>${x.f.toFixed(1)}</code><span class="px adm" role="button" aria-label="Obriši stanicu"><svg class="i"><use href="#i-x"/></svg></span>`;
+        c.onclick = e => e.target.closest('.px') ? act('fm_del', { f: x.f }) : act('fm_tune', { f: x.f });
+        box.appendChild(c);
+      });
+      if (!s.fm.list.length) box.innerHTML = '<span class="muted" style="font-size:13px">Nema memorisanih stanica.' + (adm ? ' Podesi frekvenciju i sačuvaj je ispod.' : '') + '</span>';
+    }
+
+    /* Stream (internet radio) */
+    const sm = s.stream || { sys: [], my: [] }, all = [...sm.sys, ...sm.my], sc = all[sm.cur];
+    $('#stName').textContent = sc ? sc.n : 'Radio';
+    const stSeq = all.filter((x, i) => i >= sm.sys.length || (sm.fav || []).includes(x.u)), stSeqAll = stSeq.length ? stSeq : all, stPi = sc ? stSeqAll.findIndex(x => x.u === sc.u) : -1;
+    $('#stPos').textContent = stPi >= 0 ? (stPi + 1) + ' / ' + stSeqAll.length : '';
+    $('#stTitle').textContent = sm.err || (sm.on ? (sm.title || (sc && sc.g) || 'Uživo') : 'Izaberi stanicu');
+    $('#stTitle').style.color = sm.err ? 'var(--crit)' : '';
+    $('#stLcd').classList.toggle('stopped', !sm.on || s.mute);
+    const w = s.wifi || { list: [] };
+    $('#wifiScan').disabled = !!w.scanning; $('#wifiScan span').textContent = w.scanning ? 'Tražim...' : 'Traži mreže';
+    if (changed('wifi', w)) renderWifi(w);
+    $$('#rcSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === (s.radio_clock ?? 15)));
+    $('#stIco').setAttribute('href', sm.on && !s.mute ? '#i-pause' : '#i-play');
+    if (changed('stList', [sm.my, sm.fav, sm.cur, sm.on, adm, stCat])) {
+      // svaka stanica: kategorija (moje = 'my'), redni broj u zajedničkoj listi
+      const allSt = [...sm.sys.map((x, i) => ({ ...x, c: x.c || 'world', i })), ...sm.my.map((x, k) => ({ ...x, c: 'my', i: sm.sys.length + k, k }))];
+      const isFav = x => x.c === 'my' || sm.fav.includes(x.u);
+      const item = x => {
+        const c = document.createElement('button'), cur = x.i === sm.cur;
+        c.className = 'sti' + (cur ? ' on' : '');
+        c.innerHTML = `<span class="ic"><svg class="i"><use href="#${cur && sm.on ? 'i-signal' : 'i-play'}"/></svg></span><span class="tt"><b>${esc(x.n)}</b><span>${esc(x.g || x.u.replace(/^https?:\/\//, ''))}</span></span>`
+          + (x.c === 'my' ? '<span class="mine">moja</span><span class="px adm" role="button" aria-label="Obriši stanicu"><svg class="i"><use href="#i-x"/></svg></span>'
+            : `<span class="star${isFav(x) ? ' on' : ''}" role="button" aria-label="${isFav(x) ? 'Ukloni iz omiljenih' : 'Dodaj u omiljene'}">${isFav(x) ? '★' : '☆'}</span>`);
+        c.onclick = e => e.target.closest('.star') ? act('st_fav', { u: x.u }) : e.target.closest('.px') ? act('st_del', { i: x.k }) : act('st_play', { u: x.u });
+        return c;
+      };
+      const mine = allSt.filter(x => x.c === 'my');
+      const bmn = $('#stMine'); bmn.innerHTML = ''; mine.forEach(x => bmn.appendChild(item(x)));
+      $('#stMineGrp').hidden = !mine.length && !adm;
+      if (!mine.length) bmn.innerHTML = '<span class="muted" style="font-size:13px">Dodaj svoj link ispod.</span>';
+      const favs = sm.fav.map(u => allSt.find(x => x.u === u && x.c !== 'my')).filter(Boolean);
+      const bf = $('#stFav'); bf.innerHTML = '';
+      favs.forEach(x => bf.appendChild(item(x)));
+      if (!favs.length) bf.innerHTML = '<span class="muted" style="font-size:13px">Otvori „Sve stanice” i zvezdicom ☆ označi stanice koje hoćeš ovde.</span>';
+      const cats = [...new Set(allSt.map(x => x.c))];
+      $('#stCats').innerHTML = ['', ...cats].map(k => `<button type="button" data-c="${k}" aria-pressed="${k === stCat}">${k ? STCAT[k] || k : 'Sve'}</button>`).join('');
+      $$('#stCats button').forEach(b => b.onclick = () => { stCat = b.dataset.c; render(); });
+      const bl = $('#stList'); bl.innerHTML = '';
+      allSt.filter(x => !stCat || x.c === stCat).forEach(x => bl.appendChild(item(x)));
+      $('#stCount').textContent = allSt.length;
+    }
+
+    /* mini plejer */
+    { const [src, line] = nowLine(), av = ['av2', 'av3', 'av4'].includes(s.source);
+      $('#mbSrc').textContent = src; mbTitle(line);
+      const playing = s.source === 'av1' ? s.mode === 'yt' && !s.paused : s.source === 'tv' ? s.tv.on && !s.paused : (s.source === 'st' ? s.stream.on : s.fm.on) && !s.mute;
+      $('#mbIco').setAttribute('href', playing ? '#i-pause' : '#i-play');
+      $('#mbar .mb-ctl').hidden = av;
+      mbarShow(); }
+
+    /* sistem */
+    const y = s.sys || {};
+    $('#chCpu').textContent = y.cpu != null ? Math.round(y.cpu) + '°C' : '—';
+    $('#chLoad').textContent = y.load != null ? y.load + '%' : '—';
+    $('#chRam').textContent = y.ram != null ? y.ram + '%' : '—';
+    $('#chLoad').style.color = y.load >= 85 ? 'var(--crit)' : y.load >= 60 ? 'var(--warn)' : '';
+    $('#chRam').style.color = y.ram >= 85 ? 'var(--crit)' : y.ram >= 70 ? 'var(--warn)' : '';
+    $('#stCpu').innerHTML = y.cpu != null ? y.cpu.toFixed(1) + '<small> °C</small>' : '—';
+    /* prozor sa temperaturama: samo senzori koji se očitavaju */
+    $('#tIn').hidden = y.room == null; $('#tOut').hidden = y.out == null;
+    $('#tempCard').hidden = y.room == null && y.out == null;
+    if (y.room != null) $('#tInV').textContent = y.room.toFixed(1);
+    $('#tHum').hidden = y.hum == null; if (y.hum != null) $('#tHum').textContent = '· ' + y.hum + '% vlažnost';
+    if (y.out != null) $('#tOutV').textContent = y.out.toFixed(1);
+    const up = y.uptime || 0; $('#stUp').innerHTML = up >= 86400 ? Math.floor(up / 86400) + '<small> d</small> ' + Math.floor(up % 86400 / 3600) + '<small> h</small>' : Math.floor(up / 3600) + '<small> h</small> ' + Math.floor(up % 3600 / 60) + '<small> min</small>';
+    $('#stDisk').innerHTML = (y.disk_free ?? '—') + '<small> GB</small> · ' + (y.mem_free ?? '—') + '<small> MB</small>';
+    const pw = y.uv_now ? ['Pad napona!', 'var(--crit)'] : y.uv_seen ? ['Napon je padao', 'var(--warn)'] : ['Napajanje stabilno', 'var(--ok)'];
+    $('#chPowDot').style.background = pw[1]; $('#chPowIc').style.color = pw[1]; $('#chPowDot').setAttribute('aria-label', 'Napajanje: ' + pw[0]); $('#chPowDot').title = pw[0];
+    const nt = y.inet === 'ok' ? ['Internet radi' + (y.inet_ms != null ? ' (' + y.inet_ms + ' ms)' : ''), 'var(--ok)'] : y.inet === 'dns' ? ['Internet: DNS ne radi', 'var(--warn)'] : y.inet === 'off' ? ['Nema interneta', 'var(--crit)'] : ['Proveravam internet…', 'var(--faint)'];
+    $('#chNetDot').style.background = nt[1]; $('#chNetIc').style.color = nt[1]; $('#chNetDot').setAttribute('aria-label', nt[0]); $('#chNetDot').title = nt[0]; $('#chNetIc').parentNode.title = 'Sistem · ' + nt[0];
+    /* prozor Sistem: svaki red ima stanje (boja), vrednost i kratko objašnjenje */
+    const row = (id, lvl, val, hint) => { const r = $('#' + id); r.dataset.lvl = lvl; if (val != null) r.querySelector('.sval').innerHTML = val; if (hint != null) r.querySelector('small').textContent = hint; return lvl; };
+    const lv = [];
+    lv.push(row('rowPow', y.uv_now ? 'crit' : y.uv_seen ? 'warn' : 'ok', y.uv_now ? 'Pad napona' : y.uv_seen ? 'Padao je' : 'Stabilno',
+      y.uv_now ? 'Napajanje je trenutno preslabo. Koristi jači adapter (5 V, bar 3 A) i kraći kabl.'
+        : y.uv_seen ? 'Od uključivanja je bar jednom bilo premalo napona (npr. kad krene video). Ako se ponavlja, uzmi jači adapter.'
+        : 'Napon je u redu od uključivanja.'));
+    lv.push(row('rowNet', y.inet === 'ok' ? 'ok' : y.inet === 'dns' ? 'warn' : y.inet === 'off' ? 'crit' : 'idle',
+      y.inet === 'ok' ? 'Radi' + (y.inet_ms != null ? '<small> · ' + y.inet_ms + ' ms</small>' : '') : y.inet === 'dns' ? 'DNS ne radi' : y.inet === 'off' ? 'Nema' : 'Proveravam…',
+      y.inet === 'ok' ? 'Teco.Pi izlazi na internet (provera na 30 s). Odziv ispod 50 ms je odličan.'
+        : y.inet === 'dns' ? 'Veza postoji, ali se imena sajtova ne pronalaze: YouTube, radio i TV neće raditi. Proveri DNS u Mreži (npr. 1.1.1.1).'
+        : y.inet === 'off' ? 'Lokalna mreža radi, ali nema izlaza na internet. Proveri ruter ili kabl ka njemu.'
+        : 'Prva provera je u toku.'));
+    const ct = y.cpu;
+    lv.push(row('rowCpu', ct == null ? 'idle' : ct >= 80 ? 'crit' : ct >= 70 ? 'warn' : 'ok', null,
+      ct == null ? 'Nema očitavanja.' : ct >= 80 ? 'Previše toplo: procesor usporava. Obezbedi hlađenje (ventilator, otvori kutiju).'
+        : ct >= 70 ? 'Toplo, ali radi normalno. Iznad 80 °C procesor usporava.' : 'Normalno (do 70 °C je sasvim u redu).'));
+    lv.push(row('rowLoad', y.load >= 85 || y.ram >= 85 ? 'warn' : 'ok',
+      'CPU ' + (y.load ?? '—') + '%<small> · RAM ' + (y.ram ?? '—') + '%</small>',
+      y.load >= 85 ? 'Procesor je pun: video može da secka.' : y.ram >= 85 ? 'Radne memorije je malo.' : 'Procesor i radna memorija'));
+    const worst = lv.includes('crit') ? 'crit' : lv.includes('warn') ? 'warn' : 'ok';
+    const pill = $('#sysPill'), pc = worst === 'crit' ? 'var(--crit)' : worst === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    $('#sysPillTxt').textContent = worst === 'crit' ? 'Potrebna pažnja' : worst === 'warn' ? 'Upozorenje' : 'Sve radi';
+    $('#sysPillIc').setAttribute('href', worst === 'ok' ? '#i-check' : '#i-alert');
+    pill.style.color = pc; pill.style.background = `color-mix(in srgb, ${pc} 14%, transparent)`;
+    alRender(s.alarm);
+    /* tema (bira se u adminu, važi za sve uređaje) */
+    if (changed('theme', s.theme)) {
+      const th = s.theme || 'auto';
+      if (th === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = th;
+      try { localStorage.setItem('teco-theme', th); } catch (e) {}
+      $$('#themeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === th));
+    }
+    if (changed('spark', [y.cpu_hist, y.room_hist, y.out_hist])) { spark('#spCpu', y.cpu_hist, css('--muted') || '#5a6a7e'); spark('#spRoom', y.room_hist, css('--accent') || '#0d9488'); spark('#spOut', y.out_hist, css('--av2') || '#d97706'); }
+
+    /* događaj na ekranu: obaveštenje i na stranici */
+    const en = s.ev_now;
+    $('#evAlert').hidden = !en;
+    if (en && changed('evNow', en.id + en.at)) { $('#evName').textContent = en.n; $('#evImg').src = '/events/' + en.id + '/image.png?v=' + encodeURIComponent(en.n); }
+
+    /* zvono i interfon (admin) */
+    if (changed('events', s.events) && !$('#evList').contains(document.activeElement)) {
+      const box = $('#evList'); box.innerHTML = '';
+      (s.events || []).forEach(ev => {
+        const d = document.createElement('div'); d.className = 'ev' + (ev.on ? '' : ' off');
+        const snd = ev.alarm ? '<div class="ev-snd"><span>Ugrađen zvuk alarma (ponavlja se dok je na ekranu)</span><div class="ev-btns"><button class="btn gel" data-a="test"><span>Probaj</span></button></div></div>'
+          : `<div class="ev-snd"><span>${ev.sound ? 'Zvuk: <b>' + esc(ev.sound) + '</b>' : 'Nema zvuka. Otpremi svoj (mp3, wav, ogg).'}</span>
+              <div class="ev-btns"><label class="btn"><span>${ev.sound ? 'Zameni zvuk' : 'Otpremi zvuk'}</span><input type="file" accept="audio/*"></label>${ev.sound ? '<button class="btn ghost" data-a="del">Obriši zvuk</button>' : ''}<button class="btn gel" data-a="test"><span>Probaj</span></button></div></div>`;
+        d.innerHTML = `<div class="ev-body">
+            <div class="ev-top">${ev.alarm ? '<b class="ev-n">' + esc(ev.n) + '</b>' : '<input class="field" maxlength="30" aria-label="Naziv">'}<button class="swb" role="switch" aria-checked="${ev.on}" aria-label="Uključeno"><span class="sw"></span></button></div>
+            <div class="row"><span class="muted">Na ekranu</span><input class="field evsec" type="number" inputmode="numeric" min="1" max="120" value="${ev.sec}" aria-label="Sekundi"><span class="muted">s</span></div>
+            <label class="chk"><input type="checkbox" ${ev.pause ? 'checked' : ''}>Pauziraj video</label>
+            ${snd}
+          </div>`;
+        const nm = d.querySelector('.ev-top .field');
+        if (nm) { nm.value = ev.n; nm.addEventListener('change', () => act('ev_set', { id: ev.id, n: nm.value })); }
+        d.querySelector('.swb').onclick = () => act('ev_set', { id: ev.id, on: !ev.on });
+        const sec = d.querySelector('.evsec'); sec.addEventListener('change', () => { const v = Math.round(+sec.value); if (v >= 1 && v <= 120) act('ev_set', { id: ev.id, sec: v }); else { sec.value = ev.sec; toast('Od 1 do 120 sekundi.'); } });
+        d.querySelector('.chk input').onchange = e => act('ev_set', { id: ev.id, pause: e.target.checked });
+        d.querySelector('[data-a="test"]').onclick = () => act('ev_test', { id: ev.id });
+        const del = d.querySelector('[data-a="del"]'); if (del) del.onclick = () => act('ev_sound_del', { id: ev.id });
+        const fin = d.querySelector('input[type=file]'); if (fin) fin.onchange = async e => {
+          const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append('file', f, f.name);
+          try { const r = await fetch('/api/event-sound?id=' + ev.id, { method: 'POST', headers: { 'X-Teco-Token': tok || '' }, body: fd }).then(x => x.json()); toast(r.err || r.ok); }
+          catch (err) { toast('Otpremanje nije uspelo.'); }
+        };
+        box.appendChild(d);
+      });
+    }
+
+    /* izlaz zvuka */
+    const outs = s.audio || [];
+    $('#outs').hidden = !outs.length;
+    if (changed('outs', outs)) {
+      const box = $('#outs'); box.innerHTML = '<span class="ol">Zvuk</span>';
+      outs.forEach(o => {
+        const b = document.createElement('button'); b.className = 'och'; b.setAttribute('aria-pressed', o.def);
+        b.innerHTML = `<svg class="i"><use href="#${o.bt ? 'i-headph' : 'i-vol'}"/></svg><span>${esc(o.n)}</span>`;
+        b.onclick = () => { if (!o.def) act('audio_out', { id: o.id }).then(r => { if (!r.err) toast('Zvuk: ' + o.n); }); };
+        box.appendChild(b);
+      });
+    }
+
+    /* Bluetooth (admin) */
+    const bt = s.bt || {};
+    $('#btScan').disabled = !!bt.scan; $('#btScanTxt').textContent = bt.scan ? 'Tražim...' : 'Traži uređaje';
+    if (changed('bt', [bt.devs, bt.power])) {
+      const box = $('#btList'); box.innerHTML = '';
+      (bt.devs || []).forEach(d => {
+        const r = document.createElement('div'); r.className = 'btd' + (d.conn ? ' conn' : '');
+        const st = d.conn ? 'Povezano' : d.paired ? 'Upareno, nije povezano' : 'Nije upareno';
+        const btns = d.conn ? [['bt_disconnect', 'Prekini']] : d.paired ? [['bt_connect', 'Poveži'], ['bt_remove', 'Zaboravi']] : [['bt_pair', 'Upari']];
+        r.innerHTML = `<span class="ic"><svg class="i"><use href="#${d.audio ? 'i-headph' : 'i-signal'}"/></svg></span><div class="t"><b>${esc(d.n)}</b><span>${st}</span></div><div class="bb"></div>`;
+        btns.forEach(([c, lbl]) => {
+          const b = document.createElement('button'); b.className = 'btn' + (c === 'bt_pair' || c === 'bt_connect' ? ' gel' : ''); b.innerHTML = `<span>${lbl}</span>`;
+          b.onclick = async () => { b.disabled = true; b.firstChild.textContent = lbl + '...'; await act(c, { mac: d.mac }); b.disabled = false; b.firstChild.textContent = lbl; };
+          r.querySelector('.bb').appendChild(b);
+        });
+        box.appendChild(r);
+      });
+      if (!(bt.devs || []).length) box.innerHTML = '<p class="muted" style="font-size:13px;margin:0">Još nema pronađenih uređaja.</p>';
+    }
+
+    /* mreža (admin) */
+    const n = s.net || {};
+    if (changed('net', n)) {
+      const rows = [['Adresa', n.host ? `<a href="http://${esc(n.host)}.local/">http://${esc(n.host)}.local</a>` : '—']];
+      (n.ifs || []).filter(i => i.up || i.ip.length).forEach(i => {
+        rows.push([i.n === 'eth0' ? 'Kabl' : i.n === 'wlan0' ? 'Wi-Fi' : i.n, esc((i.ip.join(', ') || 'bez adrese').replace(/\/\d+/g, ''))]);
+      });
+      rows.push(['Gateway', esc(n.gw || '—')]);
+      if (n.ssid) rows.push(['Wi-Fi mreža', esc(n.ssid) + ' · signal ' + esc(n.signal) + '%']);
+      $('#netInfo').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+      const e = n.eth;
+      if (e && !$('.netcfg').contains(document.activeElement)) {
+        netMode = e.mode;
+        const [ipa, pfx] = (e.ip || (n.ifs || []).find(i => i.n === 'eth0')?.ip?.[0] || '').split('/');
+        $('#netIp').value = ipa || '';
+        if (pfx) { const ms = $('#netMask'); if (![...ms.options].some(o => o.value === pfx)) ms.add(new Option('/' + pfx, pfx)); ms.value = pfx; }
+        $('#netGw').value = e.gw || n.gw || '';
+        showNetMode();
+      }
+      const d = n.dns || {}, dot = c => `<i style="background:${c}"></i>`;
+      $('#dnsNow').innerHTML = d.active?.length ? dot(s.sys?.inet === 'dns' ? 'var(--crit)' : 'var(--ok)') + 'koristi ' + esc(d.active.join(', ')) : '';
+      if (!$('#dnsCfg').contains(document.activeElement)) { dnsMode = d.mode || 'auto'; $('#dnsSrv').value = (d.servers || []).join(' '); showDnsMode(); }
+      const t = n.ntp || {};
+      $('#ntpNow').innerHTML = t.sync ? dot('var(--ok)') + 'sinhronizovan' + (t.server ? ' · ' + esc(t.server) : '') : dot('var(--warn)') + 'nije sinhronizovan';
+      if (!$('#ntpCfg').contains(document.activeElement)) $('#ntpSrv').value = (t.servers || []).join(' ');
+    }
+
+    /* releji */
+    if (changed('relays', [s.relays, adm])) {
+      const icons = { av2: 'i-game', av3: 'i-game', av4: 'i-game', tuner: 'i-radio', monitor: 'i-tv' }, box = $('#relays'); box.innerHTML = '';
+      s.relays.forEach((r, i) => {
+        const b = document.createElement('button'); b.className = 'relay'; b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', r.on);
+        b.innerHTML = `<span class="ic"><svg class="i"><use href="#${icons[r.role] || 'i-plug'}"/></svg></span><span class="t"><b>${esc(r.n)}</b><small class="muted">GPIO${r.pin}</small></span><span class="rstate viewer">${r.on ? 'Uključeno' : 'Isključeno'}</span><span class="sw adm"></span>`;
+        b.onclick = () => isAdmin() ? act('relay', { i, on: !r.on }) : toast('Uključi Admin da menjaš releje');
+        box.appendChild(b);
+      });
+    }
+
+    if (changed('io', s.io)) {
+      $('#ioList').innerHTML = (s.io || []).map(x => `<div class="io${x.ok ? ' ok' : ''}"><i></i><span><b>${esc(x.n)}</b><small>${esc(x.d)}</small></span><em>${x.ok ? 'radi' : 'nije povezano'}</em></div>`).join('');
+      const io = s.io || []; $('#ioSum').textContent = io.filter(x => x.ok).length + ' od ' + io.length + ' povezano';
+    }
+    $('#relSum').textContent = (s.relays || []).filter(r => r.on).length + ' od ' + (s.relays || []).length + ' uključeno';
+
+    /* slike */
+    $('#imgCount').textContent = s.images.length + (s.images.length % 10 >= 2 && s.images.length % 10 <= 4 && (s.images.length < 10 || s.images.length > 20) ? ' slike' : ' slika');
+    $$('#dur button').forEach((b, i) => b.setAttribute('aria-pressed', DURS[i] === s.slide_sec));
+    $$('#idleSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === s.idle));
+    const slidesOn = s.idle !== 'clock';
+    $('#gallery').hidden = !slidesOn; $('#dur').closest('.row').hidden = !slidesOn;
+    if (changed('images', s.images)) {
+      const gal = $('#gallery'), drop = $('.drop', gal); $$('.ph', gal).forEach(x => x.remove());
+      s.images.forEach(n => {
+        const d = document.createElement('div'); d.className = 'ph';
+        d.innerHTML = `<img src="/img/${encodeURIComponent(n)}" alt="" loading="lazy"><span class="nm">${esc(n)}</span><button class="x adm" aria-label="Obriši ${esc(n)}"><svg class="i"><use href="#i-x"/></svg></button>`;
+        d.querySelector('.x').onclick = () => act('img_del', { n });
+        gal.insertBefore(d, drop);
+      });
+    }
+
+    /* daljinski: komande, lista tastera, opisi */
+    if (changed('cmds', [s.relays.map(r => r.n), s.names, s.cons])) {
+      const sel = $('#irCmd'), v = sel.value; sel.innerHTML = '';
+      cmdList().forEach(([g, l]) => { const og = document.createElement('optgroup'); og.label = g;
+        l.forEach(([k, t]) => { const o = document.createElement('option'); o.value = k; o.textContent = t; og.appendChild(o); }); sel.appendChild(og); });
+      if (v) sel.value = v;
+    }
+    if (changed('ir', [s.ir, adm, s.names, s.cons, s.relays.map(r => r.n)])) {
+      const box = $('#maps'); box.innerHTML = '';
+      const groups = {}; s.ir.forEach(m => (groups[group(m.cmd)] = groups[group(m.cmd)] || []).push(m));
+      Object.entries(groups).forEach(([g, list]) => {
+        const sec = document.createElement('div'); sec.className = 'mgroup'; sec.innerHTML = `<h3>${esc(g)}</h3>`;
+        list.forEach(m => {
+          const r = document.createElement('div'); r.className = 'map' + (m.code === editCode ? ' editing' : ''); r.dataset.code = m.code; r.tabIndex = 0; r.setAttribute('role', 'button');
+          r.innerHTML = `<span class="kc">${esc(m.key)}</span><div class="c"><b>${esc(label(m.cmd))}</b><code>${esc(m.code)}</code></div><div class="acts"><button class="mini adm" data-a="edit" aria-label="Preusmeri na drugu komandu"><svg class="i"><use href="#i-route"/></svg></button><button class="mini danger adm" data-a="del" aria-label="Obriši taster"><svg class="i"><use href="#i-trash"/></svg></button></div>`;
+          r.onclick = e => { const b = e.target.closest('.mini'); if (b) { e.stopPropagation(); mapAct(m, b.dataset.a); } else pressCode(m.code); };
+          r.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressCode(m.code); } };
+          sec.appendChild(r);
+        });
+        box.appendChild(sec);
+      });
+      $('#mapsCnt').textContent = s.ir.length;
+    }
+    // daljinski: okvir oko broja trenutnog izvora
+    const srcKey = { av1: '1', av2: '2', av3: '3', av4: '4', fm: '5', st: '6', tv: '7' }[s.source];
+    $$('#remote .rk.num').forEach(b => b.classList.toggle('cur', b.dataset.k === srcKey));
+    $('#ytckSt').textContent = s.yt_cookies === 'ok' ? 'Prijava važi' : s.yt_cookies === 'expired' ? 'Prijava je istekla (YouTube je odjavio). Radi i bez nje dok YouTube ne zatraži potvrdu.' : 'Kolačići nisu otpremljeni';
+    $('#ytckSt').classList.toggle('ok', s.yt_cookies === 'ok'); $('#ytckDel').hidden = !s.yt_cookies;
+    if (changed('rtitles', [s.ir, s.source])) $$('#remote [data-k]').forEach(b => { const m = s.ir.find(x => x.code === KEYS[b.dataset.k]); b.title = b.dataset.k + ': ' + (m ? ctxLabel(m.cmd) : 'nije dodeljen'); });
+  }
+
+  setInterval(() => { if (lastSig) { const t = Math.round((Date.now() - lastSig) / 1000); $('#irAgo').textContent = t < 5 ? 'upravo' : t < 60 ? 'pre ' + t + ' s' : 'pre ' + Math.round(t / 60) + ' min'; } }, 1000);
+  fetch('/static/consoles.json').then(r => r.json()).then(j => {
+    CONSOLES = j;
+    ['Av2', 'Av3', 'Av4'].forEach(suf => { const cs = $('#cs' + suf); Object.entries(CONSOLES).forEach(([k, c]) => { const o = document.createElement('option'); o.value = k; o.textContent = k === 'other' ? 'Ostalo' : c.n; cs.appendChild(o); }); });
+    delete memo.cons; delete memo.cmds; delete memo.ir; if (S) render();
+  }).catch(() => {});
+  resetWiz(); rdraw('Teco.Pi', 'Spremno');
+  connect();
+})();
+</script>
+</body>
+</html>

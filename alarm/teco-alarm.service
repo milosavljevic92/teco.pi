@@ -1,0 +1,14 @@
+[Unit]
+Description=Teco.Pi alarm (Paradox EVO preko IP150, PAI)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/teco/alarm
+ExecStart=%h/.local/pai-venv/bin/python %h/teco/alarm/alarm_bridge.py
+StandardOutput=append:/tmp/teco-alarm.log
+StandardError=append:/tmp/teco-alarm.log
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

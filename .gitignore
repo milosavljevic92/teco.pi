@@ -1,0 +1,5 @@
+*.jsonl
+check.js
+static/index.html
+data/
+__pycache__/

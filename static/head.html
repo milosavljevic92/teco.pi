@@ -1,0 +1,1124 @@
+<title>Teco.Pi</title>
+<script>try { const t = localStorage.getItem('teco-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f1f3f6; --stripe:rgba(20,30,50,.022); --surface:#ffffff; --surface-2:#f1f4f8; --surface-3:#e6ebf1; --line:#dfe5ed;
+  --text:#101824; --muted:#5a6a7e; --faint:#8d9aab;
+  --accent:#0d9488; --accent-2:#0f766e; --accent-ink:#ffffff; --accent-soft:rgba(13,148,136,.12);
+  --gel-top:#6ee7da; --gel-mid:#14b8a6; --gel-bot:#0d9488; --gel-edge:#0b7d73;
+  --av1:#0d9488; --av2:#d97706; --av3:#7c3aed; --av4:#059669;
+  --ok:#16a34a; --warn:#d97706; --crit:#dc2626; --ir:#ef4444;
+  --lcd-a:#f5f7ea; --lcd-b:#dfe4c9; --lcd-edge:#a7ad92; --lcd-ink:#262a1f; --lcd-dim:#6b705c; --lcd-track:#c3c8ae;
+  --wheel-a:#ffffff; --wheel-b:#e9ecf0; --wheel-edge:#d3d8df; --wheel-ink:#8b95a3; --hub-a:#f7f8fa; --hub-b:#dfe3e8;
+  --shadow:0 1px 2px rgba(16,24,36,.05), 0 8px 24px rgba(16,24,36,.06);
+  --shadow-lg:0 2px 4px rgba(16,24,36,.06), 0 18px 40px rgba(16,24,36,.10);
+  --r:20px; --r-sm:12px;
+  --f-display:"Sora", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Manrope", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0b1018; --stripe:rgba(255,255,255,.014); --surface:#121925; --surface-2:#18212f; --surface-3:#1f2a3b; --line:#233044;
+    --text:#e8eef6; --muted:#8b9bb1; --faint:#5f6e84;
+    --accent:#2dd4bf; --accent-2:#5eead4; --accent-ink:#04211e; --accent-soft:rgba(45,212,191,.13);
+    --gel-top:#8af3e6; --gel-mid:#2dd4bf; --gel-bot:#14a394; --gel-edge:#0f8a7d;
+    --av1:#2dd4bf; --av2:#fbbf24; --av3:#a78bfa; --av4:#34d399;
+    --ok:#4ade80; --warn:#fbbf24; --crit:#f87171; --ir:#f87171;
+    --lcd-a:#dfe4cc; --lcd-b:#c7cdb0; --lcd-edge:#6e745f; --lcd-track:#aeb495;
+    --wheel-a:#2c323c; --wheel-b:#1c2129; --wheel-edge:#343b47; --wheel-ink:#9aa4b3; --hub-a:#262c35; --hub-b:#161a20;
+    --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.30);
+    --shadow-lg:0 1px 0 rgba(255,255,255,.04) inset, 0 24px 50px rgba(0,0,0,.40);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0b1018; --stripe:rgba(255,255,255,.014); --surface:#121925; --surface-2:#18212f; --surface-3:#1f2a3b; --line:#233044;
+  --text:#e8eef6; --muted:#8b9bb1; --faint:#5f6e84;
+  --accent:#2dd4bf; --accent-2:#5eead4; --accent-ink:#04211e; --accent-soft:rgba(45,212,191,.13);
+  --gel-top:#8af3e6; --gel-mid:#2dd4bf; --gel-bot:#14a394; --gel-edge:#0f8a7d;
+  --av1:#2dd4bf; --av2:#fbbf24; --av3:#a78bfa; --av4:#34d399;
+  --ok:#4ade80; --warn:#fbbf24; --crit:#f87171; --ir:#f87171;
+  --lcd-a:#dfe4cc; --lcd-b:#c7cdb0; --lcd-edge:#6e745f; --lcd-track:#aeb495;
+  --wheel-a:#2c323c; --wheel-b:#1c2129; --wheel-edge:#343b47; --wheel-ink:#9aa4b3; --hub-a:#262c35; --hub-b:#161a20;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.30);
+  --shadow-lg:0 1px 0 rgba(255,255,255,.04) inset, 0 24px 50px rgba(0,0,0,.40);
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg) repeating-linear-gradient(0deg,var(--stripe) 0 1px,transparent 1px 4px);color:var(--text);font:15px/1.55 var(--f-body);padding-inline:16px;padding-block:0 40px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:16px;font-weight:600;display:flex;align-items:center;gap:12px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+
+/* top bar */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;margin-inline:-16px;padding:12px 16px;background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px)}
+header.top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 55%,transparent) 20%,color-mix(in srgb,var(--accent) 55%,transparent) 80%,transparent)}
+.top-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:-.02em}
+.mark{position:relative;width:32px;height:32px;border-radius:9px;background:linear-gradient(160deg,var(--gel-mid),#0e5f73);box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+.mark::before{content:"";position:absolute;inset:6px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#ffffff,#dfe7ea);box-shadow:inset 0 -1px 2px rgba(0,0,0,.15)}
+.mark::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:linear-gradient(160deg,var(--gel-mid),#0e5f73)}
+.logo .dot{color:var(--accent)}
+.chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;color:var(--muted);white-space:nowrap}
+.chip b{color:var(--text);font-weight:600;font-family:var(--f-mono);font-size:12.5px}
+.chip .sdot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 20%,transparent)}
+@media (max-width:520px){.chip .lbl{display:none}}
+.admin-sw{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 4px 0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:800;color:var(--muted);transition:border-color .15s, color .15s}
+.admin-sw:hover{border-color:var(--faint)}
+.admin-sw svg.i{width:15px;height:15px}
+.admin-sw .sw{width:40px;height:24px}
+.admin-sw .sw::after{width:18px;height:18px}
+.admin-sw[aria-checked="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.admin-sw[aria-checked="true"] .sw{background:var(--accent)}
+.admin-sw[aria-checked="true"] .sw::after{transform:translateX(16px)}
+html:not(.admin) .adm{display:none!important}
+html.admin .viewer{display:none!important}
+.adminbar{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:10px 14px;border-radius:var(--r-sm);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);color:var(--text)}
+.adminbar svg.i{color:var(--accent)}
+.viewer-note{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.viewer-note svg.i{width:15px;height:15px}
+
+.demo{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;color:var(--muted);padding:10px 14px;border-radius:var(--r-sm);background:var(--surface);border:1px dashed var(--line)}
+.demo svg.i{color:var(--accent);margin-top:2px}
+
+/* cards + traffic lights */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card-head .sub{font-size:13px;color:var(--muted)}
+.lights{display:inline-flex;gap:6px;flex:none}
+.lights i{width:11px;height:11px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:18px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (max-width:920px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* hero */
+.hero{box-shadow:var(--shadow-lg);padding:22px}
+.hero-in{display:grid;grid-template-columns:minmax(0,1fr);gap:28px;align-items:center}
+.transport{display:flex;align-items:center;justify-content:center;gap:14px}
+.ib{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--text);transition:background .15s}
+.ib:hover{background:var(--surface-2)}
+.ib svg.i{width:22px;height:22px}
+.ib .lbl10{position:absolute;font:800 8px/1 var(--f-body);top:50%;left:50%;transform:translate(-50%,-38%)}
+.play{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;color:#fff;border:1px solid var(--gel-edge);
+  background:linear-gradient(180deg,var(--gel-top) 0%,var(--gel-mid) 50%,var(--gel-bot) 51%,var(--gel-mid) 100%);
+  box-shadow:0 6px 16px color-mix(in srgb,var(--gel-bot) 40%,transparent), inset 0 1px 0 rgba(255,255,255,.55);transition:transform .1s}
+.play:hover{transform:scale(1.04)}
+.play:active{transform:scale(.97)}
+.play svg.i{width:26px;height:26px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+/* YouTube oznake */
+.yt{display:inline-grid;place-items:center;width:30px;height:21px;border-radius:6px;background:#ff0033;flex:none}
+.yt::before,.ytm::before{content:"";width:0;height:0;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px}
+.qa{position:relative}
+.ytm{position:absolute;right:-3px;bottom:-3px;width:18px;height:13px;border-radius:4px;background:#ff0033;display:grid;place-items:center;box-shadow:0 0 0 2px var(--surface)}
+.ytm::before{border-left-width:5px;border-top-width:3.5px;border-bottom-width:3.5px;margin-left:1px}
+.q.cur .ytm{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.np{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* sources */
+.src[data-src="fm"]{--c:#e5484d}
+/* konzola na AV2/AV3 */
+.console{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.cons-stage{position:relative;width:100%;border-radius:18px;padding:26px 16px 22px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(110% 90% at 50% 0%,color-mix(in srgb,var(--c) 22%,var(--surface)) 0%,var(--surface-2) 72%)}
+.cons-stage::after{content:"";position:absolute;left:18%;right:18%;bottom:16px;height:18px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.28),transparent);pointer-events:none}
+.cons-stage svg{position:relative;z-index:1;width:min(300px,100%);height:auto;display:block;margin:0 auto;filter:drop-shadow(0 10px 10px rgba(0,0,0,.18))}
+.cons-kicker{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c);display:inline-flex;align-items:center;gap:8px}
+.cons-kicker i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 0 0 var(--c);animation:live 1.6s ease-out infinite}
+@keyframes live{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+.cons-name{font-family:var(--f-display);font-size:26px;font-weight:600;line-height:1.2;margin:0}
+.cons-note{font-size:13.5px;color:var(--muted);margin:0;max-width:40ch}
+.src-names label{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 8px}
+.src-names label .tag{grid-row:span 2;align-self:center}
+.src-names select.field{height:36px;font-size:13.5px;padding:0 30px 0 10px}
+/* FM radio */
+.fm{display:flex;flex-direction:column;gap:12px}
+.fmfreq{position:relative;font-family:var(--f-display);font-weight:700;font-size:50px;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;padding-top:6px}
+.fmfreq small{font-size:15px;font-weight:700;margin-left:6px;color:var(--lcd-dim);letter-spacing:0}
+.dial{position:relative;height:42px;margin:6px 6px 0;cursor:ew-resize;touch-action:none;border-bottom:2px solid var(--lcd-dim)}
+.dial:focus-visible{outline:2px dashed var(--lcd-dim);outline-offset:4px}
+.dial .tk{position:absolute;bottom:0;width:1px;height:6px;background:var(--lcd-dim)}
+.dial .tk.maj{height:12px;width:2px;margin-left:-.5px;background:var(--lcd-ink)}
+.dial .tl{position:absolute;bottom:15px;transform:translateX(-50%);font:700 10px/1 var(--f-mono);color:var(--lcd-dim)}
+.needle{position:absolute;top:-4px;bottom:-5px;width:2px;margin-left:-1px;background:#d42b2b;box-shadow:0 0 5px rgba(212,43,43,.6);transition:left .15s ease-out}
+.dial.drag .needle{transition:none}
+.fmfoot{display:flex;justify-content:center;align-items:flex-end;gap:10px;position:relative;font:800 10px/1 var(--f-body);letter-spacing:.12em;color:var(--lcd-dim)}
+.sigbar{display:flex;gap:3px;align-items:flex-end;height:14px}
+.sigbar i{width:5px;background:var(--lcd-track);border-radius:1px}
+.sigbar i:nth-child(1){height:30%}.sigbar i:nth-child(2){height:47%}.sigbar i:nth-child(3){height:64%}.sigbar i:nth-child(4){height:82%}.sigbar i:nth-child(5){height:100%}
+.sigbar i.on{background:var(--lcd-ink)}
+.fmctl{display:flex;align-items:center;gap:8px;justify-content:center}
+.fmgo{display:flex;gap:6px;flex:1;min-width:0;max-width:210px}
+.fmgo .field{height:40px;padding:0 8px;text-align:center;font-family:var(--f-mono)}
+.fmgo .btn{height:40px;padding:0 16px}
+.presets{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.pchip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-weight:700;font-size:13px}
+.pchip:hover{border-color:var(--faint)}
+.pchip code{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.pchip.on{background:color-mix(in srgb,#e5484d 12%,var(--surface));border-color:#e5484d}
+.pchip .px{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--surface-3);color:var(--muted);margin-right:-6px}
+.pchip .px svg.i{width:11px;height:11px;stroke-width:3}
+.fmsave{display:flex;gap:8px}
+.srow{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+.srow+.srow{padding-top:6px;border-top:1px solid var(--line)}
+.src[data-src="st"]{--c:#0ea5e9}
+.src[data-src="tv"]{--c:#8b5cf6}
+.tvall{border-radius:14px;border:1px solid var(--line);background:var(--surface-2)}
+.tvall > summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;font-weight:700;font-size:13.5px}
+.tvall > summary::-webkit-details-marker{display:none}
+.tvall > summary .chev{margin-left:auto;color:var(--muted);transition:transform .2s}
+.tvall[open] > summary .chev{transform:rotate(180deg)}
+.tvall .stlist{padding:0 10px 10px;max-height:420px;overflow-y:auto}
+.tvall .sti{background:var(--surface)}
+.tvcats{display:flex;gap:6px;padding:0 10px 10px;overflow-x:auto;scrollbar-width:none}
+.tvcats::-webkit-scrollbar{display:none}
+.tvcats button{flex:none;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:700;color:var(--muted)}
+.tvcats button[aria-pressed="true"]{background:#8b5cf6;border-color:#8b5cf6;color:#fff}
+#stCats button[aria-pressed="true"]{background:#0ea5e9;border-color:#0ea5e9}
+.fmctl{position:relative}
+.fmctl .rnd{position:absolute;right:0;top:50%;transform:translateY(-50%)}   /* play ostaje tačno u sredini */
+.rk.rnd svg.i{width:15px;height:15px}
+.src,.srcs,.rk,.remote,.fmctl,.transport{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.src.hold{position:relative;overflow:hidden}
+.standby{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:50px;margin-top:4px;border-radius:16px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);font:800 15px/1 var(--f-body);letter-spacing:.02em}
+.standby:hover{border-color:color-mix(in srgb,#ef4444 45%,var(--line));background:color-mix(in srgb,#ef4444 6%,var(--surface-2))}
+.standby svg.i{width:20px;height:20px;color:#ef4444}
+.standby{position:relative;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.standby .sbmsg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:8px;background:#ef4444;color:#fff}
+.standby .sbmsg svg.i{color:#fff}
+.standby .rndbar{position:absolute;left:10px;right:10px;bottom:6px;height:5px;border-radius:99px;background:rgba(255,255,255,.3);overflow:hidden;display:none}
+.standby .rndbar i{display:block;height:100%;width:0;background:#fff;border-radius:inherit}
+.standby.holding .sbmsg,.standby.holding .rndbar{display:flex}
+.standby.holding .rndbar i{animation:rndfill 2s linear forwards}
+.ytck{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding:12px;border-radius:14px;background:var(--surface-2)}
+.ytck > div:first-child{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px}
+.ytck small{font-size:12px;color:var(--muted);font-weight:700}
+.ytck small.ok{color:#16a34a}
+.ytck p{margin:0;font-size:12.5px;line-height:1.4}
+.ytck-b{display:flex;gap:6px}
+.ytck-b .btn{height:36px;font-size:12.5px;position:relative;overflow:hidden}
+.ytck-b input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.standby:active{transform:scale(.99)}
+/* easter egg: taster 1 postaje YouTube dugme samo kad je YT izabran */
+.rk[data-k="1"]{position:relative}
+.rk[data-k="1"].cur{font-size:0;line-height:1}
+.rk[data-k="1"].cur::before{content:"";display:block;width:26px;height:18px;margin:0 auto 3px;border-radius:5px;background:#ff0033 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 18'%3E%3Cpath d='M10.5 5v8l7-4z' fill='white'/%3E%3C/svg%3E") center/100% no-repeat}
+.rk[data-k="1"].cur small{font-size:10px;color:#ff0033;font-weight:800}
+.src .rndmsg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:800 13.5px/1.2 var(--f-body);color:#fff;background:color-mix(in srgb,var(--c) 90%,#000);border-radius:inherit;text-align:center;padding:6px}
+.src .rndmsg svg.i{width:20px;height:20px}
+.src .rndbar{position:absolute;left:8px;right:8px;bottom:7px;height:6px;border-radius:99px;background:rgba(255,255,255,.25);overflow:hidden;display:none}
+.src .rndbar i{display:block;height:100%;width:0;border-radius:inherit;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.8)}
+.src.holding .rndmsg,.src.holding .rndbar{display:flex}
+.src.holding .rndmsg{animation:rndin .2s ease-out}
+.src.holding .rndbar i{animation:rndfill 2s linear forwards}
+@keyframes rndfill{from{width:0}to{width:100%}}
+@keyframes rndin{from{opacity:0}}
+.sti .mine{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#0ea5e9;flex:none}
+.sti .star{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;flex:none;color:var(--faint);font-size:17px;line-height:1}
+.sti .star.on{color:#f59e0b}
+.sti .star:hover{background:var(--surface-3)}
+.sti.tvi .ic{background:color-mix(in srgb,#8b5cf6 14%,transparent);color:#8b5cf6}
+.sti.tvi.on{background:color-mix(in srgb,#8b5cf6 12%,var(--surface));border-color:#8b5cf6}
+.sti.tvi.on .ic{background:#8b5cf6;color:#fff}
+.bootrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;font-size:13.5px;font-weight:700}
+.bootrow .field{height:38px;max-width:60%;font-size:13.5px}
+.stadd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:8px}
+.stadd .field,.stadd .btn{height:40px}
+@media (max-width:560px){.stadd{grid-template-columns:minmax(0,1fr) auto}.stadd #stU{grid-column:1/-1;grid-row:1}}
+.stgrp{display:flex;flex-direction:column;gap:8px}
+.sthead{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px}
+.sti{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);text-align:left;min-width:0}
+.sti:hover{border-color:var(--faint)}
+.sti .ic{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,#0ea5e9 14%,transparent);color:#0ea5e9}
+.sti .ic svg.i{width:15px;height:15px}
+.sti .tt{display:flex;flex-direction:column;min-width:0;flex:1;line-height:1.25}
+.sti .tt b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sti .tt span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sti.on{background:color-mix(in srgb,#0ea5e9 12%,var(--surface));border-color:#0ea5e9}
+.sti.on .ic{background:#0ea5e9;color:#fff}
+.sti .px{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--surface-3);color:var(--muted);flex:none}
+.sti .px svg.i{width:11px;height:11px;stroke-width:3}
+@media (max-width:560px){.stlist{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+/* Radio i TV: iste veličine dugmadi kao YouTube plejer */
+#stPanel .fmctl,#tvPanel .fmctl{gap:14px}
+#stPanel .fmctl .vbtn,#tvPanel .fmctl .vbtn{width:48px;height:48px;border-radius:50%}
+.fmsave .field{height:40px}
+.fmsave .btn{height:40px;white-space:nowrap}
+.srcs{display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:16px;background:var(--surface-2);border:1px solid var(--line)}
+.src{--c:var(--av1);display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;text-align:left;min-width:0;transition:background .15s, box-shadow .15s}
+.src[data-src="av"]{--c:var(--av2)}
+.avsrc{cursor:pointer}
+.avsrc .t{flex:1}
+.avpick{display:flex;gap:5px;flex:none}
+.avpick button{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:800 12.5px/1 var(--f-body);color:var(--c);background:color-mix(in srgb,var(--c) 10%,var(--surface));border:1.5px solid color-mix(in srgb,var(--c) 40%,transparent);transition:background .15s,color .15s,transform .1s}
+.avpick button:hover{background:color-mix(in srgb,var(--c) 20%,var(--surface))}
+.avpick button:active{transform:scale(.92)}
+.avpick button[aria-pressed="true"]{background:var(--c);border-color:var(--c);color:#fff;box-shadow:0 2px 6px color-mix(in srgb,var(--c) 45%,transparent)}
+.src:hover{background:color-mix(in srgb,var(--surface) 60%,transparent)}
+.src .ic{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c)}
+.src .t{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.src .t b{font-family:var(--f-display);font-weight:600;font-size:15px}
+.src .t span{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src[aria-pressed="true"]{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.08), inset 0 0 0 1.5px var(--c)}
+.src[aria-pressed="true"] .ic{background:var(--c);color:#fff}
+@media (max-width:560px){.srow:first-child .src{flex-direction:column;align-items:flex-start;gap:8px;padding:10px}.src .ic{width:30px;height:30px}}
+.src-names{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-6px}
+.src-names label{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--muted);min-width:0}
+.src-names label .tag{flex:none;padding:3px 7px;border-radius:6px;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}
+.src-names .field{height:36px;padding:0 10px;font-size:14px}
+
+/* iTunes-style LCD */
+.lcd{position:relative;border-radius:14px;padding:14px 18px 12px;background:linear-gradient(180deg,var(--lcd-a),var(--lcd-b));border:1px solid var(--lcd-edge);color:var(--lcd-ink);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.18), inset 0 -1px 0 rgba(255,255,255,.6), 0 1px 0 rgba(255,255,255,.5);text-align:center;display:flex;flex-direction:column;gap:4px;min-width:0}
+.lcd::before{content:"";position:absolute;inset:1px 1px 55% 1px;border-radius:13px 13px 40% 40%/13px 13px 18px 18px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0));pointer-events:none}
+.lcd-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--lcd-dim);position:relative}
+.lcd-top .st{display:inline-flex;align-items:center;gap:6px}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:10px}
+.eq i{width:2.5px;background:currentColor;border-radius:1px;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.6s}
+@keyframes eq{0%,100%{height:30%}50%{height:100%}}
+.stopped .eq i{animation-play-state:paused;height:30%}
+.lcd-title{font-family:var(--f-body);font-weight:800;font-size:20px;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;position:relative;padding-top:4px;min-width:0}
+.lcd-sub{font-size:13px;color:var(--lcd-dim);font-weight:600;min-height:1.4em;position:relative}
+.lcd .seek{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;margin-top:6px;position:relative}
+.lcd .seek .mono{font-size:12px;color:var(--lcd-dim)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;--p:0%}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;background:linear-gradient(to right,var(--accent) var(--p),var(--surface-3) var(--p))}
+input[type=range]::-moz-range-track{height:6px;border-radius:6px;background:linear-gradient(to right,var(--accent) var(--p),var(--surface-3) var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-6px;box-shadow:0 0 0 1px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08), 0 2px 6px rgba(0,0,0,.25)}
+.lcd input[type=range]::-webkit-slider-runnable-track{height:7px;border-radius:2px;background:linear-gradient(to right,#4f5446 var(--p),var(--lcd-track) var(--p));box-shadow:inset 0 1px 1px rgba(0,0,0,.25)}
+.lcd input[type=range]::-moz-range-track{height:7px;border-radius:2px;background:linear-gradient(to right,#4f5446 var(--p),var(--lcd-track) var(--p))}
+.lcd input[type=range]::-webkit-slider-thumb{width:11px;height:11px;border-radius:1px;margin-top:-2px;background:#2b2f24;box-shadow:none;transform:rotate(45deg)}
+.lcd input[type=range]::-moz-range-thumb{width:9px;height:9px;border-radius:1px;background:#2b2f24;box-shadow:none;transform:rotate(45deg)}
+.away{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:10px 12px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--av2) 12%,transparent);border:1px solid color-mix(in srgb,var(--av2) 35%,transparent)}
+.away svg.i{color:var(--av2)}
+/* jačina zvuka */
+.volbox{display:flex;align-items:center;gap:8px;padding:6px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
+.vbtn{width:40px;height:40px;flex:none;border-radius:10px;display:grid;place-items:center;color:var(--text);font:700 20px/1 var(--f-body);background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.vbtn:hover{border-color:var(--faint)}
+.vbtn:active{transform:translateY(1px)}
+.vbtn svg.i{width:18px;height:18px}
+.vbtn.on{background:color-mix(in srgb,var(--crit) 14%,var(--surface));color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))}
+.vbar{flex:1;min-width:0;height:40px;display:flex;align-items:center;gap:3px;padding:0 4px;cursor:pointer;border-radius:8px}
+.vbar i{flex:1;height:22px;border-radius:4px;background:var(--surface-3);transition:background .12s, height .12s}
+.vbar i.on{background:var(--accent)}
+.vbar i:nth-child(n+8).on{background:color-mix(in srgb,var(--accent) 70%,var(--warn))}
+.vbar.muted i.on{background:var(--faint)}
+.vbar:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vnum{font-size:13px;min-width:42px;text-align:right;color:var(--muted);padding-right:6px}
+
+/* click wheel */
+.wheel-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+.wheel{position:relative;width:230px;height:230px;max-width:100%;border-radius:50%;touch-action:none;user-select:none;-webkit-user-select:none;
+  background:radial-gradient(circle at 50% 35%,var(--wheel-a),var(--wheel-b));border:1px solid var(--wheel-edge);
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.35), inset 0 -3px 8px rgba(0,0,0,.08), 0 10px 26px rgba(0,0,0,.14)}
+.wheel .wl{position:absolute;display:grid;place-items:center;color:var(--wheel-ink);font:800 12px/1 var(--f-body);letter-spacing:.14em;border-radius:12px;padding:8px}
+.wheel .wl:hover{color:var(--text)}
+.wheel .wl svg.i{width:20px;height:20px}
+.wl.top{top:12px;left:50%;transform:translateX(-50%)}
+.wl.bottom{bottom:10px;left:50%;transform:translateX(-50%)}
+.wl.left{left:10px;top:50%;transform:translateY(-50%)}
+.wl.right{right:10px;top:50%;transform:translateY(-50%)}
+.hub{position:absolute;left:50%;top:50%;width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;display:grid;place-items:center;color:var(--wheel-ink);
+  background:linear-gradient(180deg,var(--hub-a),var(--hub-b));border:1px solid var(--wheel-edge);box-shadow:0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.4)}
+.hub:active{background:linear-gradient(0deg,var(--hub-a),var(--hub-b))}
+.hub svg.i{width:24px;height:24px}
+.wheel-hint{font-size:12px;color:var(--faint)}
+.volring{position:absolute;inset:-7px;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .25s;background:conic-gradient(var(--accent) calc(var(--v,70) * 1%),transparent 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px))}
+.wheel.turning .volring,.wheel.showvol .volring{opacity:1}
+
+/* buttons & fields */
+.add{display:flex;gap:8px}
+.field{flex:1;min-width:0;height:44px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface-2);color:var(--text);font:inherit;transition:border-color .15s, box-shadow .15s}
+.field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field::placeholder{color:var(--faint)}
+select.field{appearance:none;-webkit-appearance:none;padding-right:38px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b9bb1' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m7 10 5-5 5 5M7 14l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border-radius:var(--r-sm);font-weight:700;font-size:14px;background:var(--surface-2);border:1px solid var(--line);color:var(--text);transition:border-color .15s, filter .15s}
+.btn:hover{border-color:var(--faint)}
+.btn.gel{position:relative;overflow:hidden;border-radius:999px;border:1px solid var(--gel-edge);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3);
+  background:linear-gradient(180deg,var(--gel-top) 0%,var(--gel-mid) 50%,var(--gel-bot) 51%,var(--gel-mid) 100%);box-shadow:0 2px 6px color-mix(in srgb,var(--gel-bot) 45%,transparent), inset 0 -2px 4px rgba(255,255,255,.35)}
+.btn.gel::before{content:"";position:absolute;left:10%;right:10%;top:2px;height:45%;border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,.1));pointer-events:none}
+.btn.gel:hover{filter:brightness(1.05)}
+.btn.gel>*{position:relative}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.4)}
+.btn svg.i{width:17px;height:17px}
+.hint{font-size:13px;color:var(--muted);min-height:1.4em;margin:-6px 0 0}
+
+/* queue */
+.queue{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.q{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px;border-radius:14px;transition:background .15s}
+.q:hover{background:var(--surface-2)}
+.q.cur{background:var(--accent-soft)}
+.qa{width:44px;aspect-ratio:1;border-radius:10px;background:var(--art);display:grid;place-items:center;color:#fff;max-width:100%}
+.q .tt{min-width:0}
+.q .t{font-weight:700;font-size:14.5px;line-height:1.3;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.q.cur .t{color:var(--accent-2)}
+.q .s,.q .d{font-size:12.5px;color:var(--muted)}
+.acts{display:flex;gap:2px}
+.mini{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;color:var(--muted);transition:background .15s, color .15s}
+.mini:hover{background:var(--surface-3);color:var(--text)}
+.mini.danger:hover{color:var(--crit)}
+.mini svg.i{width:16px;height:16px}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:14px;border:1px dashed var(--line);border-radius:14px}
+
+/* gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px}
+.ph{position:relative;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--surface-2);max-width:100%;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.ph>.g,.ph>img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .x{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#ff5f57;color:#6b0f0b;display:grid;place-items:center;opacity:0;transition:opacity .15s;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2)}
+.ph:hover .x,.ph:focus-within .x{opacity:1}
+@media (hover:none){.ph .x{opacity:1}}
+.ph .x svg.i{width:12px;height:12px;stroke-width:3}
+.drop{position:relative;aspect-ratio:4/3;border-radius:12px;border:1.5px dashed var(--faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);font-size:12px;font-weight:700;transition:border-color .15s, color .15s}
+.drop:hover{border-color:var(--accent);color:var(--accent)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.segc{display:inline-flex;padding:3px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);gap:2px}
+.segc button{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.segc button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+
+/* system */
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{padding:14px;border-radius:14px;background:var(--surface-2);display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat .k{font-size:12.5px;color:var(--muted);font-weight:700}
+.stat .v{font-family:var(--f-display);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .v small{font-size:14px;color:var(--muted);font-weight:500;font-family:var(--f-body)}
+.stat svg.spark{width:100%;height:32px;margin-top:6px;display:block}
+.okpill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.okpill svg.i{width:14px;height:14px}
+.relays{display:flex;flex-direction:column;gap:2px}
+.relay{display:flex;align-items:center;gap:12px;padding:10px 6px;border-radius:12px;text-align:left;width:100%}
+.relay:hover{background:var(--surface-2)}
+.relay .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);flex:none;transition:background .15s, color .15s}
+.relay[aria-checked="true"] .ic{background:var(--accent-soft);color:var(--accent)}
+.relay .t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.relay .t b{font-weight:700;font-size:14.5px}
+.relay .t span{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.sw{width:46px;height:28px;border-radius:999px;background:var(--surface-3);position:relative;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.rstate{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.rstate::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.relay[aria-checked="true"] .rstate{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.relay[aria-checked="true"] .rstate::before{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+html:not(.admin) .relay{cursor:default}
+html:not(.admin) .relay:hover{background:none}
+.relay[aria-checked="true"] .sw{background:#34c759}
+.relay[aria-checked="true"] .sw::after{transform:translateX(18px)}
+
+/* remote */
+.sig{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);flex-wrap:wrap}
+.sig .led{width:8px;height:8px;border-radius:50%;background:var(--faint);transition:background .1s, box-shadow .1s}
+.sig .led.hit{background:var(--ir);box-shadow:0 0 0 4px color-mix(in srgb,var(--ir) 25%,transparent)}
+.sig code{font-family:var(--f-mono);font-size:12.5px;color:var(--text)}
+.ir-grid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.ir-grid{grid-template-columns:minmax(0,1fr)}}
+.ir-panel{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;min-width:0;align-items:start}
+@media (min-width:1100px){html.admin .ir-panel{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+
+/* virtuelni daljinski */
+:root{--rm-a:#fbfbfc;--rm-b:#eceef2;--rm-edge:#cdd2da;--rm-ink:#4b5361;--rk-a:#ffffff;--rk-b:#e3e7ec;--rk-edge:#cfd5dd;--ring-a:#f3f5f8;--ring-b:#e1e5ea}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rm-a:#2b3039;--rm-b:#1e2229;--rm-edge:#12151a;--rm-ink:#c5ccd6;--rk-a:#3a414c;--rk-b:#2b313a;--rk-edge:#1a1e24;--ring-a:#30363f;--ring-b:#232830}}
+:root[data-theme="dark"]{--rm-a:#2b3039;--rm-b:#1e2229;--rm-edge:#12151a;--rm-ink:#c5ccd6;--rk-a:#3a414c;--rk-b:#2b313a;--rk-edge:#1a1e24;--ring-a:#30363f;--ring-b:#232830}
+.remote-col{display:flex;flex-direction:column;align-items:center;gap:12px}
+.remote{position:relative;width:212px;max-width:100%;padding:16px 18px 20px;border-radius:44px 44px 36px 36px;color:var(--rm-ink);display:flex;flex-direction:column;gap:14px;
+  background:linear-gradient(90deg,var(--rm-edge) 0%,var(--rm-a) 9%,var(--rm-b) 50%,var(--rm-a) 91%,var(--rm-edge) 100%);
+  box-shadow:0 22px 44px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.35), inset 0 -3px 8px rgba(0,0,0,.18)}
+.irled{align-self:center;width:18px;height:9px;border-radius:9px 9px 3px 3px;background:#3a1416;box-shadow:inset 0 1px 2px rgba(255,255,255,.2);transition:background .08s, box-shadow .08s}
+.irled.hit{background:#ff3b3b;box-shadow:0 0 14px 4px rgba(255,59,59,.65)}
+.rdisp{border-radius:8px;padding:6px 8px;text-align:center;font:600 11.5px/1.3 var(--f-mono);color:var(--lcd-ink);background:linear-gradient(180deg,var(--lcd-a),var(--lcd-b));border:1px solid var(--lcd-edge);box-shadow:inset 0 1px 3px rgba(0,0,0,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:28px}
+.rrow{display:grid;gap:10px;align-items:center}
+.rrow.r3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rrow.r4{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.rrow.r3{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;padding:0 6px}
+.rk,.dp,.rocker button,.ck{transition:transform .06s, box-shadow .06s, filter .1s;-webkit-tap-highlight-color:transparent}
+.rk{height:34px;border-radius:999px;display:grid;place-items:center;font:800 11px/1 var(--f-body);letter-spacing:.06em;color:var(--rm-ink);
+  background:linear-gradient(180deg,var(--rk-a),var(--rk-b));border:1px solid var(--rk-edge);box-shadow:0 2px 0 var(--rk-edge), inset 0 1px 0 rgba(255,255,255,.35)}
+.rk svg.i{width:15px;height:15px}
+.rk.num{font:700 15px/1 var(--f-display);letter-spacing:0}
+.rk.pw{color:#e5484d}
+.rk:active,.rk.hit,.dp:active,.dp.hit,.rocker button:active,.rocker button.hit,.ck:active,.ck.hit{transform:translateY(2px);box-shadow:0 0 0 var(--rk-edge), inset 0 1px 2px rgba(0,0,0,.15)}
+.rk.hit,.dp.hit,.rocker button.hit{filter:brightness(.94)}
+.dpad{position:relative;width:164px;height:164px;align-self:center;border-radius:50%;background:radial-gradient(circle at 50% 35%,var(--ring-a),var(--ring-b));border:1px solid var(--rk-edge);box-shadow:inset 0 2px 3px rgba(255,255,255,.3), inset 0 -3px 6px rgba(0,0,0,.12), 0 2px 0 var(--rk-edge)}
+.dp{position:absolute;display:grid;place-items:center;color:var(--rm-ink);border-radius:12px}
+.dp svg.i{width:18px;height:18px}
+.dp.up{top:6px;left:50%;width:48px;height:40px;margin-left:-24px}
+.dp.down{bottom:6px;left:50%;width:48px;height:40px;margin-left:-24px}
+.dp.left{left:6px;top:50%;width:40px;height:48px;margin-top:-24px}
+.dp.right{right:6px;top:50%;width:40px;height:48px;margin-top:-24px}
+.dp:hover{color:var(--text)}
+.dp.ok{left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;font:800 14px/1 var(--f-body);color:#fff;
+  background:linear-gradient(180deg,var(--gel-top),var(--gel-mid) 50%,var(--gel-bot) 51%,var(--gel-mid));border:1px solid var(--gel-edge);box-shadow:0 2px 0 var(--gel-edge), inset 0 1px 0 rgba(255,255,255,.5);text-shadow:0 1px 1px rgba(0,0,0,.3)}
+.rrow.rock{grid-template-columns:46px minmax(0,1fr) 46px;justify-items:center}
+.rocker{width:46px;height:104px;border-radius:23px;display:flex;flex-direction:column;align-items:stretch;background:linear-gradient(180deg,var(--rk-a),var(--rk-b));border:1px solid var(--rk-edge);box-shadow:0 2px 0 var(--rk-edge), inset 0 1px 0 rgba(255,255,255,.35);overflow:hidden}
+.rocker button{flex:1;font:700 18px/1 var(--f-body);color:var(--rm-ink)}
+.rocker span{font:800 9.5px/1 var(--f-body);letter-spacing:.12em;text-align:center;opacity:.7;padding:2px 0}
+.rk.back{width:44px;height:44px;border-radius:50%}
+.ck{height:16px;border-radius:999px;border:1px solid rgba(0,0,0,.2);box-shadow:0 2px 0 rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.45)}
+.ck.red{background:#e5484d}.ck.green{background:#30a46c}.ck.yellow{background:#f5d90a}.ck.blue{background:#0091ff}
+.rbrand{text-align:center;font:800 11px/1 var(--f-display);letter-spacing:.18em;opacity:.45;margin-top:2px}
+.remote-col .viewer-note{text-align:center;justify-content:center;max-width:260px}
+.remote{border-radius:30px;padding:18px 18px 22px}
+.rrow.r2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rdisp{min-height:52px;display:flex;flex-direction:column;justify-content:center;gap:3px;white-space:normal;text-align:left;padding:7px 10px}
+.rdisp .l1{font:800 10px/1 var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--lcd-dim);display:flex;justify-content:space-between}
+.rdisp .l2{font:700 12.5px/1.25 var(--f-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rwheel{width:176px;height:176px;align-self:center}
+.rwheel .wl{font-size:10.5px;padding:6px}
+.rwheel .wl svg.i{width:17px;height:17px}
+.rwheel .wl.top{top:9px}.rwheel .wl.bottom{bottom:7px}.rwheel .wl.left{left:7px}.rwheel .wl.right{right:7px}
+.rwheel .hub{width:66px;height:66px;margin:-33px 0 0 -33px;font:800 13px/1 var(--f-body);color:var(--wheel-ink)}
+.rwheel .wl.hit{color:var(--accent)}
+.rwheel .hub.hit{background:linear-gradient(0deg,var(--hub-a),var(--hub-b));color:var(--accent)}
+.wiz{border-radius:16px;background:var(--surface-2);padding:18px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.wiz-title{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.wiz-title h3{font-size:15px;font-weight:600}
+.stepper{display:flex;align-items:center;gap:8px;list-style:none;margin:0;padding:0}
+.stepper li{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--faint);min-width:0}
+.stepper li .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1.5px solid var(--line);background:var(--surface);flex:none}
+.stepper li+li::before{content:"";width:20px;height:2px;border-radius:2px;background:var(--line);flex:none}
+.stepper li.on{color:var(--text)}
+.stepper li.on .n{border-color:var(--accent);color:var(--accent)}
+.stepper li.ok{color:var(--muted)}
+.stepper li.ok .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+@media (max-width:420px){.stepper li .lbl{display:none}}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld label,.fld .lab{font-size:13px;font-weight:800}
+.fld .help{font-size:12.5px;color:var(--muted);margin:-4px 0 0}
+.cap{display:flex;align-items:center;gap:14px;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);min-height:76px}
+.radar{position:relative;width:48px;height:48px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--surface-2);color:var(--muted)}
+.radar::before,.radar::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--ir);opacity:0}
+.cap.wait .radar{color:var(--ir);background:color-mix(in srgb,var(--ir) 12%,transparent)}
+.cap.wait .radar::before{animation:ring 1.6s ease-out infinite}
+.cap.wait .radar::after{animation:ring 1.6s ease-out .8s infinite}
+@keyframes ring{0%{transform:scale(.7);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+.cap.got .radar{color:#fff;background:#34c759}
+.cap .msg{font-size:13.5px;min-width:0;overflow-wrap:anywhere;display:flex;flex-direction:column;gap:2px}
+.cap .msg code{font-family:var(--f-mono);font-size:14px;font-weight:500}
+.timer{height:4px;border-radius:4px;background:var(--surface-3);overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--ir);transform-origin:left;transition:transform .2s linear}
+.conflict{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+.conflict svg.i{color:var(--warn);margin-top:1px}
+.wiz-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.maps{display:flex;flex-direction:column;gap:14px;min-width:0}
+.mgroup{display:flex;flex-direction:column;gap:4px}
+.mgroup h3{font-family:var(--f-body);font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:0 0 2px 6px}
+.map{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 6px;border-radius:12px;transition:background .2s, box-shadow .2s}
+.map:hover{background:var(--surface-2)}
+.map.flash{background:color-mix(in srgb,var(--ir) 12%,transparent)}
+.map.editing{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
+.kc{justify-self:start;min-width:44px;height:32px;padding:0 10px;display:grid;place-items:center;border-radius:8px;font-weight:800;font-size:12.5px;white-space:nowrap;
+  background:linear-gradient(180deg,var(--surface),var(--surface-2));border:1px solid var(--line);box-shadow:0 2px 0 var(--line), inset 0 1px 0 rgba(255,255,255,.5)}
+.map .c{min-width:0}
+.map .c b{display:block;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map .c code{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--text);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;font-weight:700;box-shadow:var(--shadow-lg);transition:opacity .2s, transform .2s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* raspored za telefon: jedna kolona, daljinski odmah ispod plejera */
+.wrap,.top-in{max-width:600px}
+.grid,.col{display:contents}
+.wrap > *{order:0}
+#hero{order:1}
+#qCard{order:2}
+section[aria-labelledby="h-ir"]{order:3}
+.maps-wrap{width:100%;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.maps-wrap > summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;font-weight:800;font-size:14px;border-radius:14px}
+.maps-wrap > summary::-webkit-details-marker{display:none}
+.maps-wrap > summary:hover{background:var(--surface-2)}
+.maps-wrap > summary .cnt{font-weight:700;font-size:12.5px;color:var(--muted);padding:2px 8px;border-radius:999px;background:var(--surface-2)}
+.maps-wrap > summary svg.i{margin-left:auto;color:var(--muted);transition:transform .2s}
+.maps-wrap[open] > summary svg.i{transform:rotate(180deg)}
+.maps-wrap[open] > summary{border-bottom:1px solid var(--line);border-radius:14px 14px 0 0}
+.maps-wrap .maps{padding:10px 8px 12px}
+.map{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.map:active .kc{transform:translateY(2px);box-shadow:0 0 0 var(--line), inset 0 1px 2px rgba(0,0,0,.12)}
+.map:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.kc{transition:transform .06s, box-shadow .06s}
+section[aria-labelledby="h-rel"]{order:4}
+section[aria-labelledby="h-sys"]{order:5}
+section[aria-labelledby="h-img"]{order:6}
+.ir-grid{grid-template-columns:minmax(0,1fr)!important;justify-items:center;gap:22px}
+.ir-panel{width:100%;grid-template-columns:minmax(0,1fr)!important}
+.remote{width:232px}
+.rwheel{width:190px;height:190px}
+section[aria-labelledby="h-ir"] .card-head{justify-content:center;text-align:center;flex-direction:column;gap:8px}
+section[aria-labelledby="h-ir"] .card-head h2{justify-content:center}
+section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:block}
+.stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:380px){.srcs{gap:4px;padding:4px}.src{padding:8px}.transport{gap:6px}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-cast" viewBox="0 0 24 24"><path d="M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6M3 12a8 8 0 0 1 8 8M3 16a4 4 0 0 1 4 4"/><circle cx="3.5" cy="19.5" r=".8" fill="currentColor"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pp" viewBox="0 0 24 24"><path d="M3 6v12l8-6z" fill="currentColor" stroke="none"/><rect x="14" y="6" width="2.6" height="12" rx=".8" fill="currentColor" stroke="none"/><rect x="18.4" y="6" width="2.6" height="12" rx=".8" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M12 6v12L4 12zM20 6v12l-8-6z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M12 6v12l8-6zM4 6v12l8-6z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="i-pi" viewBox="0 0 24 24"><path d="M5 8h14M9 8v10M15 8v8a2 2 0 0 0 2 2"/></symbol>
+  <symbol id="i-game" viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="11" rx="5"/><path d="M7.5 11v3M6 12.5h3"/><circle cx="15.5" cy="11.5" r="1" fill="currentColor"/><circle cx="17.5" cy="14" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></symbol>
+  <symbol id="i-therm" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
+  <symbol id="i-signal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></symbol>
+  <symbol id="i-amp" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="7" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.5"/><path d="M12 10.5c0-4 1-7 4-7 2 0 2.5 3-4 7M13.5 12c4 0 7 1 7 4 0 2-3 2.5-7-4M12 13.5c0 4-1 7-4 7-2 0-2.5-3 4-7M10.5 12c-4 0-7-1-7-4 0-2 3-2.5 7 4"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></symbol>
+  <symbol id="i-radio" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8 17 3"/><circle cx="15.5" cy="14" r="2.5"/><path d="M6.5 12.5h4M6.5 15.5h4"/></symbol>
+  <symbol id="i-back10" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4.5h4.5"/></symbol>
+  <symbol id="i-fwd10" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4.5h-4.5"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8M6.3 7a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-yt" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4.5"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-headph" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/></symbol>
+  <symbol id="i-chip2" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7v10M11 7v10M15 7v10M3 20h18"/></symbol>
+  <symbol id="i-remote" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3"/><circle cx="12" cy="7" r="1.6" fill="currentColor"/><path d="M10 12h4M10 15h4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="i-media" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M10 8.4v7.2l6-3.6z" fill="currentColor" stroke-linejoin="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="m16 11 5-3v8l-5-3"/></symbol>
+</svg>
+
+<!-- meni sa strane: na računaru stalno otvoren, na telefonu fioka (dugme ☰ u zaglavlju) -->
+<div class="side-bg" id="sideBg" hidden></div>
+<nav class="side" id="side" aria-label="Meni">
+  <div class="side-logo"><span class="mark" aria-hidden="true"></span><span class="slt">Teco.Pi</span></div>
+  <div class="tree">
+    <div class="tgrp" data-view="media">
+      <button class="tsec" data-view="media" title="Multimedija"><svg class="i"><use href="#i-media"/></svg><span>Multimedija</span></button>
+    </div>
+    <div class="tgrp" data-view="alarm">
+      <button class="tsec" data-view="alarm" title="Alarm"><svg class="i"><use href="#i-shield"/></svg><span>Alarm</span><i class="tdot" id="navAlDot"></i></button>
+    </div>
+    <div class="tgrp" data-view="cctv">
+      <button class="tsec" data-view="cctv" title="CCTV (uskoro)"><svg class="i"><use href="#i-cam"/></svg><span>CCTV</span><small>uskoro</small></button>
+    </div>
+    <div class="tsep" role="separator"></div>
+    <!-- Admin: posebna stranica sa svim podešavanjima (ulazak = admin režim, odlazak = izlaz iz admina) -->
+    <div class="tgrp" data-view="admin">
+      <button class="tsec tadm" id="adminSw" role="switch" aria-checked="false" title="Podešavanja (traži PIN)"><svg class="i"><use href="#i-lock" id="lockIco"/></svg><span>Admin</span><small class="tadm-on">uključen</small></button>
+      <div class="titems">
+        <a href="#hero" data-view="admin">Izvori i konzole</a>
+        <a href="#irCard" data-view="admin">Daljinski · tasteri</a>
+        <a href="#imgCard" data-view="admin">Kad nema videa</a>
+        <a href="#evCard" data-view="admin">Obaveštenja</a>
+        <a href="#btCard" data-view="admin">Bluetooth</a>
+        <a href="#castCard" data-view="admin">Cast</a>
+        <a href="#alCfgCard" data-view="admin">Alarm · veza</a>
+        <a href="#netCard" data-view="admin">Mreža</a>
+        <a href="#sysAdmCard" data-view="admin">Sistem</a>
+        <a href="#accCard" data-view="admin">Admin pristup</a>
+      </div>
+    </div>
+  </div></nav>
+
+<header class="top">
+  <div class="top-in">
+    <button class="navbtn" id="navBtn" type="button" aria-label="Meni" aria-controls="side" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
+    <div class="ptitle" aria-live="polite"><span class="pic"><svg class="i"><use href="#i-tv" id="ptIco"/></svg></span><span id="ptTxt">Multimedija</span></div>
+    <div class="logo"><span class="mark" aria-hidden="true"></span>Teco.Pi</div>
+    <button class="rtop" id="rTop" type="button" title="Otvori daljinski"><span class="lk"><svg class="i"><use href="#i-remote"/></svg></span><span class="al">Daljinski</span></button>
+    <div class="chips"><div class="chip sbar">
+      <button class="chip schip" type="button" id="sysChip" title="Sistem: procesor, memorija, temperatura, napajanje">
+        <svg class="i"><use href="#i-cpu"/></svg><span class="lbl">CPU</span><b id="chLoad">—</b><b id="chCpu" class="ctemp">—</b><i class="sep"></i><span class="lbl">RAM</span><b id="chRam">—</b><i class="sep"></i><svg class="i pw-ic" id="chNetIc"><use href="#i-globe"/></svg><span class="sdot" id="chNetDot" role="img" aria-label="Internet"></span><i class="sep"></i><svg class="i pw-ic" id="chPowIc"><use href="#i-plug"/></svg><span class="sdot" id="chPowDot" role="img" aria-label="Napajanje"></span>
+      </button>
+    </div></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="offline" id="offline" hidden role="alertdialog" aria-live="assertive"><div class="offbox"><span class="offic"><svg class="i"><use href="#i-alert"/></svg></span><b>Teco.Pi nije dostupan</b><p>Ne mogu da se povežem sa serverom. Proveri da li je Teco.Pi uključen i na istoj mreži.</p><span class="offtry"><span class="spin"></span><span id="offTry">Pokušavam ponovo…</span></span></div></div>
+  <p class="demo" id="connBar" hidden><svg class="i"><use href="#i-alert"/></svg><span id="connTxt">Povezujem se sa Teco.Pi...</span></p>
+  <div class="admbar adm" role="status"><svg class="i"><use href="#i-unlock"/></svg><span><b>Admin režim</b><small>Podešavanja. Za gledanje izađi iz admina.</small></span><button class="btn" id="admExit" type="button">Izađi</button></div>
+
+  <section class="card cctv" id="cctvCard" aria-labelledby="h-cctv">
+    <div class="card-head"><h2 id="h-cctv">CCTV</h2></div>
+    <div class="soon"><svg class="i"><use href="#i-cam"/></svg><b>Kamere uskoro</b><p>Ovde će biti pregled kamera. Za sada je deo u pripremi.</p></div>
+  </section>
+
+  <section class="card tcard" id="tempCard" aria-label="Temperatura" hidden>
+    <div class="tgrid">
+      <div class="tbox" id="tIn" style="--c:var(--accent)"><span class="k"><svg class="i"><use href="#i-therm"/></svg>Unutra</span><span class="v"><b id="tInV">—</b><small>°C</small><small class="hum" id="tHum" hidden></small></span><svg class="spark" id="spRoom" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+      <div class="tbox" id="tOut" style="--c:var(--av2)"><span class="k"><svg class="i"><use href="#i-therm"/></svg>Napolje</span><span class="v"><b id="tOutV">—</b><small>°C</small></span><svg class="spark" id="spOut" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+    </div>
+  </section>
+
+  <section class="card hero" aria-labelledby="h-hub" id="hero">
+    <div class="card-head"><h2 id="h-hub"><span class="viewer">Multimedia Hub</span><span class="adm">Izvori · podešavanje</span></h2></div>
+    <p class="adm admnote">Izaberi izvor da ga podesiš. Ovde ništa ne menja šta se trenutno pušta.</p>
+    <div class="hero-in">
+      <div class="np">
+        <div class="srcs" role="group" aria-label="Izvor"><div class="srow">
+          <button class="src" data-src="av1" aria-pressed="true"><span class="ic"><svg class="i"><use href="#i-yt"/></svg></span><span class="t"><b>YT</b><span>YouTube</span></span></button>
+          <div class="src avsrc" data-src="av" role="button" tabindex="0" aria-pressed="false"><span class="ic"><svg class="i"><use href="#i-game"/></svg></span><span class="t"><b>AV</b><span id="avSub">Konzola</span></span><span class="avpick" role="group" aria-label="AV ulaz"><button type="button" data-av="av2" aria-label="AV1">1</button><button type="button" data-av="av3" aria-label="AV2">2</button><button type="button" data-av="av4" aria-label="AV3">3</button></span></div></div><div class="srow">
+          <button class="src" data-src="fm" aria-pressed="false"><span class="ic"><svg class="i"><use href="#i-radio"/></svg></span><span class="t"><b>FM</b><span>Radio</span></span></button>
+          <button class="src" data-src="st" aria-pressed="false"><span class="ic"><svg class="i"><use href="#i-signal"/></svg></span><span class="t"><b>Radio</b><span>Internet</span></span></button>
+          <button class="src" data-src="tv" aria-pressed="false"><span class="ic"><svg class="i"><use href="#i-tv"/></svg></span><span class="t"><b>TV</b><span>Internet</span></span></button></div>
+        </div>
+        <button class="standby viewer" id="standbyBtn" type="button" title="Drži 2 sekunde"><svg class="i"><use href="#i-power"/></svg><span>Stand by</span><span class="sbmsg" aria-hidden="true"><svg class="i"><use href="#i-power"/></svg><span class="sbc">Stand by za 2</span></span><span class="rndbar"><i></i></span></button>
+        <div class="src-names adm">
+          <div class="sn-head">Konzole na AV ulazima</div>
+          <div class="sn-grid">
+            <div class="sn" style="--c:var(--av2)">
+              <div class="sn-top"><span class="tag">AV1</span><span class="sn-name" id="snAv2"></span></div>
+              <div class="sn-art" id="artAv2"></div>
+              <label class="sn-l" for="csAv2">Konzola</label><select class="field" id="csAv2"></select>
+              <label class="sn-l" for="nmAv2">Ime na ekranu</label><input class="field" id="nmAv2" maxlength="24" placeholder="kao konzola" autocomplete="off">
+            </div>
+            <div class="sn" style="--c:var(--av3)">
+              <div class="sn-top"><span class="tag">AV2</span><span class="sn-name" id="snAv3"></span></div>
+              <div class="sn-art" id="artAv3"></div>
+              <label class="sn-l" for="csAv3">Konzola</label><select class="field" id="csAv3"></select>
+              <label class="sn-l" for="nmAv3">Ime na ekranu</label><input class="field" id="nmAv3" maxlength="24" placeholder="kao konzola" autocomplete="off">
+            </div>
+            <div class="sn" style="--c:var(--av4)">
+              <div class="sn-top"><span class="tag">AV3</span><span class="sn-name" id="snAv4"></span></div>
+              <div class="sn-art" id="artAv4"></div>
+              <label class="sn-l" for="csAv4">Konzola</label><select class="field" id="csAv4"></select>
+              <label class="sn-l" for="nmAv4">Ime na ekranu</label><input class="field" id="nmAv4" maxlength="24" placeholder="kao konzola" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        <div class="lcd" id="lcd">
+          <div class="lcd-top"><span class="st"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span id="npKicker">Sada se pušta</span></span><span>480p · 25 fps</span></div>
+          <h1 class="lcd-title" id="npTitle"></h1>
+          <div class="lcd-sub" id="npSub"></div>
+          <div class="seek">
+            <span class="mono" id="tCur">0:00</span>
+            <input type="range" id="seek" min="0" max="100" value="0" aria-label="Pozicija u videu">
+            <span class="mono" id="tDur">-0:00</span>
+          </div>
+        </div>
+        <div class="console" id="consPanel" hidden>
+          <div class="cons-stage" id="consStage"></div>
+          <span class="cons-kicker"><i></i><span id="consKicker">AV2 · na ekranu</span></span>
+          <div class="cons-name" id="consName" role="heading" aria-level="2"></div>
+          <p class="cons-note">Slika i zvuk dolaze sa konzole. YouTube je pauziran i nastavlja se kad se vratiš na YT.</p>
+        </div>
+        <div class="fm" id="fmPanel" hidden>
+          <div class="lcd" id="fmLcd">
+            <div class="lcd-top"><span class="st"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>FM radio · RTL-SDR</span><span id="fmSt">Stereo</span></div>
+            <div class="fmfreq"><span id="fmFreq">98.5</span><small>MHz</small></div>
+            <div class="lcd-sub" id="fmName"></div>
+            <div class="dial" id="dial" role="slider" tabindex="0" aria-label="Frekvencija u MHz" aria-valuemin="87.5" aria-valuemax="108"><span class="needle" id="needle"></span></div>
+            <div class="fmfoot"><span>Signal</span><span class="sigbar" id="sigbar"><i></i><i></i><i></i><i></i><i></i></span></div>
+          </div>
+          <div class="fmctl">
+            <button class="vbtn" id="fmSeekDn" aria-label="Prethodna stanica"><svg class="i"><use href="#i-prev"/></svg></button>
+            <button class="vbtn" id="fmDn" aria-label="Smanji za 0,1 MHz">−</button>
+            <form class="fmgo" id="fmForm"><input class="field" id="fmInput" inputmode="decimal" autocomplete="off" placeholder="98.5" aria-label="Unesi frekvenciju u MHz"><button class="btn gel" type="submit"><span>Idi</span></button></form>
+            <button class="vbtn" id="fmUp" aria-label="Povećaj za 0,1 MHz">+</button>
+            <button class="vbtn" id="fmSeekUp" aria-label="Sledeća stanica"><svg class="i"><use href="#i-next"/></svg></button>
+          </div>
+          <div class="presets" id="presets" aria-label="Memorisane stanice"></div>
+          <form class="fmsave adm" id="fmSaveForm"><input class="field" id="fmSaveName" maxlength="20" autocomplete="off" placeholder="Ime stanice za trenutnu frekvenciju" aria-label="Ime stanice"><button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg>Sačuvaj</button></form>
+        </div>
+        <p class="admnote" id="admAv1" hidden>YouTube nema podešavanja ovde. Šta je na ekranu kad nema videa (slike ili sat) podešavaš u kartici „Kad nema videa”.</p>
+        <div class="fm" id="stPanel" hidden>
+          <div class="lcd" id="stLcd">
+            <div class="lcd-top"><span class="st"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>Internet radio</span><span id="stPos"></span></div>
+            <h1 class="lcd-title" id="stName">Radio</h1>
+            <div class="lcd-sub" id="stTitle"></div>
+          </div>
+          <div class="fmctl">
+            <button class="vbtn" id="stPrev" aria-label="Prethodna stanica"><svg class="i"><use href="#i-prev"/></svg></button>
+            <button class="play" id="stPlay" aria-label="Utišaj"><svg class="i"><use href="#i-pause" id="stIco"/></svg></button>
+            <button class="vbtn" id="stNext" aria-label="Sledeća stanica"><svg class="i"><use href="#i-next"/></svg></button>
+            <button class="vbtn rnd" id="stRnd" aria-label="Nasumična stanica" title="Nasumična stanica"><svg class="i"><use href="#i-shuffle"/></svg></button>
+          </div>
+          <div class="stgrp" id="stMineGrp"><div class="sthead">Moje stanice</div><div class="stlist" id="stMine"></div></div>
+          <div class="stgrp"><div class="sthead">Omiljene</div><div class="stlist" id="stFav"></div></div>
+          <details class="tvall stall" id="stAll">
+            <summary><span>Sve stanice</span><span class="muted" id="stCount"></span><svg class="i chev"><use href="#i-down"/></svg></summary>
+            <div class="tvcats" id="stCats" role="group" aria-label="Kategorija"></div>
+            <div class="stlist" id="stList"></div>
+          </details>
+          <div class="row adm rcrow"><span class="muted">Sat na svakih 15 min</span><div class="segc" id="rcSeg" role="group" aria-label="Koliko dugo je sat na ekranu dok svira radio"><button data-v="15">15 s</button><button data-v="30">30 s</button><button data-v="45">45 s</button><button data-v="60">60 s</button><button data-v="0">Nikad</button></div></div>
+          <form class="stadd adm" id="stForm">
+            <input class="field" id="stN" maxlength="26" autocomplete="off" placeholder="Ime (npr. Radio S)" aria-label="Ime stanice">
+            <input class="field" id="stU" type="url" inputmode="url" autocomplete="off" placeholder="https://… link streama" aria-label="Link streama">
+            <button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg>Dodaj</button>
+          </form>
+        </div>
+        <div class="fm" id="tvPanel" hidden>
+          <div class="lcd" id="tvLcd">
+            <div class="lcd-top"><span class="st"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>TV uživo</span><span id="tvPos"></span></div>
+            <h1 class="lcd-title" id="tvName">TV</h1>
+            <div class="lcd-sub" id="tvSub"></div>
+          </div>
+          <div class="fmctl">
+            <button class="vbtn" id="tvPrev" aria-label="Prethodni kanal"><svg class="i"><use href="#i-prev"/></svg></button>
+            <button class="play" id="tvPlay" aria-label="Pauza"><svg class="i"><use href="#i-pause" id="tvIco"/></svg></button>
+            <button class="vbtn" id="tvNext" aria-label="Sledeći kanal"><svg class="i"><use href="#i-next"/></svg></button>
+            <button class="vbtn rnd" id="tvRnd" aria-label="Nasumičan kanal" title="Nasumičan kanal"><svg class="i"><use href="#i-shuffle"/></svg></button>
+          </div>
+          <div class="stgrp"><div class="sthead">Omiljeni</div><div class="stlist" id="tvFav"></div></div>
+          <details class="tvall" id="tvAll">
+            <summary><span>Svi kanali</span><span class="muted" id="tvCount"></span><svg class="i chev"><use href="#i-down"/></svg></summary>
+            <div class="tvcats" id="tvCats" role="group" aria-label="Kategorija"></div>
+            <div class="stlist" id="tvList"></div>
+          </details>
+          <form class="stadd adm" id="tvForm">
+            <input class="field" id="tvN" maxlength="26" autocomplete="off" placeholder="Ime kanala" aria-label="Ime kanala">
+            <input class="field" id="tvU" type="url" inputmode="url" autocomplete="off" placeholder="https://… link kanala (m3u8)" aria-label="Link kanala">
+            <button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg>Dodaj</button>
+          </form>
+        </div>
+        <div class="away" id="away" hidden><svg class="i"><use href="#i-tv"/></svg><span id="awayTxt"></span></div>
+        <div class="transport">
+          <button class="ib" id="hPrev" aria-label="Prethodni video"><svg class="i"><use href="#i-prev"/></svg></button>
+          <button class="ib" id="hBack" aria-label="Nazad 10 sekundi"><svg class="i"><use href="#i-back10"/></svg><span class="lbl10">10</span></button>
+          <button class="play" id="bPlay" aria-label="Pauza"><svg class="i"><use href="#i-pause" id="playIco"/></svg></button>
+          <button class="ib" id="hFwd" aria-label="Napred 10 sekundi"><svg class="i"><use href="#i-fwd10"/></svg><span class="lbl10">10</span></button>
+          <button class="ib" id="hNext" aria-label="Sledeći video"><svg class="i"><use href="#i-next"/></svg></button>
+        </div>
+        <div class="volbox">
+          <button class="vbtn" id="vMute" aria-label="Utišaj"><svg class="i"><use href="#i-vol" id="muteIco"/></svg></button>
+          <button class="vbtn" id="vDown" aria-label="Tiše">−</button>
+          <div class="vbar" id="vbar" role="slider" tabindex="0" aria-label="Jačina zvuka" aria-valuemin="0" aria-valuemax="100" aria-valuenow="70"></div>
+          <button class="vbtn" id="vUp" aria-label="Jače">+</button>
+          <span class="mono vnum" id="volV">70%</span>
+        </div>
+        <div class="outs" id="outs" aria-label="Izlaz zvuka"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card" aria-labelledby="h-q" id="qCard">
+        <div class="card-head"><h2 id="h-q">YouTube lista</h2><span class="sub" id="qCount"></span></div>
+        <form class="add" id="addForm">
+          <input class="field" id="addUrl" type="url" placeholder="Nalepi YouTube link" autocomplete="off" aria-label="YouTube link">
+          <button class="btn gel" type="submit" title="Pusti odmah"><svg class="i"><use href="#i-play"/></svg><span>Pusti</span></button>
+          <button class="btn" type="button" id="addQueue" title="Dodaj na kraj liste"><svg class="i"><use href="#i-plus"/></svg><span>Na listu</span></button>
+        </form>
+        <p class="hint" id="addStatus" aria-live="polite"></p>
+        <ol class="queue" id="queue"></ol>
+        <button class="btn ghost" id="qClear" hidden style="align-self:flex-end"><svg class="i"><use href="#i-trash"/></svg><span>Očisti listu</span></button>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-img" id="imgCard">
+        <div class="card-head"><h2 id="h-img">Kad nema videa</h2><span class="sub" id="imgCount"></span></div>
+        <div class="segc" id="idleSeg" role="group" aria-label="Šta je na ekranu kad nema videa" style="align-self:flex-start"><button aria-pressed="true" data-v="slides">Slike</button><button aria-pressed="false" data-v="clock">Sat i temperatura</button></div>
+        <div class="gallery" id="gallery">
+          <label class="drop adm" for="upl"><svg class="i"><use href="#i-plus"/></svg>Dodaj slike<input type="file" id="upl" accept="image/*" multiple></label>
+        </div>
+        <div class="row">
+          <span class="muted" style="font-size:13px">Slajdšou kreće sam kad je lista prazna.</span>
+          <div class="segc adm" id="dur" role="group" aria-label="Vreme po slici"><button aria-pressed="false">5 s</button><button aria-pressed="true">10 s</button><button aria-pressed="false">30 s</button><button aria-pressed="false">1 min</button></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+
+      <section class="card" aria-labelledby="h-all" id="alList">
+        <div class="card-head"><h2 id="h-all">Alarmi</h2><span class="sub" id="alCount"></span></div>
+        <div class="altiles" id="alTiles"></div>
+      </section>
+
+      <section class="card" aria-labelledby="h-al" id="alCard" hidden>
+        <div class="card-head"><button class="alback" id="alBack" type="button"><svg class="i"><use href="#i-left"/></svg><span>Svi alarmi</span></button>
+          <span class="okpill" id="alPill"><span class="sdot"></span><span id="alPillTxt">—</span></span></div>
+        <h2 class="alname" id="h-al">Alarm</h2>
+        <p class="alerr" id="alErr" hidden></p>
+        <div class="alparts" id="alParts"></div>
+        <div class="alquick" id="alQuick"></div>
+        <div class="alsec"><b>Stanje sistema</b></div>
+        <div class="alsys" id="alSys"></div>
+        <div class="altr" id="alTr"></div>
+        <div id="alMemBox" hidden><div class="alsec"><b>Memorija alarma</b><small class="muted">zone u kojima je bio alarm</small>
+          <button class="btn ghost alclr" id="alMemClr" type="button"><svg class="i"><use href="#i-trash"/></svg><span>Obriši memoriju</span></button></div><div class="almem" id="alMem"></div></div>
+        <div class="alzhead"><b>Zone</b><small class="muted" id="alZSum"></small>
+          <div class="segc" id="alZf" role="group" aria-label="Prikaz zona"><button data-v="all" aria-pressed="true">Sve</button><button data-v="open" aria-pressed="false">Otvorene</button></div></div>
+        <div class="alzones" id="alZones"></div>
+        <div id="alPgmBox" hidden><div class="alzhead"><b>PGM izlazi</b><small class="muted">PGM1 i PGM2 na centrali</small></div><div class="alpgms" id="alPgms"></div></div>
+        <div class="alzhead"><b>Događaji</b><small class="muted" id="alMonTxt"></small>
+          <button class="btn ghost alclr" id="alEvClr" type="button" title="Obriši dnevnik događaja"><svg class="i"><use href="#i-trash"/></svg><span>Obriši</span></button>
+          <div class="segc" id="alEf" role="group" aria-label="Vrsta događaja"><button data-v="all" aria-pressed="true">Sve</button><button data-v="zone" aria-pressed="false">Zone</button><button data-v="partition" aria-pressed="false">Particije</button><button data-v="report" aria-pressed="false">Dojava</button><button data-v="system" aria-pressed="false">Sistem</button></div></div>
+        <ol class="alev" id="alEv"></ol>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-alc" id="alCfgCard">
+        <div class="card-head"><h2 id="h-alc">Alarm · veza sa centralom</h2></div>
+        <div class="alcfg" id="alCfg">
+          <div class="netst">
+            <label class="chk"><input type="checkbox" id="alEn"> Poveži se sa centralom</label>
+            <label>Naziv alarma<input class="field" id="alName" maxlength="40" placeholder="npr. Stan Novi Sad (prazno = naziv particije)" autocomplete="off"></label>
+            <label>IP adresa IP150 modula<input class="field" id="alHost" placeholder="172.10.10.50" autocomplete="off" inputmode="decimal"></label>
+            <label>Port<input class="field" id="alPort" placeholder="10000" autocomplete="off" inputmode="numeric"></label>
+            <label>Lozinka IP modula<input class="field" id="alIpPw" type="password" autocomplete="new-password" placeholder="podrazumevano: paradox"></label>
+            <label>PC lozinka centrale (Babyware)<input class="field" id="alPcPw" type="password" autocomplete="new-password" placeholder="4 cifre, npr. 0000"></label>
+            <p class="muted" style="font-size:12px;margin:0">Lozinke se čuvaju samo na Teco.Pi i ne prikazuju se ponovo. Prazno polje = ostaje sačuvana. IP150 prima samo jednu vezu u isto vreme.</p>
+          </div>
+          <button class="btn gel" id="alSave" style="align-self:flex-start"><span>Sačuvaj i poveži</span></button>
+        </div>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-ev" id="evCard">
+        <div class="card-head"><h2 id="h-ev">Obaveštenja</h2></div>
+        <div class="evlist" id="evList"></div>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-bt" id="btCard">
+        <div class="card-head"><h2 id="h-bt">Bluetooth slušalice</h2><button class="btn" id="btScan"><svg class="i"><use href="#i-signal"/></svg><span id="btScanTxt">Traži uređaje</span></button></div>
+        <p class="muted" style="font-size:13px;margin:0">Uključi uparivanje na slušalicama, pa klikni „Traži uređaje“ i „Upari“.</p>
+        <div class="btlist" id="btList"></div>
+        <p class="muted" style="font-size:12.5px;margin:0">Na slušalicama se čuju YouTube i radio.</p>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-cast" id="castCard">
+        <div class="card-head"><h2 id="h-cast">Cast</h2></div>
+        <button class="acc-row" id="castSw" role="switch" aria-checked="false">
+          <span class="t"><b>Cast sa telefona</b><span id="castTxt">Isključeno</span></span><span class="sw"></span>
+        </button>
+        <p class="muted" style="font-size:12.5px;margin:0">U YouTube aplikaciji ili Chrome-u dodirni ikonicu za cast i izaberi Teco.Pi.</p>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-acc" id="accCard">
+        <div class="card-head"><h2 id="h-acc">Admin pristup</h2></div>
+        <button class="acc-row" id="pinReq" role="switch" aria-checked="true">
+          <span class="t"><b>Traži PIN za Admin</b><span id="pinReqTxt">Admin se otključava samo uz PIN.</span></span><span class="sw"></span>
+        </button>
+        <button class="btn" id="pinChange" style="align-self:flex-start"><svg class="i"><use href="#i-lock"/></svg><span>Promeni PIN</span></button>
+      </section>
+
+      <section class="card" aria-labelledby="h-send" id="sendCard">
+        <div class="card-head"><h2 id="h-send">Slanje sa drugih uređaja</h2></div>
+        <div class="ways">
+          <div class="way" id="wayCast">
+            <span class="wic"><svg class="i"><use href="#i-cast"/></svg></span>
+            <div class="wtx"><b>Sa telefona</b><p>U YouTube aplikaciji dodirni ikonicu <svg class="i inl"><use href="#i-cast"/></svg> i izaberi <b>Teco.Pi</b>.</p></div>
+          </div>
+          <div class="way" id="wayPc">
+            <span class="wic"><svg class="i"><use href="#i-laptop"/></svg></span>
+            <div class="wtx"><b>Sa računara</b><p>Prevuci dugme na traku sa obeleživačima. Na YouTube-u ga klikni i video prelazi na Teco.Pi.</p>
+              <a class="bm-mini" id="bmLink" href="#" draggable="true"><svg class="i grip"><use href="#i-grip"/></svg><span>Pošalji na Teco.Pi</span></a></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-net" id="netCard">
+        <div class="card-head"><h2 id="h-net">Mreža</h2></div>
+        <div class="netinfo" id="netInfo"></div>
+        <div class="wifi">
+          <div class="wifi-head"><b>Wi-Fi</b><button class="btn" id="wifiScan" type="button"><svg class="i"><use href="#i-signal"/></svg><span>Traži mreže</span></button></div>
+          <div class="wlist" id="wifiList"></div>
+        </div>
+        <div class="netcfg">
+          <b class="netcfg-t">Kabl (eth0)</b>
+          <div class="segc" id="netMode" role="group" aria-label="Način adrese"><button data-v="dhcp" aria-pressed="true">Automatski (DHCP)</button><button data-v="static" aria-pressed="false">Ručno</button></div>
+          <div class="netst" id="netStatic" hidden>
+            <label>IP adresa<input class="field" id="netIp" placeholder="172.10.10.135" autocomplete="off" inputmode="decimal"></label>
+            <label>Maska (opseg)<select class="field" id="netMask">
+              <option value="24">255.255.255.0 · /24 (do 254 uređaja)</option>
+              <option value="23">255.255.254.0 · /23 (do 510)</option>
+              <option value="22">255.255.252.0 · /22 (do 1022)</option>
+              <option value="21">255.255.248.0 · /21</option>
+              <option value="20">255.255.240.0 · /20</option>
+              <option value="16">255.255.0.0 · /16</option>
+              <option value="8">255.0.0.0 · /8</option>
+              <option value="25">255.255.255.128 · /25 (do 126)</option>
+              <option value="26">255.255.255.192 · /26 (do 62)</option>
+              <option value="27">255.255.255.224 · /27 (do 30)</option>
+              <option value="28">255.255.255.240 · /28 (do 14)</option>
+            </select></label>
+            <label>Gateway<input class="field" id="netGw" placeholder="172.10.10.1" autocomplete="off" inputmode="decimal"></label>
+          </div>
+          <button class="btn gel" id="netApply" style="align-self:flex-start"><span>Sačuvaj</span></button>
+        </div>
+        <div class="netcfg" id="dnsCfg">
+          <b class="netcfg-t">DNS <small class="nstat" id="dnsNow"></small></b>
+          <div class="segc" id="dnsMode" role="group" aria-label="DNS"><button data-v="auto" aria-pressed="true">Od rutera</button><button data-v="manual" aria-pressed="false">Ručno</button></div>
+          <div class="netst" id="dnsManual" hidden>
+            <label>DNS serveri (do 3, razmak ili zarez)<input class="field" id="dnsSrv" placeholder="1.1.1.1 8.8.8.8" autocomplete="off" inputmode="decimal"></label>
+            <div class="npre" data-for="dnsSrv"><button type="button" data-v="1.1.1.1 1.0.0.1">Cloudflare</button><button type="button" data-v="8.8.8.8 8.8.4.4">Google</button><button type="button" data-v="9.9.9.9 149.112.112.112">Quad9</button></div>
+          </div>
+          <button class="btn gel" id="dnsApply" style="align-self:flex-start"><span>Sačuvaj DNS</span></button>
+        </div>
+        <div class="netcfg" id="ntpCfg">
+          <b class="netcfg-t">Sat (NTP) <small class="nstat" id="ntpNow"></small></b>
+          <div class="netst">
+            <label>NTP serveri (prazno = podrazumevani)<input class="field" id="ntpSrv" placeholder="rs.pool.ntp.org" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            <div class="npre" data-for="ntpSrv"><button type="button" data-v="0.rs.pool.ntp.org 1.rs.pool.ntp.org">Srbija (pool)</button><button type="button" data-v="time.cloudflare.com">Cloudflare</button><button type="button" data-v="time.google.com">Google</button><button type="button" data-v="">Podrazumevani</button></div>
+          </div>
+          <button class="btn gel" id="ntpApply" style="align-self:flex-start"><span>Sačuvaj NTP</span></button>
+        </div>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-sysa" id="sysAdmCard">
+        <div class="card-head"><h2 id="h-sysa">Sistem</h2></div>
+        <div class="sset">
+          <div class="bootrow"><span>Izgled stranice</span>
+            <div class="segc" id="themeSeg" role="group" aria-label="Tema"><button data-v="auto" aria-pressed="true">Auto</button><button data-v="light" aria-pressed="false">Svetla</button><button data-v="dark" aria-pressed="false">Tamna</button></div></div>
+          <label class="bootrow"><span>Posle uključivanja</span>
+            <select class="field" id="bootSel">
+              <option value="last">Nastavi gde je stalo</option>
+              <option value="av1">YT · YouTube</option><option value="av2">AV1 · konzola</option><option value="av3">AV2 · konzola</option><option value="av4">AV3 · konzola</option>
+              <option value="fm">FM radio</option><option value="st">Radio · internet</option><option value="tv">TV uživo</option>
+            </select></label>
+          <div class="ytck">
+            <div><b>YouTube prijava</b><small id="ytckSt">Kolačići nisu otpremljeni</small></div>
+            <p class="muted">Ako YouTube traži „potvrdi da nisi bot”, otpremi cookies.txt sa YouTube naloga (dodatak „Get cookies.txt LOCALLY”). Najbolje sa posebnog, sporednog naloga.</p>
+            <div class="ytck-b"><label class="btn"><span>Otpremi cookies.txt</span><input type="file" id="ytckFile" accept=".txt,text/plain"></label><button class="btn ghost" id="ytckDel" type="button" hidden>Ukloni</button></div>
+          </div>
+          <button class="btn" id="rebootBtn" style="align-self:flex-start"><svg class="i"><use href="#i-power"/></svg><span>Restartuj Teco.Pi</span></button>
+        </div>
+      </section>
+
+
+    </div>
+  </div>
+
+  <div class="rsheet" id="sysSheet" hidden><div class="rsheet-in syssheet" role="dialog" aria-label="Sistem"><button class="rclose" id="sysClose" type="button"><svg class="i"><use href="#i-x"/></svg><span>Zatvori</span></button>
+<section class="card" aria-labelledby="h-sys" id="sysCard">
+        <div class="card-head"><h2 id="h-sys">Sistem</h2><span class="okpill" id="sysPill"><svg class="i"><use href="#i-check" id="sysPillIc"/></svg><span id="sysPillTxt">Sve radi</span></span></div>
+        <div class="strows">
+          <div class="strow" id="rowPow"><span class="sic"><svg class="i"><use href="#i-plug"/></svg></span><span class="stx"><b>Napajanje</b><small id="powHint">—</small></span><span class="sval" id="powVal">—</span></div>
+          <div class="strow" id="rowNet"><span class="sic"><svg class="i"><use href="#i-globe"/></svg></span><span class="stx"><b>Internet</b><small id="netHint">—</small></span><span class="sval" id="netVal">—</span></div>
+          <div class="strow" id="rowCpu"><span class="sic"><svg class="i"><use href="#i-therm"/></svg></span><span class="stx"><b>Temperatura procesora</b><small id="cpuHint">—</small></span><span class="sval" id="stCpu">—</span>
+            <svg class="spark" id="spCpu" viewBox="0 0 100 32" preserveAspectRatio="none"></svg></div>
+          <div class="strow" id="rowLoad"><span class="sic"><svg class="i"><use href="#i-cpu"/></svg></span><span class="stx"><b>Opterećenje</b><small id="loadHint">Procesor i radna memorija</small></span><span class="sval" id="loadVal">—</span></div>
+          <div class="strow"><span class="sic"><svg class="i"><use href="#i-chip2"/></svg></span><span class="stx"><b>Slobodno</b><small>Memorijska kartica · radna memorija</small></span><span class="sval" id="stDisk">—</span></div>
+          <div class="strow"><span class="sic"><svg class="i"><use href="#i-power"/></svg></span><span class="stx"><b>Radi bez prekida</b><small>Od poslednjeg uključivanja</small></span><span class="sval" id="stUp">—</span></div>
+        </div>
+      </section>
+<section class="card" aria-labelledby="h-rel" id="relCard">
+        <div class="card-head"><h2 id="h-rel">I/O</h2></div>
+        <details class="ioexp"><summary><span class="iohead">Releji</span><small class="muted" id="relSum"></small><svg class="i chev"><use href="#i-down"/></svg></summary>
+          <div class="relays" id="relays"></div></details>
+        <details class="ioexp"><summary><span class="iohead">Uređaji</span><small class="muted" id="ioSum"></small><svg class="i chev"><use href="#i-down"/></svg></summary>
+          <div class="iolist" id="ioList"></div></details>
+      </section>
+  </div></div>
+  <div class="mbar viewer" id="mbar" hidden role="region" aria-label="Mini plejer">
+    <div class="mb-info"><b id="mbSrc">YT</b><span id="mbTitle"></span></div>
+    <div class="mb-ctl"><button type="button" id="mbPrev" aria-label="Prethodni"><svg class="i"><use href="#i-prev"/></svg></button><button type="button" class="mb-play" id="mbPlay" aria-label="Pusti / pauza"><svg class="i"><use href="#i-pause" id="mbIco"/></svg></button><button type="button" id="mbNext" aria-label="Sledeći"><svg class="i"><use href="#i-next"/></svg></button></div>
+    <div class="mb-vol"><button type="button" id="mbVd" aria-label="Tiše">−</button><button type="button" class="mb-mute" id="mbMute" aria-label="Utišaj / vrati zvuk"><svg class="i"><use href="#i-mute"/></svg><span id="mbVol">—</span></button><button type="button" id="mbVu" aria-label="Jače">+</button></div>
+    <button type="button" class="mb-rc" id="mbRc" aria-label="Daljinski"><svg class="i"><use href="#i-remote"/></svg></button>
+  </div>
+  <div class="rsheet" id="rSheet" hidden><div class="rsheet-in" role="dialog" aria-label="Daljinski"><button class="rclose" id="rClose" type="button"><svg class="i"><use href="#i-x"/></svg><span>Zatvori</span></button><div id="rSlot"></div></div></div>
+
+  <section class="card" aria-labelledby="h-ir" id="irCard">
+    <div class="card-head">
+      <div><h2 id="h-ir">Daljinski upravljač</h2></div>
+      <span class="sig" aria-live="polite"><span class="led" id="irLed"></span>Poslednji signal <code id="irLast">—</code><span id="irAgo"></span></span>
+    </div>
+    <div class="ir-grid">
+      <div class="remote-col">
+        <div class="remote" id="remote" role="group" aria-label="Virtuelni daljinski">
+          <span class="irled" id="rLed"></span>
+          <div class="rdisp" id="rDisp" aria-live="polite">Teco.Pi</div>
+          <div class="rrow r2">
+            <button class="rk pw" data-k="Power" aria-label="Power"><svg class="i"><use href="#i-power"/></svg></button>
+            <button class="rk" data-k="Mute" aria-label="Mute"><svg class="i"><use href="#i-mute"/></svg></button>
+          </div>
+          <div class="wheel rwheel" role="group" aria-label="Točak">
+            <button class="wl top" data-k="Play" aria-label="Play/pauza"><svg class="i"><use href="#i-pp"/></svg></button>
+            <button class="wl left" data-k="Levo" aria-label="Levo, prethodni"><svg class="i"><use href="#i-prev"/></svg></button>
+            <button class="wl right" data-k="Desno" aria-label="Desno, sledeći"><svg class="i"><use href="#i-next"/></svg></button>
+            <button class="wl bottom" data-k="Stop" aria-label="Stop"><svg class="i"><use href="#i-stop"/></svg></button>
+            <button class="hub" data-k="OK">OK</button>
+          </div>
+          <div class="rrow rock">
+            <div class="rocker"><button data-k="Vol +" aria-label="Vol +">+</button><span>VOL</span><button data-k="Vol −" aria-label="Vol −">−</button></div>
+            <button class="rk back" data-k="Nazad" aria-label="Nazad"><svg class="i"><use href="#i-back"/></svg></button>
+            <div class="rocker"><button data-k="CH +" aria-label="CH +">+</button><span>CH</span><button data-k="CH −" aria-label="CH −">−</button></div>
+          </div>
+          <div class="rrow r3">
+            <button class="rk num" data-k="1">1<small>YT</small></button>
+            <button class="rk num" data-k="2">2<small>AV1</small></button>
+            <button class="rk num" data-k="3">3<small>AV2</small></button>
+            <button class="rk num" data-k="4">4<small>AV3</small></button>
+            <button class="rk num" data-k="5">5<small>FM</small></button>
+            <button class="rk num" data-k="6">6<small>IR</small></button>
+            <button class="rk num" data-k="7">7<small>TV</small></button>
+            <button class="rk num" data-k="8">8<small>&nbsp;</small></button>
+            <button class="rk num" data-k="9">9<small>&nbsp;</small></button>
+          </div>
+          <div class="rbrand">TECO.PI</div>
+        </div>
+        <p class="viewer-note viewer">Klikni taster na daljinskom. Kad pređeš mišem preko tastera, vidiš šta radi.</p>
+        <p class="viewer-note adm">Dok snimaš taster, klikni ga ovde kao da ga pritiskaš na pravom daljinskom.</p>
+      </div>
+      <div class="ir-panel">
+      <div class="wiz adm">
+        <div class="wiz-title">
+          <h3 id="wizMode">Novi taster</h3>
+          <ol class="stepper" id="steps"><li class="on"><span class="n">1</span><span class="lbl">Komanda</span></li><li><span class="n">2</span><span class="lbl">Taster</span></li><li><span class="n">3</span><span class="lbl">Sačuvaj</span></li></ol>
+        </div>
+        <div class="fld">
+          <label for="irCmd">Šta taster treba da radi?</label>
+          <select class="field" id="irCmd"></select>
+        </div>
+        <div class="fld">
+          <span class="lab">Usmeri daljinski ka prijemniku</span>
+          <p class="help">Klikni „Snimi taster“, pa u roku od 10 sekundi pritisni taster na daljinskom.</p>
+          <div class="cap" id="cap">
+            <span class="radar"><svg class="i"><use href="#i-signal"/></svg></span>
+            <span class="msg" id="capMsg"></span>
+          </div>
+          <div class="timer" id="timer" hidden><i id="timerBar"></i></div>
+          <div class="conflict" id="dup" hidden><svg class="i"><use href="#i-alert"/></svg><span id="dupTxt"></span></div>
+        </div>
+        <div class="fld">
+          <label for="irName">Ime tastera</label>
+          <input class="field" id="irName" placeholder="npr. OK, Crveno, Vol +" autocomplete="off">
+        </div>
+        <div class="wiz-foot">
+          <button class="btn ghost" id="bCancel">Otkaži</button>
+          <button class="btn" id="bCap"><svg class="i"><use href="#i-signal"/></svg><span id="capTxt">Snimi taster</span></button>
+          <button class="btn gel" id="bSave" disabled><svg class="i"><use href="#i-check"/></svg><span>Sačuvaj</span></button>
+        </div>
+      </div>
+      <details class="maps-wrap adm" id="mapsWrap">
+        <summary><svg class="i" style="margin-left:0;color:var(--accent)"><use href="#i-remote"/></svg>Dodeljeni tasteri<span class="cnt" id="mapsCnt"></span><svg class="i"><use href="#i-down"/></svg></summary>
+        <div class="maps" id="maps"></div>
+      </details>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
