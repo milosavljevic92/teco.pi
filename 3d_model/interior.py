@@ -62,6 +62,18 @@ def components():
     # panel back (in the bezel) and the mains inlet in the tray
     out.append(box(PANEL['x0'], PANEL['x1'], PANEL['y0'], PANEL['y1'], PANEL['z0'], PANEL['z1'], PANELC))
     out.append(box(C8['x0'], C8['x1'], C8['y0'], C8['y1'], C8['z0'], C8['z1'], C8C))
+    # button board behind the front strip (plate frame -> shell: y + 362.94, z + 8.32)
+    import frontpanel as fp
+    pl = trimesh.creation.extrude_polygon(fp.pcb_outline(), fp.PCB_T)
+    pl.apply_translation([0, 362.94, fp.PCB_FRONT + 8.32])
+    out.append((pl, GREEN))
+    for name, x, y, side, _ in fp.AUX_PARTS:
+        if name.startswith('SW'):
+            out.append(box(x - 3, x + 3, y + 362.94 - 3, y + 362.94 + 3, fp.PCB_FRONT + 8.32 - 3.5, fp.PCB_FRONT + 8.32, BLACK))
+        elif name in ('J2', 'J3'):
+            n = 11 if name == 'J2' else 3; L = 2.5 * (n - 1) + 4.9
+            out.append(box(x - L / 2, x + L / 2, y + 362.94 - 2.9, y + 362.94 + 2.9,
+                           fp.PCB_FRONT + 8.32 + fp.PCB_T, fp.PCB_FRONT + 8.32 + fp.PCB_T + 7, (0.93, 0.9, 0.82)))
     return out
 
 def cyl_y(x, z, y0, y1, r, col):

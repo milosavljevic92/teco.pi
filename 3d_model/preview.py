@@ -22,6 +22,14 @@ tris, cols, ids = [], [], []
 for k, (f, M, col) in enumerate(PARTS):
     m = trimesh.load(f'{OUT}\\{f}.stl'); m.apply_transform(W @ M)
     tris.append(m.triangles); cols.append(np.tile(col, (len(m.faces), 1))); ids.append(np.full(len(m.faces), k))
+# button caps in their holes (grey) and the PWR cap (orange, like the original)
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from frontpanel import caps_assembled
+for m, is_pwr in caps_assembled():
+    m.apply_transform(W @ PARTS[4][1])
+    tris.append(m.triangles); cols.append(np.tile((0.95, 0.5, 0.12) if is_pwr else (0.42, 0.43, 0.46), (len(m.faces), 1)))
+    ids.append(np.full(len(m.faces), 50))
 tris = np.concatenate(tris); cols = np.concatenate(cols); ids = np.concatenate(ids)
 
 # screen quad (in the bezel window, just behind the chamfer), world coords
@@ -164,4 +172,9 @@ sheet = Image.new('RGB', (front.width + back.width, front.height), 'white')
 sheet.paste(front, (0, 0)); sheet.paste(back, (front.width, 0))
 sheet.save(PNG)
 front.save(PNG.replace('.png', '-front.png')); back.save(PNG.replace('.png', '-back.png'))
+# close-up of the button strip
+strip_c = np.array([42.0, -248.8, 18.0])
+strip = render(eye=strip_c + np.array([-35, 55, 230]), target=strip_c + np.array([0, 4, 0]), light=(-0.4, 0.8, 0.9),
+               size=(1800, 700), fov=17)
+strip.save(PNG.replace('.png', '-strip.png'))
 print('ok', sheet.size)

@@ -271,6 +271,11 @@ m = diff(m, [cyl(JACK_X, ROW_Y, JACK_D / 2, FRONT_Z0 - 1, FRONT_Z1 + 1),
              box(JACK_X - 6, JACK_X + 6, -122.21, -110.0, FRONT_Z1, -12.0),
              box(IR_X - 4.5, IR_X + 4.5, -122.21, -110.0, FRONT_Z1, -12.0)])
 print(f'  front-plate: wheel slot closed; jack D{JACK_D} at x={JACK_X}, IR D{IR_D} at x={IR_X}, y={ROW_Y}')
+# v2 (frontpanel.py): 6 buttons + PWR on a button board, jack/IR/LED moved, PCB bosses, "PWR" engraved
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import frontpanel
+m = frontpanel.plate(m)
+frontpanel.caps().export(os.path.join(DST, 'buttons.stl'))
 report('front-plate', m)
 
 # ---- x-brace: keep both ends, compress the middle (diagonals), re-drill holes
