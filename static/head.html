@@ -579,6 +579,8 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
+  <symbol id="i-usb" viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="13" rx="2"/><path d="M9 9V3h6v6M11 5.5v1M13 5.5v1"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3"/></symbol>
   <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
@@ -914,6 +916,53 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
           <span class="t"><b>Cast sa telefona</b><span id="castTxt">Isključeno</span></span><span class="sw"></span>
         </button>
         <p class="muted" style="font-size:12.5px;margin:0">U YouTube aplikaciji ili Chrome-u dodirni ikonicu za cast i izaberi Teco.Pi.</p>
+      </section>
+
+      <section class="card adm" aria-labelledby="h-smb" id="smbCard">
+        <div class="card-head"><h2 id="h-smb">Deljenje fajlova</h2><span class="sub">SMB</span></div>
+        <div class="smbinst" id="smbInst" hidden>
+          <p class="muted" style="font-size:13px;margin:0" id="smbInstTxt">Za deljenje fajlova treba instalirati Samba (oko 40 MB, par minuta).</p>
+          <button class="btn gel" id="smbInstall" style="align-self:flex-start"><span>Instaliraj Samba</span></button>
+        </div>
+        <div class="smbmain" id="smbMain">
+          <button class="acc-row" id="smbSw" role="switch" aria-checked="false">
+            <span class="t"><b>SMB server</b><span id="smbTxt">Isključeno</span></span><span class="sw"></span>
+          </button>
+          <button class="acc-row" id="smbUsb" role="switch" aria-checked="true">
+            <span class="t"><b>USB diskovi</b><span>Priključen USB disk se deli sam, pod svojim imenom.</span></span><span class="sw"></span>
+          </button>
+          <div class="btlist" id="smbList"></div>
+          <div class="smbbrowse" id="smbBrowse" hidden>
+            <div class="smbbr-h"><b id="smbBrTitle">Folder za deljenje</b><span class="smbpath" id="smbBrPath">/</span></div>
+            <div class="smbbr-l" id="smbBrList"></div>
+            <div class="smbbr-b"><button class="btn gel" id="smbBrUse" type="button"><span>Deli ovaj folder</span></button><button class="btn" id="smbBrRoot" type="button"><span>Ceo disk</span></button><button class="btn ghost" id="smbBrClose" type="button"><span>Zatvori</span></button></div>
+          </div>
+          <div class="smbup" id="smbUp" hidden>
+            <label class="smbdrop" id="smbDrop">
+              <svg class="i"><use href="#i-game"/></svg>
+              <span><b>Prevuci igricu ovde</b> ili klikni da izabereš (.iso, .zso, .vcd)</span>
+              <input type="file" id="smbFile" accept=".iso,.zso,.vcd" multiple>
+            </label>
+            <label class="bootrow"><span>Snimi na</span><select class="field" id="smbTarget"></select></label>
+            <div class="smbprog" id="smbProg" hidden>
+              <div class="smbprog-t"><b id="smbProgName">—</b><span id="smbProgTxt"></span><button class="btn ghost" id="smbProgX" type="button"><span>Otkaži</span></button></div>
+              <div class="smbbar"><i id="smbProgBar" style="width:0"></i></div>
+            </div>
+            <p class="muted" style="font-size:12px;margin:0">Do 700 MB ide u CD, veće u DVD, .vcd u POPS. Za veće igrice bolje kopiraj preko mreže (\\Teco.Pi) ili direktno na flash.</p>
+          </div>
+          <div class="smbgames" id="smbGames" hidden>
+            <b class="netcfg-t">Igrice <small class="nstat" id="smbGamesN"></small></b>
+            <div class="btlist" id="smbGameList"></div>
+          </div>
+          <div class="netcfg">
+            <b class="netcfg-t">Prijava sa računara <small class="nstat" id="smbPwSt"></small></b>
+            <div class="netst">
+              <label>Lozinka (korisnik <span id="smbUser">—</span>)<input class="field" id="smbPw" type="password" autocomplete="new-password" placeholder="nova lozinka"></label>
+            </div>
+            <button class="btn gel" id="smbPwSave" style="align-self:flex-start"><span>Sačuvaj lozinku</span></button>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:0">Windows 10/11 ne dozvoljava pristup bez lozinke: u Exploreru otvori <b class="smbpath" data-n="Teco"></b> i prijavi se korisnikom i lozinkom odozgo. PS2 (Open PS2 Loader): Network → SMB server = IP Teco.Pi, share = <b>Teco</b> ili ime USB diska, korisnik guest bez lozinke. Dugme „OPL folderi“ pravi DVD, CD, ART, CFG… u deljenom folderu.</p>
+        </div>
       </section>
 
       <section class="card adm" aria-labelledby="h-acc" id="accCard">

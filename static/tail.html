@@ -379,7 +379,29 @@ header.top .logo{display:none}
 @keyframes evin{from{transform:translate(-50%,-20px);opacity:0}}
 #rebootBtn{margin-top:14px;width:100%;height:44px;justify-content:center;color:#dc2626;background:color-mix(in srgb,#dc2626 8%,transparent);border:1.5px solid color-mix(in srgb,#dc2626 45%,transparent);font-weight:700}
 #rebootBtn:hover{background:color-mix(in srgb,#dc2626 14%,transparent)}
-#castCard{order:8}
+#castCard{order:8} #smbCard{order:8}
+.smbinst,.smbmain{display:flex;flex-direction:column;gap:10px}
+.smbbar{height:4px;border-radius:2px;background:var(--surface);margin-top:5px;overflow:hidden}
+.smbbar i{display:block;height:100%;background:var(--accent)}
+.smbpath{font-family:var(--f-mono);font-size:12px;user-select:all}
+.smbup,.smbgames,.smbbrowse{display:flex;flex-direction:column;gap:8px}
+.smbdrop{display:flex;align-items:center;gap:12px;padding:16px;border-radius:12px;border:1.5px dashed var(--line);background:var(--surface-2);cursor:pointer;font-size:13px;color:var(--muted)}
+.smbdrop b{color:var(--text)}
+.smbdrop svg.i{width:26px;height:26px;flex:none;color:var(--accent)}
+.smbdrop input{display:none}
+.smbdrop.over{border-color:var(--accent);background:var(--accent-soft)}
+.smbprog{padding:10px;border-radius:12px;background:var(--surface-2)}
+.smbprog-t{display:flex;align-items:center;gap:10px;font-size:13px}
+.smbprog-t b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smbprog-t span{color:var(--muted);font-variant-numeric:tabular-nums}
+.smbprog-t .btn{height:30px;padding:0 10px;font-size:12px}
+.smbbrowse{padding:10px;border-radius:12px;border:1px solid var(--line)}
+.smbbr-h{display:flex;flex-direction:column;gap:2px;font-size:13.5px}
+.smbbr-l{display:flex;flex-direction:column;max-height:240px;overflow:auto;border-radius:10px;background:var(--surface-2)}
+.smbbr-l button{display:flex;align-items:center;gap:8px;padding:9px 10px;text-align:left;font-size:13.5px;border-bottom:1px solid var(--line)}
+.smbbr-l button:last-child{border-bottom:0}
+.smbbr-l svg.i{width:16px;height:16px;color:var(--muted);flex:none}
+.smbbr-b{display:flex;gap:6px;flex-wrap:wrap}
 #accCard{order:9} #sendCard{order:20}
 .acc-row{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border-radius:12px;background:var(--surface-2);text-align:left}
 .acc-row .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -1315,6 +1337,59 @@ html.admin .rfab{display:none}
       setTimeout(() => { rt.textContent = 'Restartuj Teco.Pi'; }, 40000);
     }; }
   $('#castSw').onclick = () => act('cast', { v: !(S.cast && S.cast.on) });
+  // deljenje fajlova (Samba)
+  $('#smbSw').onclick = () => act('smb', { v: !(S.smb && S.smb.on) });
+  $('#smbUsb').onclick = () => act('smb_usb', { v: !(S.smb && S.smb.usb !== false) });
+  $('#smbInstall').onclick = () => act('smb_install');
+  $('#smbPwSave').onclick = async () => { const r = await act('smb_pw', { pw: $('#smbPw').value }); if (!r.err) $('#smbPw').value = ''; };
+  const fmtBytes = b => b >= 1e12 ? (b / 1e12).toFixed(1) + ' TB' : b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round((b || 0) / 1e6) + ' MB';
+  // izbor foldera na USB disku koji se deli (npr. ps2share)
+  let brDev = null, brPath = '';
+  const smbBrowse = async (dev, path) => {
+    const r = await send('smb_ls', { dev, path });
+    if (r.err) { toast(r.err); return; }
+    brDev = dev; brPath = r.path;
+    $('#smbBrowse').hidden = false;
+    $('#smbBrPath').textContent = '/' + brPath;
+    const l = $('#smbBrList'); l.innerHTML = '';
+    const row = (name, ico, go) => { const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<svg class="i"><use href="#${ico}"/></svg><span>${esc(name)}</span>`; b.onclick = go; l.appendChild(b); };
+    if (brPath) row('..', 'i-up', () => smbBrowse(dev, brPath.split('/').slice(0, -1).join('/')));
+    r.dirs.forEach(d => row(d, 'i-folder', () => smbBrowse(dev, (brPath ? brPath + '/' : '') + d)));
+    if (!r.dirs.length && !brPath) l.innerHTML = '<p class="muted" style="font-size:13px;margin:10px">Na disku nema foldera.</p>';
+  };
+  $('#smbBrUse').onclick = async () => { const r = await act('smb_dir', { dev: brDev, path: brPath }); if (!r.err) $('#smbBrowse').hidden = true; };
+  $('#smbBrRoot').onclick = async () => { const r = await act('smb_dir', { dev: brDev, path: '' }); if (!r.err) $('#smbBrowse').hidden = true; };
+  $('#smbBrClose').onclick = () => { $('#smbBrowse').hidden = true; };
+  // slanje igrica: jedna po jedna, telo zahteva je ceo fajl (server ga piše direktno na disk)
+  const upQ = []; let upX = null;
+  const upNext = () => {
+    if (upX || !upQ.length) { if (!upX) $('#smbProg').hidden = true; return; }
+    const { f, share } = upQ.shift(), x = new XMLHttpRequest(), t0 = Date.now(); upX = x;
+    $('#smbProg').hidden = false; $('#smbProgName').textContent = f.name + (upQ.length ? ` (+${upQ.length})` : ''); $('#smbProgBar').style.width = '0';
+    x.upload.onprogress = e => {
+      const p = e.loaded / f.size, mbs = e.loaded / 1e6 / Math.max(1, (Date.now() - t0) / 1000);
+      $('#smbProgBar').style.width = (100 * p).toFixed(1) + '%';
+      $('#smbProgTxt').textContent = `${Math.round(100 * p)}% · ${mbs.toFixed(1)} MB/s` + (p > 0.02 ? ' · još ' + Math.ceil((f.size - e.loaded) / 1e6 / mbs / 60) + ' min' : '');
+    };
+    const done = msg => { if (msg) toast(msg); upX = null; upNext(); };
+    x.onload = () => { let r = {}; try { r = JSON.parse(x.responseText); } catch (e) {} done(r.err || r.ok || 'Slanje nije uspelo.'); };
+    x.onerror = () => done('Slanje nije uspelo: ' + f.name);
+    x.onabort = () => done('Slanje otkazano: ' + f.name);
+    x.open('POST', `/api/game?share=${encodeURIComponent(share)}&name=${encodeURIComponent(f.name)}`);
+    x.setRequestHeader('X-Teco-Token', tok || ''); x.send(f);
+  };
+  const upAdd = files => {
+    const share = $('#smbTarget').value; if (!share) { toast('Prvo uključi SMB server.'); return; }
+    [...files].forEach(f => { if (/\.(iso|zso|vcd)$/i.test(f.name)) upQ.push({ f, share }); else toast('Preskočeno (nije .iso/.zso/.vcd): ' + f.name); });
+    upNext();
+  };
+  $('#smbProgX').onclick = () => { upQ.length = 0; if (upX) upX.abort(); };
+  $('#smbFile').onchange = e => { upAdd(e.target.files); e.target.value = ''; };
+  const drop = $('#smbDrop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => upAdd(e.dataTransfer.files));
+  window.addEventListener('beforeunload', e => { if (upX) { e.preventDefault(); e.returnValue = ''; } });
 
   /* slanje linka sa drugih uređaja: dugme za obeleživače i adresa za iPhone prečicu */
   const hostName = location.host.endsWith('.local') || /^\d+\.\d+\.\d+\.\d+/.test(location.host) ? location.host : 'tecopi.local';
@@ -1543,6 +1618,61 @@ html.admin .rfab{display:none}
     $('#wayCast').hidden = !cs.on;
     $('#sendCard').hidden = !cs.on && $('#wayPc').hidden;   // telefon bez casta: nema šta da se prikaže
     $('#castTxt').textContent = !cs.on ? 'Isključeno' : cs.sender ? 'Povezan: ' + cs.sender : cs.run ? 'Uključeno · čeka telefon ili Chrome' : 'Pokreće se...';
+    const smb = s.smb || {};
+    if (changed('smb', smb)) {
+      const smbHost = '\\\\' + location.hostname + '\\';
+      $('#smbInst').hidden = !!smb.inst; $('#smbMain').hidden = !smb.inst;
+      $('#smbInstall').disabled = !!smb.installing;
+      $('#smbInstall').firstChild.textContent = smb.installing ? 'Instaliram…' : 'Instaliraj Samba';
+      $('#smbInstTxt').textContent = smb.err || (smb.installing ? 'Instaliram Samba, traje par minuta…' : 'Za deljenje fajlova treba instalirati Samba (oko 40 MB, par minuta).');
+      $('#smbSw').setAttribute('aria-checked', !!smb.on);
+      $('#smbUsb').setAttribute('aria-checked', smb.usb !== false);
+      $('#smbTxt').textContent = !smb.on ? 'Isključeno' : smb.run ? 'Radi · ' + smbHost + 'Teco' : 'Pokreće se…';
+      $('#smbUser').textContent = smb.user || '—';
+      $('#smbPwSt').innerHTML = `<i style="background:var(--${smb.pw ? 'ok' : 'warn'})"></i>` + (smb.pw ? 'postavljena' : 'nije postavljena');
+      document.querySelectorAll('.smbpath').forEach(e => { e.textContent = smbHost + e.dataset.n; });
+      const gb = fmtBytes, shares = smb.shares || [];
+      const box = $('#smbList'); box.innerHTML = '';
+      const btn = (r, lbl, fn, cls) => {
+        const b = document.createElement('button'); b.className = 'btn' + (cls || ''); b.type = 'button'; b.innerHTML = `<span>${lbl}</span>`;
+        b.onclick = async () => { b.disabled = true; await fn(); b.disabled = false; };
+        r.querySelector('.bb').appendChild(b);
+      };
+      shares.forEach(sh => {
+        const r = document.createElement('div'); r.className = 'btd conn';
+        const used = sh.size ? Math.round(100 * (1 - sh.free / sh.size)) : 0;
+        const where = sh.usb ? 'USB ' + esc(sh.label || '') + (sh.dir ? ' · /' + esc(sh.dir) : ' · ceo disk') + ' · ' + esc(sh.fs) : 'SD kartica';
+        r.innerHTML = `<span class="ic"><svg class="i"><use href="#${sh.usb ? 'i-usb' : 'i-folder'}"/></svg></span><div class="t"><b>${esc(smbHost + sh.n)}</b>`
+          + `<span>${where}${sh.size ? ' · slobodno ' + gb(sh.free) + ' od ' + gb(sh.size) : ''}</span>`
+          + `<div class="smbbar"><i style="width:${used}%"></i></div></div><div class="bb"></div>`;
+        if (!sh.opl) btn(r, 'OPL folderi', () => act('smb_opl', { share: sh.n }));
+        if (sh.usb) {
+          btn(r, 'Folder', () => smbBrowse(sh.dev, sh.dir || ''));
+          btn(r, 'Izbaci', () => act('smb_eject', { dev: sh.dev }));
+        }
+        box.appendChild(r);
+      });
+      (smb.disks || []).forEach(d => {
+        const r = document.createElement('div'); r.className = 'btd';
+        r.innerHTML = `<span class="ic"><svg class="i"><use href="#i-usb"/></svg></span><div class="t"><b>${esc(d.n)}</b><span>${esc(d.fs)} · ${gb(d.size)}${d.msg ? ' · ' + esc(d.msg) : ''}</span></div><div class="bb"></div>`;
+        box.appendChild(r);
+      });
+      // gde se snimaju igrice: zadrži izbor, podrazumevano prvi USB (SD kartica je mala)
+      const sel = $('#smbTarget'), prev = sel.value;
+      sel.innerHTML = shares.map(sh => `<option value="${esc(sh.n)}">${esc(sh.n)} · slobodno ${gb(sh.free)}</option>`).join('');
+      sel.value = shares.some(sh => sh.n === prev) ? prev : ((shares.find(sh => sh.usb) || shares[0] || {}).n || '');
+      $('#smbUp').hidden = !shares.length;
+      const games = shares.flatMap(sh => (sh.games || []).map(g => ({ ...g, sh: sh.n })));
+      $('#smbGames').hidden = !games.length; $('#smbGamesN').textContent = games.length + ' · ' + gb(games.reduce((t, g) => t + g.size, 0));
+      const gl = $('#smbGameList'); gl.innerHTML = '';
+      games.forEach(g => {
+        const r = document.createElement('div'); r.className = 'btd';
+        const [dir, ...rest] = g.f.split('/');
+        r.innerHTML = `<span class="ic"><svg class="i"><use href="#i-game"/></svg></span><div class="t"><b>${esc(rest.join('/').replace(/\.(iso|zso|vcd)$/i, ''))}</b><span>${esc(g.sh)} · ${esc(dir)} · ${gb(g.size)}</span></div><div class="bb"></div>`;
+        btn(r, 'Obriši', async () => { if (confirm('Obrisati ' + rest.join('/') + '?')) await act('game_del', { share: g.sh, f: g.f }); }, ' ghost');
+        gl.appendChild(r);
+      });
+    }
     $('#pinReq').setAttribute('aria-checked', s.pin_required !== false);
     $('#pinReqTxt').textContent = s.pin_required !== false ? 'Admin se otključava samo uz PIN.' : 'Isključeno: svako u mreži može da uključi Admin.';
 

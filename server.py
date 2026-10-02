@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import pwd
 import re
 import secrets
 import shutil
@@ -38,6 +39,15 @@ ALARM_CMDS = {'arm': 'Uključen (Regular)', 'arm_stay': 'Uključen (Stay)', 'arm
               'arm_force': 'Uključen (Force)', 'disarm': 'Isključen'}
 PGM_CMDS = {'on': 'uključen', 'off': 'isključen', 'release': 'vraćen na automatski rad', 'pulse': 'uključen na 5 s'}
 NTP_CONF = Path('/etc/systemd/timesyncd.conf.d/teco.conf')   # NTP serveri iz podešavanja mreže
+SMB_CONF = Path('/etc/samba/smb.conf')   # Teco.Pi ga piše ceo (deljenje fajlova iz admina)
+SHARE = BASE / 'share'                   # deljeni folder na SD kartici (\\tecopi\Teco)
+USB_MNT = Path('/media/teco')            # USB diskovi: /media/teco/<ime>
+USB_FS = {'vfat': 'vfat', 'exfat': 'exfat', 'ntfs': 'ntfs3', 'ext4': 'ext4', 'ext3': 'ext3', 'ext2': 'ext2'}
+SMB_BIN = Path('/usr/sbin/smbd')
+OPL_DIRS = ('APPS', 'ART', 'CD', 'CFG', 'CHT', 'DVD', 'LNG', 'POPS', 'THM', 'VMC')   # folderi koje Open PS2 Loader očekuje
+GAME_EXT = {'.iso': None, '.zso': None, '.vcd': 'POPS'}   # None: CD (do 700 MB) ili DVD
+CD_MAX = 700 * 2**20
+USER = pwd.getpwuid(os.getuid()).pw_name   # Samba deli fajlove kao ovaj korisnik (i za prijavu sa Windows-a)
 STATE_FILE = DATA / 'state.json'
 MPV_SOCK = '/tmp/mpvsocket'
 FM_SOCK = '/tmp/mpvfm'
@@ -171,7 +181,7 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
 }
 
 ADMIN_CMDS = {'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
-              'bt_scan', 'bt_pair', 'bt_connect', 'bt_disconnect', 'bt_remove', 'pin_req', 'cast', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
+              'bt_scan', 'bt_pair', 'bt_connect', 'bt_disconnect', 'bt_remove', 'pin_req', 'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
               'cons', 'name', 'fm_save', 'fm_del', 'st_add', 'st_del', 'set_pin'}
 
 
@@ -1770,6 +1780,327 @@ class Teco:
         self.cast_sender = None
         await self.cast_refresh()
 
+    # ---------- deljenje fajlova (Samba): folder na SD kartici + USB diskovi (npr. ISO igrice za PS2 / OPL)
+    @staticmethod
+    async def _rc(*args, inp=None, timeout=30):
+        """Kao _run, ali vraća i izlazni kod (i može da pošalje ulaz)."""
+        p = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.PIPE if inp is not None else asyncio.subprocess.DEVNULL,
+                                                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        try:
+            out, _ = await asyncio.wait_for(p.communicate(inp.encode() if inp is not None else None), timeout)
+        except asyncio.TimeoutError:
+            p.kill()
+            return 1, 'isteklo je vreme'
+        return p.returncode, out.decode(errors='replace').strip()
+
+    def smb_cfg(self):
+        return self.st.setdefault('smb', {'on': False, 'usb': True})
+
+    async def usb_scan(self):
+        """USB particije sa fajl sistemom (lsblk). id = UUID (ili uređaj), n = ime deljenja."""
+        _, out = await self._rc('lsblk', '-J', '-b', '-o', 'NAME,PATH,FSTYPE,LABEL,UUID,SIZE,MOUNTPOINT,TRAN', timeout=10)
+        try:
+            devs = json.loads(out).get('blockdevices') or []
+        except ValueError:
+            return getattr(self, 'usb', [])
+        parts, names = [], {'teco'}
+        for d in devs:
+            if d.get('tran') != 'usb':
+                continue
+            for p in d.get('children') or [d]:   # disk bez particija (ceo disk formatiran)
+                if not p.get('fstype'):
+                    continue
+                n = re.sub(r'[^A-Za-z0-9_-]', '', (p.get('label') or '').replace(' ', '_'))[:20] or 'USB'
+                base, i = n, 2
+                while n.lower() in names:
+                    n, i = '%s%d' % (base, i), i + 1
+                names.add(n.lower())
+                parts.append({'id': p.get('uuid') or p['path'], 'dev': p['path'], 'fs': p['fstype'], 'n': n,
+                              'label': p.get('label') or '', 'size': int(p.get('size') or 0), 'mnt': p.get('mountpoint')})
+        return parts
+
+    async def usb_mount(self, p):
+        path = USB_MNT / p['n']
+        opts = 'noatime'
+        if p['fs'] in ('vfat', 'exfat', 'ntfs'):   # bez Linux vlasnika: fajlovi pripadaju Teco.Pi korisniku
+            opts += ',uid=%d,gid=%d,umask=002' % (os.getuid(), os.getgid()) + (',utf8' if p['fs'] == 'vfat' else '')
+        await self._rc('sudo', '-n', 'mkdir', '-p', str(path), timeout=5)
+        rc, out = await self._rc('sudo', '-n', 'mount', '-t', USB_FS[p['fs']], '-o', opts, p['dev'], str(path), timeout=30)
+        if rc:   # npr. NTFS koji nije pravilno izbačen: bar za čitanje
+            rc, out2 = await self._rc('sudo', '-n', 'mount', '-t', USB_FS[p['fs']], '-o', opts + ',ro', p['dev'], str(path), timeout=30)
+            if rc:
+                await self._rc('sudo', '-n', 'rmdir', str(path), timeout=5)
+                return out.splitlines()[-1][:120] if out else 'montiranje nije uspelo'
+            log.info('USB %s montiran samo za čitanje: %s', p['dev'], out)
+        log.info('USB %s (%s) montiran na %s', p['dev'], p['fs'], path)
+        p['mnt'] = str(path)
+        return None
+
+    async def usb_umount(self, path, lazy=False):
+        rc, out = await self._rc('sudo', '-n', 'umount', *(['-l'] if lazy else []), path, timeout=30)
+        if not rc:
+            await self._rc('sudo', '-n', 'rmdir', path, timeout=5)
+        return None if not rc else (out.splitlines()[-1][:120] if out else 'disk je zauzet')
+
+    @staticmethod
+    def teco_mounts():
+        """{mesto: uređaj} za sve što je montirano u /media/teco."""
+        m = {}
+        try:
+            for line in Path('/proc/mounts').read_text().splitlines():
+                dev, mnt = line.split()[:2]
+                mnt = mnt.replace('\\040', ' ')
+                if mnt.startswith(str(USB_MNT) + '/'):
+                    m[mnt] = dev
+        except OSError:
+            pass
+        return m
+
+    async def smb_refresh(self, force=False):
+        """Na 10 s: USB diskovi (montira nove, skida izvađene), smb.conf i smbd prema podešavanju."""
+        if not SMB_BIN.exists() or getattr(self, 'smb_installing', False):
+            return
+        if not hasattr(self, 'smb_lock'):
+            self.smb_lock = asyncio.Lock()
+        async with self.smb_lock:   # petlja i komande iz admina ne smeju da montiraju isto u isto vreme
+            await self._smb_refresh(force)
+
+    async def _smb_refresh(self, force):
+        cfg = self.smb_cfg()
+        auto = cfg['on'] and cfg.get('usb', True)
+        parts = await self.usb_scan()
+        ids = {p['id'] for p in parts}
+        self.usb_skip = {k: v for k, v in getattr(self, 'usb_skip', {}).items() if k in ids}   # izvađen disk: zaboravi grešku/izbacivanje
+        devs = {p['dev'] for p in parts}
+        for mnt, dev in self.teco_mounts().items():
+            if dev not in devs or not auto:   # disk izvađen bez „Izbaci“ ili je deljenje isključeno
+                await self.usb_umount(mnt, lazy=dev not in devs)
+                for p in parts:
+                    if p['mnt'] == mnt:
+                        p['mnt'] = None
+        if auto:
+            for p in parts:
+                if not p['mnt'] and p['id'] not in self.usb_skip:
+                    if p['fs'] not in USB_FS:
+                        self.usb_skip[p['id']] = 'format %s nije podržan' % p['fs']
+                    else:
+                        err = await self.usb_mount(p)
+                        if err:
+                            self.usb_skip[p['id']] = err
+        self.usb = parts
+        shares = [{'n': 'Teco', 'path': str(SHARE), 'usb': False, 'fs': 'sd'}]
+        SHARE.mkdir(exist_ok=True)
+        dirs = cfg.setdefault('dirs', {})   # {UUID diska: folder na disku koji se deli}, prazno = ceo disk
+        for p in parts:
+            if p['mnt'] and auto:
+                rel = dirs.get(p['id'], '')
+                path = Path(p['mnt']) / rel
+                if rel and not path.is_dir():   # folder obrisan ili preimenovan: deli ceo disk
+                    path, rel = Path(p['mnt']), ''
+                n = p['n']
+                if rel:   # deljenje se zove kao folder (npr. ps2share), pa OPL ne treba prepodešavati
+                    n = re.sub(r'[^A-Za-z0-9_-]', '', Path(rel).name.replace(' ', '_'))[:20] or n
+                base_n, i = n, 2
+                while n.lower() in {s['n'].lower() for s in shares}:
+                    n, i = '%s%d' % (base_n, i), i + 1
+                shares.append({'n': n, 'path': str(path), 'dir': rel, 'usb': True, 'dev': p['dev'], 'fs': p['fs'], 'label': p['label']})
+        for s in shares:
+            try:
+                du = shutil.disk_usage(s['path'])
+                s['size'], s['free'] = du.total, du.free
+            except OSError:
+                pass
+            s['opl'] = os.path.isdir(os.path.join(s['path'], 'DVD'))
+            s['games'] = self.share_games(s['path'])
+        self.smb_shares = shares
+        conf = self.smb_conf_text(shares)
+        if force or conf != getattr(self, 'smb_conf', None):
+            try:
+                same = SMB_CONF.read_text() == conf
+            except OSError:
+                same = False
+            if not same:
+                p = await asyncio.create_subprocess_exec('sudo', '-n', 'tee', str(SMB_CONF), stdin=asyncio.subprocess.PIPE,
+                                                         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await p.communicate(conf.encode())
+                if not p.returncode and cfg['on'] and getattr(self, 'smb_run', False):
+                    await self._rc('sudo', '-n', 'systemctl', 'reload', 'smbd', timeout=15)
+            self.smb_conf = conf
+        run = (await self._run('systemctl', 'is-active', 'smbd', timeout=5)).strip() == 'active'
+        if cfg['on'] and not run:
+            await self._rc('sudo', '-n', 'systemctl', 'enable', '--now', 'smbd', timeout=30)
+        elif not cfg['on'] and (run or force):
+            await self._rc('sudo', '-n', 'systemctl', 'disable', '--now', 'smbd', 'nmbd', timeout=30)
+        self.smb_run = (await self._run('systemctl', 'is-active', 'smbd', timeout=5)).strip() == 'active'
+        self.mark()
+
+    @staticmethod
+    def smb_conf_text(shares):
+        g = ['# Teco.Pi: ovaj fajl pravi server.py (Admin > Deljenje fajlova); ručne izmene se gube.',
+             '[global]',
+             '   workgroup = WORKGROUP', '   server string = Teco.Pi', '   netbios name = TECOPI',
+             '   server role = standalone server', '   map to guest = Bad User', '   guest account = ' + USER,
+             '   server min protocol = NT1', '   ntlm auth = ntlmv1-permitted',   # PS2 Open PS2 Loader zna samo SMB1
+             '   disable netbios = yes', '   smb ports = 445',
+             '   load printers = no', '   printing = bsd', '   printcap name = /dev/null', '   disable spoolss = yes',
+             '   logging = systemd', '   log level = 1', '   strict sync = no', '   use sendfile = yes']
+        for s in shares:
+            g += ['', '[%s]' % s['n'], '   path = ' + s['path'], '   guest ok = yes', '   read only = no',
+                  '   force user = ' + USER, '   create mask = 0664', '   directory mask = 0775']
+        return '\n'.join(g) + '\n'
+
+    def smb_snapshot(self):
+        cfg = self.smb_cfg()
+        shown = {s.get('dev') for s in getattr(self, 'smb_shares', [])}
+        skip = getattr(self, 'usb_skip', {})
+        return {'inst': SMB_BIN.exists(), 'installing': bool(getattr(self, 'smb_installing', False)),
+                'err': getattr(self, 'smb_err', None), 'on': cfg['on'], 'usb': cfg.get('usb', True), 'pw': bool(cfg.get('pw')),
+                'user': USER, 'run': bool(getattr(self, 'smb_run', False)),
+                'shares': getattr(self, 'smb_shares', []) if cfg['on'] else [],
+                'disks': [{'dev': p['dev'], 'n': p['label'] or p['n'], 'fs': p['fs'], 'size': p['size'],
+                           'msg': skip.get(p['id']) or ('' if cfg['on'] and cfg.get('usb', True) else 'nije deljen')}
+                          for p in getattr(self, 'usb', []) if p['dev'] not in shown]}
+
+    async def smb_set(self, c, v):
+        cfg = self.smb_cfg()
+        cfg['on' if c == 'smb' else 'usb'] = v
+        save_state(self.st)
+        if not SMB_BIN.exists():
+            return {'err': 'Samba nije instalirana.'}
+        await self.smb_refresh(force=True)
+        if c == 'smb_usb':
+            return {'ok': 'USB diskovi se dele' if v else 'USB diskovi se više ne dele'}
+        if v and not self.smb_run:
+            return {'err': 'Samba nije pokrenuta (journalctl -u smbd).'}
+        return {'ok': 'Deljenje fajlova je uključeno' if v else 'Deljenje fajlova je isključeno'}
+
+    async def smb_install(self):
+        if getattr(self, 'smb_installing', False):
+            return {'ok': 'Instalacija je već u toku…'}
+        self.smb_installing, self.smb_err = True, None
+        self.mark()
+
+        async def job():
+            try:
+                await self._rc('sudo', '-n', 'apt-get', 'update', timeout=600)
+                rc, out = await self._rc('sudo', '-n', 'env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y',
+                                         '--no-install-recommends', 'samba', timeout=1800)
+                if rc:
+                    self.smb_err = 'Instalacija nije uspela: ' + (out.splitlines() or [''])[-1][:160]
+                    log.warning('samba: %s', out[-2000:])
+                else:   # paket sam pokreće smbd/nmbd sa svojim podešavanjem: gasi dok se ne uključi u adminu
+                    await self._rc('sudo', '-n', 'systemctl', 'disable', '--now', 'smbd', 'nmbd', 'samba-ad-dc', timeout=60)
+            finally:
+                self.smb_installing = False
+            await self.smb_refresh(force=True)
+        asyncio.get_running_loop().create_task(job())
+        return {'ok': 'Instaliram Samba, traje par minuta…'}
+
+    async def smb_password(self, pw):
+        """Lozinka za prijavu sa Windows-a (Windows 10/11 ne puštaju gosta)."""
+        pw = str(pw or '')
+        if not 4 <= len(pw) <= 64:
+            return {'err': 'Lozinka treba da ima 4 do 64 znaka.'}
+        rc, out = await self._rc('sudo', '-n', 'smbpasswd', '-s', '-a', USER, inp='%s\n%s\n' % (pw, pw), timeout=15)
+        if rc:
+            return {'err': 'Lozinka nije sačuvana: ' + out[:120]}
+        self.smb_cfg()['pw'] = True
+        save_state(self.st)
+        self.mark()
+        return {'ok': 'Lozinka sačuvana. Korisnik: ' + USER}
+
+    async def usb_eject(self, dev):
+        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == dev), None)
+        if not p or not p['mnt']:
+            return {'err': 'Disk nije priključen.'}
+        async with self.smb_lock:
+            self.usb_skip[p['id']] = 'izbačen · izvadi i ponovo priključi za deljenje'
+            for s in self.smb_shares:
+                if s.get('dev') == dev:
+                    await self._rc('sudo', '-n', 'smbcontrol', 'smbd', 'close-share', s['n'], timeout=10)
+            await self._rc('sync', timeout=60)
+            err = await self.usb_umount(p['mnt'])
+            if err:
+                self.usb_skip.pop(p['id'], None)
+                return {'err': 'Disk je zauzet, pokušaj ponovo: ' + err}
+            await self._smb_refresh(False)
+        return {'ok': 'Disk %s je izbačen, možeš da ga izvadiš.' % (p['label'] or p['n'])}
+
+    @staticmethod
+    def share_games(path):
+        """Igrice u OPL folderima (DVD, CD, POPS) jednog deljenja."""
+        games = []
+        for d in ('DVD', 'CD', 'POPS'):
+            try:
+                with os.scandir(os.path.join(path, d)) as it:
+                    for e in it:
+                        if e.is_file() and not e.name.startswith('.') and os.path.splitext(e.name)[1].lower() in GAME_EXT:
+                            games.append({'f': d + '/' + e.name, 'size': e.stat().st_size})
+            except OSError:
+                pass
+        return sorted(games, key=lambda g: g['f'].lower())
+
+    def share_base(self, name):
+        s = next((s for s in getattr(self, 'smb_shares', []) if s['n'] == name), None)
+        return (Path(s['path']), s) if s and self.smb_cfg()['on'] else (None, None)
+
+    @staticmethod
+    def inside(base, rel):
+        """base/rel samo ako ne izlazi iz base (bez ../)."""
+        base = base.resolve()
+        p = (base / str(rel or '').strip('/')).resolve()
+        return p if p == base or base in p.parents else None
+
+    async def smb_ls(self, a):
+        """Folderi na USB disku (za izbor šta se deli)."""
+        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == a.get('dev') and p['mnt']), None)
+        if not p:
+            return {'err': 'Disk nije priključen.'}
+        d = self.inside(Path(p['mnt']), a.get('path'))
+        if not d or not d.is_dir():
+            return {'err': 'Folder ne postoji.'}
+        skip = {'System Volume Information', '$RECYCLE.BIN', 'lost+found'}
+        try:
+            dirs = sorted((e.name for e in os.scandir(d) if e.is_dir() and not e.name.startswith('.') and e.name not in skip), key=str.lower)
+        except OSError as e:
+            return {'err': 'Ne mogu da pročitam folder: %s' % e.strerror}
+        root = Path(p['mnt']).resolve()
+        return {'path': '' if d == root else str(d.relative_to(root)), 'dirs': dirs[:300]}
+
+    async def smb_dir(self, a):
+        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == a.get('dev') and p['mnt']), None)
+        if not p:
+            return {'err': 'Disk nije priključen.'}
+        d = self.inside(Path(p['mnt']), a.get('path'))
+        if not d or not d.is_dir():
+            return {'err': 'Folder ne postoji.'}
+        rel = '' if d == Path(p['mnt']).resolve() else str(d.relative_to(Path(p['mnt']).resolve()))
+        self.smb_cfg().setdefault('dirs', {})[p['id']] = rel
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        return {'ok': '%s deli %s' % (p['n'], rel or 'ceo disk')}
+
+    async def smb_opl(self, a):
+        base, _ = self.share_base(a.get('share'))
+        if not base:
+            return {'err': 'Deljenje nije pronađeno.'}
+        try:
+            for d in OPL_DIRS:
+                (base / d).mkdir(exist_ok=True)
+        except OSError as e:
+            return {'err': 'Folderi nisu napravljeni: %s' % e.strerror}
+        await self.smb_refresh()
+        return {'ok': 'OPL folderi su napravljeni u %s' % a.get('share')}
+
+    async def game_del(self, a):
+        base, _ = self.share_base(a.get('share'))
+        f = self.inside(base, a.get('f')) if base else None
+        if not f or not f.is_file() or f.parent.name not in ('DVD', 'CD', 'POPS'):
+            return {'err': 'Igrica nije pronađena.'}
+        f.unlink()
+        await self.smb_refresh()
+        return {'ok': 'Obrisano: ' + f.name}
+
     # ---------- Paradox alarm (proof of concept): stanje sa mosta, uključi/isključi particije
     def alarm_cfg(self):
         try:
@@ -2311,6 +2642,7 @@ class Teco:
             try:
                 self.remember_state()
                 await self.audio_refresh()
+                await self.smb_refresh()
                 if n % 3 == 0:
                     await self.bt_refresh()
                     await self.net_refresh()
@@ -2595,6 +2927,22 @@ class Teco:
         elif c == 'cast':
             await self.cast_set(bool(a.get('v')))
             return {'ok': 'Cast je uključen' if a.get('v') else 'Cast je isključen'}
+        elif c in ('smb', 'smb_usb'):
+            return await self.smb_set(c, bool(a.get('v')))
+        elif c == 'smb_install':
+            return await self.smb_install()
+        elif c == 'smb_eject':
+            return await self.usb_eject(str(a.get('dev') or ''))
+        elif c == 'smb_pw':
+            return await self.smb_password(a.get('pw'))
+        elif c == 'smb_ls':
+            return await self.smb_ls(a)
+        elif c == 'smb_dir':
+            return await self.smb_dir(a)
+        elif c == 'smb_opl':
+            return await self.smb_opl(a)
+        elif c == 'game_del':
+            return await self.game_del(a)
         elif c == 'reboot':
             save_state(self.st)
             asyncio.get_running_loop().call_later(1.5, lambda: subprocess.Popen(['systemctl', 'reboot']))
@@ -2991,6 +3339,7 @@ class Teco:
             'ev_now': self.ev_now,
             'cast': {'on': bool(self.st.get('cast')), 'run': bool(getattr(self, 'cast_run', False)),
                      'sender': self.cast_sender},
+            'smb': self.smb_snapshot(),
             'sys': self.sys,
         }
 
@@ -3179,10 +3528,57 @@ def make_app():
         teco.mark()
         return web.json_response({'saved': saved})
 
+    async def game_upload(request):
+        """Igrica (ISO/ZSO/VCD) direktno u deljeni folder: POST /api/game?share=Teco&name=igra.iso, telo = fajl.
+        Piše se u delovima (bez ograničenja od 25 MB) u .part fajl, pa se preimenuje kad stigne ceo."""
+        if request.headers.get('X-Teco-Token') not in teco.tokens:
+            return web.json_response({'err': 'Potreban je Admin režim.'}, status=403)
+        base, sh = teco.share_base(request.query.get('share', ''))
+        if not base:
+            return web.json_response({'err': 'Deljenje nije uključeno ili disk nije priključen.'}, status=404)
+        name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', '_', Path(request.query.get('name', '')).name).strip(' .')[:150]
+        ext = Path(name).suffix.lower()
+        size = request.content_length
+        if ext not in GAME_EXT:
+            return web.json_response({'err': 'Podržani su .iso, .zso (PS2) i .vcd (PS1/POPS).'}, status=400)
+        if not size:
+            return web.json_response({'err': 'Nepoznata veličina fajla.'}, status=411)
+        if sh.get('fs') == 'vfat' and size >= 4 * 2**30:
+            return web.json_response({'err': 'FAT32 ne prima fajl od 4 GB i više. Formatiraj disk kao exFAT.'}, status=400)
+        if shutil.disk_usage(base).free < size + 32 * 2**20:
+            return web.json_response({'err': 'Nema dovoljno mesta na %s.' % sh['n']}, status=507)
+        folder = GAME_EXT[ext] or ('CD' if size <= CD_MAX else 'DVD')
+        dest = base / folder / name
+        if dest.exists():
+            return web.json_response({'err': '%s/%s već postoji.' % (folder, name)}, status=409)
+        dest.parent.mkdir(exist_ok=True)
+        tmp = dest.with_name('.' + name + '.part')
+        loop = asyncio.get_running_loop()
+        got, ok = 0, False
+        f = open(tmp, 'wb')
+        try:
+            async for chunk in request.content.iter_chunked(1 << 20):
+                await loop.run_in_executor(None, f.write, chunk)   # USB zna da zastane: ne blokira mpv i stranicu
+                got += len(chunk)
+            await loop.run_in_executor(None, f.flush)
+            ok = got == size
+        finally:
+            f.close()
+            if ok:
+                os.replace(tmp, dest)
+            else:
+                tmp.unlink(missing_ok=True)   # prekinuto slanje
+        if not ok:
+            return web.json_response({'err': 'Slanje je prekinuto.'}, status=400)
+        log.info('igrica %s (%d MB) -> %s', name, size >> 20, dest)
+        await teco.smb_refresh()
+        return web.json_response({'ok': 'Sačuvano: %s/%s na %s' % (folder, name, sh['n'])})
+
     async def on_start(app):
         await teco.events_assets()
         if teco.st.get('cast'):
             await teco.cast_start()
+        await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
         if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
             await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
         app['tasks'] = [asyncio.create_task(t) for t in (teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop())]
@@ -3197,6 +3593,7 @@ def make_app():
     app.router.add_get('/favicon.ico', lambda r: web.FileResponse(STATIC / 'favicon-64.png'))   # pregledači ga traže i bez linka
     app.router.add_get('/ws', ws_handler)
     app.router.add_post('/api/upload', upload)
+    app.router.add_post('/api/game', game_upload)
     app.router.add_post('/api/cast', cast_api)
     async def api_event(request):
         # okidanje zvona/interfona; za sada samo sa samog Teco.Pi (kasnije ESP)
