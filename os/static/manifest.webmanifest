@@ -1,0 +1,17 @@
+{
+  "name": "Teco.Pi",
+  "short_name": "Teco.Pi",
+  "description": "Daljinski za Teco.Pi: multimedija, alarm i podešavanja",
+  "lang": "sr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1018",
+  "theme_color": "#0d9488",
+  "icons": [
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

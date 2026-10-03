@@ -44,9 +44,11 @@ SHARE = BASE / 'share'                   # deljeni folder na SD kartici (\\tecop
 USB_MNT = Path('/media/teco')            # USB diskovi: /media/teco/<ime>
 USB_FS = {'vfat': 'vfat', 'exfat': 'exfat', 'ntfs': 'ntfs3', 'ext4': 'ext4', 'ext3': 'ext3', 'ext2': 'ext2'}
 SMB_BIN = Path('/usr/sbin/smbd')
+SMB_PROTOS = {'NT1': ('NT1', 'SMB1 + novi (PS2 / OPL)'), 'SMB2': ('SMB2_02', 'SMB2 i SMB3'), 'SMB3': ('SMB3_00', 'samo SMB3')}
 OPL_DIRS = ('APPS', 'ART', 'CD', 'CFG', 'CHT', 'DVD', 'LNG', 'POPS', 'THM', 'VMC')   # folderi koje Open PS2 Loader očekuje
 GAME_EXT = {'.iso': None, '.zso': None, '.vcd': 'POPS'}   # None: CD (do 700 MB) ili DVD
 CD_MAX = 700 * 2**20
+DIRECT_IP = '192.168.50.1/24'   # Pi na kablu kad je PS2 povezan direktno (OPL: PS2 192.168.50.2, server 192.168.50.1)
 USER = pwd.getpwuid(os.getuid()).pw_name   # Samba deli fajlove kao ovaj korisnik (i za prijavu sa Windows-a)
 STATE_FILE = DATA / 'state.json'
 MPV_SOCK = '/tmp/mpvsocket'
@@ -181,7 +183,10 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
 }
 
 ADMIN_CMDS = {'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
-              'bt_scan', 'bt_pair', 'bt_connect', 'bt_disconnect', 'bt_remove', 'pin_req', 'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
+              # Bluetooth: povezivanje već uparenih (bt_connect/bt_disconnect) je za sve, uparivanje samo Admin
+              'bt_scan', 'bt_pair', 'bt_remove', 'pin_req',
+              'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct',
+              'net_mode', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
               'cons', 'name', 'fm_save', 'fm_del', 'st_add', 'st_del', 'set_pin'}
 
 
@@ -1719,6 +1724,8 @@ class Teco:
     async def bt_cmd(self, c, mac=None):
         if mac and not re.fullmatch(r'[0-9A-F:]{17}', mac):
             return {'err': 'Neispravna adresa uređaja.'}
+        if c == 'bt_connect' and not any(d['mac'] == mac and d['paired'] for d in self.bt.get('devs', [])):
+            return {'err': 'Uređaj nije uparen. Novi uređaji se uparuju u Adminu.'}
         await self._run('bluetoothctl', 'power', 'on', timeout=8)
         await self._run('bluetoothctl', 'pairable', 'on', timeout=8)
         if c == 'bt_scan':
@@ -1735,6 +1742,9 @@ class Teco:
             await self._run('bluetoothctl', 'trust', mac, timeout=8)
             c = 'bt_connect'
         if c == 'bt_connect':
+            for d in self.bt.get('devs', []):   # povezan može biti samo jedan uređaj
+                if d['conn'] and d['mac'] != mac:
+                    await self._run('bluetoothctl', 'disconnect', d['mac'], timeout=10)
             out = await self._run('bluetoothctl', '--agent', 'NoInputNoOutput', '--timeout', '15', 'connect', mac, timeout=25)
             await asyncio.sleep(2)
             await self.bt_refresh()
@@ -1888,8 +1898,11 @@ class Teco:
                         if err:
                             self.usb_skip[p['id']] = err
         self.usb = parts
-        shares = [{'n': 'Teco', 'path': str(SHARE), 'usb': False, 'fs': 'sd'}]
-        SHARE.mkdir(exist_ok=True)
+        names = cfg.get('names') or {}   # imena koja je korisnik dao ('sd' = folder na SD kartici, inače UUID diska)
+        shares = []
+        if cfg.get('sd'):   # folder na SD kartici: za sada isključen (igrice su na flash-u)
+            SHARE.mkdir(exist_ok=True)
+            shares.append({'n': names.get('sd') or 'Teco', 'id': 'sd', 'path': str(SHARE), 'usb': False, 'fs': 'sd'})
         dirs = cfg.setdefault('dirs', {})   # {UUID diska: folder na disku koji se deli}, prazno = ceo disk
         for p in parts:
             if p['mnt'] and auto:
@@ -1900,10 +1913,11 @@ class Teco:
                 n = p['n']
                 if rel:   # deljenje se zove kao folder (npr. ps2share), pa OPL ne treba prepodešavati
                     n = re.sub(r'[^A-Za-z0-9_-]', '', Path(rel).name.replace(' ', '_'))[:20] or n
+                n = names.get(p['id']) or n
                 base_n, i = n, 2
                 while n.lower() in {s['n'].lower() for s in shares}:
                     n, i = '%s%d' % (base_n, i), i + 1
-                shares.append({'n': n, 'path': str(path), 'dir': rel, 'usb': True, 'dev': p['dev'], 'fs': p['fs'], 'label': p['label']})
+                shares.append({'n': n, 'id': p['id'], 'path': str(path), 'dir': rel, 'usb': True, 'dev': p['dev'], 'fs': p['fs'], 'label': p['label']})
         for s in shares:
             try:
                 du = shutil.disk_usage(s['path'])
@@ -1913,7 +1927,7 @@ class Teco:
             s['opl'] = os.path.isdir(os.path.join(s['path'], 'DVD'))
             s['games'] = self.share_games(s['path'])
         self.smb_shares = shares
-        conf = self.smb_conf_text(shares)
+        conf = self.smb_conf_text(shares, cfg)
         if force or conf != getattr(self, 'smb_conf', None):
             try:
                 same = SMB_CONF.read_text() == conf
@@ -1935,19 +1949,58 @@ class Teco:
         self.mark()
 
     @staticmethod
-    def smb_conf_text(shares):
+    def smb_conf_text(shares, cfg):
+        proto = cfg.get('proto') or 'NT1'
+        guest = cfg.get('guest', True)
         g = ['# Teco.Pi: ovaj fajl pravi server.py (Admin > Deljenje fajlova); ručne izmene se gube.',
              '[global]',
              '   workgroup = WORKGROUP', '   server string = Teco.Pi', '   netbios name = TECOPI',
-             '   server role = standalone server', '   map to guest = Bad User', '   guest account = ' + USER,
-             '   server min protocol = NT1', '   ntlm auth = ntlmv1-permitted',   # PS2 Open PS2 Loader zna samo SMB1
+             '   server role = standalone server', '   map to guest = ' + ('Bad User' if guest else 'Never'), '   guest account = ' + USER,
+             '   server min protocol = ' + SMB_PROTOS[proto][0],
+             '   ntlm auth = ' + ('ntlmv1-permitted' if proto == 'NT1' else 'ntlmv2-only'),   # PS2 Open PS2 Loader zna samo SMB1
              '   disable netbios = yes', '   smb ports = 445',
              '   load printers = no', '   printing = bsd', '   printcap name = /dev/null', '   disable spoolss = yes',
              '   logging = systemd', '   log level = 1', '   strict sync = no', '   use sendfile = yes']
         for s in shares:
-            g += ['', '[%s]' % s['n'], '   path = ' + s['path'], '   guest ok = yes', '   read only = no',
+            g += ['', '[%s]' % s['n'], '   path = ' + s['path'], '   read only = no',
+                  '   guest ok = yes' if guest else '   valid users = ' + (cfg.get('user') or USER),
                   '   force user = ' + USER, '   create mask = 0664', '   directory mask = 0775']
         return '\n'.join(g) + '\n'
+
+    async def smb_opt(self, a):
+        """Protokol (najstariji dozvoljeni) i pristup bez lozinke."""
+        cfg = self.smb_cfg()
+        if 'proto' in a:
+            if a['proto'] not in SMB_PROTOS:
+                return {'err': 'Nepoznat protokol.'}
+            cfg['proto'] = a['proto']
+        if 'guest' in a:
+            if not a['guest'] and not cfg.get('pw'):
+                return {'err': 'Prvo postavi lozinku, pa isključi pristup bez lozinke.'}
+            cfg['guest'] = bool(a['guest'])
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        if 'proto' in a:
+            return {'ok': 'Protokol: ' + SMB_PROTOS[cfg['proto']][1]}
+        return {'ok': 'Pristup bez lozinke je ' + ('dozvoljen' if cfg['guest'] else 'isključen: prijava korisnikom ' + USER)}
+
+    async def smb_rename(self, a):
+        s = next((s for s in getattr(self, 'smb_shares', []) if s['n'] == a.get('share')), None)
+        if not s:
+            return {'err': 'Deljenje nije pronađeno.'}
+        name = str(a.get('name') or '').strip()
+        names = self.smb_cfg().setdefault('names', {})
+        if not name:   # prazno = podrazumevano ime (Teco, ime foldera ili diska)
+            names.pop(s['id'], None)
+        else:
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,20}', name) or name.lower() in ('global', 'homes', 'printers', 'ipc$'):
+                return {'err': 'Ime: do 20 slova, brojeva, - ili _ (bez razmaka i naših slova).'}
+            if any(o['n'].lower() == name.lower() and o is not s for o in self.smb_shares):
+                return {'err': 'Već postoji deljenje ' + name + '.'}
+            names[s['id']] = name
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        return {'ok': 'Ime deljenja: ' + (name or 'podrazumevano')}
 
     def smb_snapshot(self):
         cfg = self.smb_cfg()
@@ -1955,7 +2008,9 @@ class Teco:
         skip = getattr(self, 'usb_skip', {})
         return {'inst': SMB_BIN.exists(), 'installing': bool(getattr(self, 'smb_installing', False)),
                 'err': getattr(self, 'smb_err', None), 'on': cfg['on'], 'usb': cfg.get('usb', True), 'pw': bool(cfg.get('pw')),
-                'user': USER, 'run': bool(getattr(self, 'smb_run', False)),
+                'proto': cfg.get('proto') or 'NT1', 'guest': cfg.get('guest', True),
+                'user': cfg.get('user') or USER, 'run': bool(getattr(self, 'smb_run', False)),
+                'direct': bool(self.st.get('net_direct')),
                 'shares': getattr(self, 'smb_shares', []) if cfg['on'] else [],
                 'disks': [{'dev': p['dev'], 'n': p['label'] or p['n'], 'fs': p['fs'], 'size': p['size'],
                            'msg': skip.get(p['id']) or ('' if cfg['on'] and cfg.get('usb', True) else 'nije deljen')}
@@ -1996,18 +2051,32 @@ class Teco:
         asyncio.get_running_loop().create_task(job())
         return {'ok': 'Instaliram Samba, traje par minuta…'}
 
-    async def smb_password(self, pw):
-        """Lozinka za prijavu sa Windows-a (Windows 10/11 ne puštaju gosta)."""
+    async def smb_password(self, pw, user=None):
+        """Korisnik i lozinka za prijavu (Windows 10/11 ne puštaju gosta; OPL može i sa korisnikom, npr. ps2).
+        Korisnik koji nije Teco.Pi nalog dobija sistemski nalog bez prijave (samo za Sambu); fajlovi su i dalje Teco.Pi-jevi (force user)."""
+        cfg = self.smb_cfg()
         pw = str(pw or '')
+        user = str(user or cfg.get('user') or USER).strip()
+        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', user):
+            return {'err': 'Korisnik: mala slova, brojevi, - ili _ (npr. ps2).'}
         if not 4 <= len(pw) <= 64:
             return {'err': 'Lozinka treba da ima 4 do 64 znaka.'}
-        rc, out = await self._rc('sudo', '-n', 'smbpasswd', '-s', '-a', USER, inp='%s\n%s\n' % (pw, pw), timeout=15)
+        try:
+            pwd.getpwnam(user)
+        except KeyError:
+            rc, out = await self._rc('sudo', '-n', 'useradd', '--system', '--no-create-home', '--shell', '/usr/sbin/nologin', user, timeout=15)
+            if rc:
+                return {'err': 'Korisnik nije napravljen: ' + out[:120]}
+        rc, out = await self._rc('sudo', '-n', 'smbpasswd', '-s', '-a', user, inp='%s\n%s\n' % (pw, pw), timeout=15)
         if rc:
             return {'err': 'Lozinka nije sačuvana: ' + out[:120]}
-        self.smb_cfg()['pw'] = True
+        old = cfg.get('user') or USER
+        if old != user:   # stari Samba korisnik više ne važi
+            await self._rc('sudo', '-n', 'smbpasswd', '-x', old, timeout=15)
+        cfg['user'], cfg['pw'], cfg['pass'] = user, True, pw   # pass: da se vidi u Adminu (smb_pw_get), ne ide u stanje za sve
         save_state(self.st)
-        self.mark()
-        return {'ok': 'Lozinka sačuvana. Korisnik: ' + USER}
+        await self.smb_refresh(force=True)
+        return {'ok': 'Sačuvano. Korisnik: %s' % user}
 
     async def usb_eject(self, dev):
         p = next((p for p in getattr(self, 'usb', []) if p['dev'] == dev), None)
@@ -2157,6 +2226,13 @@ class Teco:
         if c == 'alarm_ev_clear':
             r = await self.alarm_post('/events/clear', {})
             return {'ok': 'Dnevnik događaja je obrisan'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
+        if c == 'alarm_events':   # dnevnik za izabrani period (ceo dnevnik na mostu, ne samo poslednjih 100)
+            try:
+                t0, t1 = int(a.get('from') or 0), int(a.get('to') or 0)
+            except (TypeError, ValueError):
+                return {'err': 'Neispravan period.'}
+            r = await self.alarm_post('/events/range', {'from': t0, 'to': t1})
+            return {'events': r.get('events') or []} if 'events' in r else {'err': r.get('err') or 'Nije uspelo.'}
 
     async def alarm_do(self, a):
         """Particija (uključi u režimu Regular/Stay/Instant/Force, isključi) ili PGM izlaz (a['pgm'])."""
@@ -2176,14 +2252,15 @@ class Teco:
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return {'err': 'Alarm servis ne odgovara.'}
         if cmd == 'pulse' and res.get('ok'):
-            # „aktiviraj na 5 s“: isključenje radi server (i ako se stranica zatvori)
+            # „aktiviraj na 5 s“: vraćanje radi server (i ako se stranica zatvori). 'release', ne 'off':
+            # 'off' (override_off) ostavlja PGM zaključan na isključeno, pa ga ni šifrator/Insite Gold ne bi okinuli
             async def later():
                 await asyncio.sleep(5)
                 try:
-                    r2 = await post('off')
-                    log.info('alarm pgm: %s off posle 5 s -> %s', target, r2)
+                    r2 = await post('release')
+                    log.info('alarm pgm: %s release posle 5 s -> %s', target, r2)
                 except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
-                    log.warning('alarm pgm: %s off nije uspeo: %s', target, e)
+                    log.warning('alarm pgm: %s release nije uspeo: %s', target, e)
             asyncio.get_running_loop().create_task(later())
         log.info('alarm %s: %s %s -> %s', path[1:], target, cmd, res)
         self.alarm_poll_now = True
@@ -2237,9 +2314,9 @@ class Teco:
                     'ip_pw': bool(c.get('ip_password')), 'pc_pw': bool(c.get('pc_password'))},
             'troubles': sorted(k for k, v in tr.items() if v is True and not k.startswith('_')),
             'power': {k: sysd.get('power', {}).get(k) for k in ('vdc', 'battery', 'dc') if isinstance(sysd.get('power', {}).get(k), (int, float))},
-            'events': (st.get('events') or [])[-60:],
+            'events': (st.get('events') or [])[-100:],
             'monitor': [int(x) for x in c.get('monitor', [])],
-            'run': st.get('run'), 'err': st.get('err'), 'panel': st.get('panel'),
+            'run': st.get('run'), 'err': st.get('err'), 'panel': st.get('panel'), 'site': st.get('site') or {},
             'parts': [{k: p.get(k) for k in pk if k in p} for p in st.get('partitions', [])],
             'zones': [{k: z.get(k) for k in zk if k in z} for z in st.get('zones', [])],
             'pgms': [{k: g.get(k) for k in ('id', 'key', 'label', 'on', 'disabled') if k in g} for g in st.get('pgms', [])],
@@ -2473,6 +2550,16 @@ class Teco:
         for line in wifi.splitlines():
             if line.startswith('yes:'):
                 _, net['ssid'], net['signal'] = line.split(':', 2)
+        # Wi-Fi: podešavanje adrese za trenutnu Wi-Fi mrežu
+        wcon = await self._wifi_con()
+        if wcon:
+            out = await self._run('nmcli', '-t', '-f', 'ipv4.method,ipv4.addresses,ipv4.gateway', 'con', 'show', wcon, timeout=5)
+            cfg = dict(l.split(':', 1) for l in out.splitlines() if ':' in l)
+            net['wlan'] = {'con': wcon, 'mode': 'static' if cfg.get('ipv4.method') == 'manual' else 'dhcp',
+                           'ip': cfg.get('ipv4.addresses', ''), 'gw': cfg.get('ipv4.gateway', '').replace('--', '')}
+        net['radio'] = (await self._run('nmcli', 'radio', 'wifi', timeout=5)).strip() == 'enabled'
+        eth_up = any(i['n'] == 'eth0' and i['up'] and i['ip'] for i in net['ifs'])
+        net['pref'] = self.st.get('net_pref') or ('eth' if eth_up else 'wifi')
         self.net = net
         self.mark()
 
@@ -2483,6 +2570,73 @@ class Teco:
             if typ == '802-3-ethernet':
                 return name.replace('\\:', ':')
         return None
+
+    async def net_direct(self, on):
+        """PS2 kablom direktno na Pi: eth0 = 192.168.50.1/24 bez gateway-a (internet i kućna mreža ostaju na Wi-Fi-ju).
+        Isključeno: kabl se vraća na DHCP (ruter)."""
+        if on and not (self.net.get('pref') == 'wifi' and self.net.get('ssid')):
+            return {'err': 'Prvo prebaci Pi na Wi-Fi (Mreža → Wi-Fi), pa kabl ostaje slobodan za PS2.'}
+        con = await self._eth_con()
+        if not con:
+            return {'err': 'Kablovska veza nije pronađena.'}
+        if on:
+            args = ['ipv4.method', 'manual', 'ipv4.addresses', DIRECT_IP, 'ipv4.gateway', '', 'ipv4.dns', '',
+                    'ipv4.never-default', 'yes', 'ipv4.ignore-auto-dns', 'yes']
+        else:
+            args = ['ipv4.method', 'auto', 'ipv4.addresses', '', 'ipv4.gateway', '', 'ipv4.never-default', 'no', 'ipv4.ignore-auto-dns', 'no']
+        out = await self._run('nmcli', 'con', 'mod', con, *args, timeout=10)
+        if 'Error' in out:
+            return {'err': 'Nije sačuvano: ' + out.strip()[:120]}
+        self.st['net_direct'] = on
+        save_state(self.st)
+        await self._run('nmcli', 'con', 'up', con, timeout=20)   # bez kabla ne uspe: NetworkManager je podigne kad se kabl priključi
+        await self.net_refresh()
+        return {'ok': 'PS2 direktno: Pi je 192.168.50.1 na kablu' if on else 'Kabl je ponovo za ruter (DHCP)'}
+
+    async def _wifi_con(self):
+        """Wi-Fi veza koja je trenutno aktivna (ili None)."""
+        out = await self._run('nmcli', '-t', '-f', 'NAME,TYPE', 'con', 'show', '--active', timeout=5)
+        for line in out.splitlines():
+            f = self._nm_split(line)
+            if len(f) == 2 and f[1] == '802-11-wireless':
+                return f[0]
+        return None
+
+    async def net_mode(self, mode):
+        """Kabl ili Wi-Fi. Kabl: Wi-Fi je isključen (jedna adresa, tecopi.local uvek pokazuje na nju).
+        Wi-Fi: Wi-Fi uključen i ima prednost; kabl, ako je priključen, ostaje kao rezerva."""
+        if mode not in ('eth', 'wifi'):
+            return {'err': 'Nepoznat način.'}
+        eth = next((i for i in self.net.get('ifs', []) if i['n'] == 'eth0'), {})
+        if mode == 'eth' and self.st.get('net_direct'):
+            return {'err': 'Kabl je sada za PS2 (direktna veza). Prvo je isključi u Deljenju fajlova.'}
+        if mode == 'eth' and not (eth.get('up') and eth.get('ip')):
+            return {'err': 'Kabl nije priključen (eth0 nema adresu). Wi-Fi ostaje uključen.'}
+        self.st['net_pref'] = mode
+        save_state(self.st)
+        econ = await self._eth_con()
+        wifis = await self._wifi_saved()
+        em, wm = ('100', '600') if mode == 'eth' else ('700', '100')   # manja metrika = podrazumevani izlaz
+        if econ:
+            await self._run('nmcli', 'con', 'mod', econ, 'ipv4.route-metric', em, timeout=10)
+        for w in wifis:
+            await self._run('nmcli', 'con', 'mod', 'id', w, 'ipv4.route-metric', wm, timeout=10)
+        if mode == 'eth':
+            await self._run('nmcli', 'radio', 'wifi', 'off', timeout=10)
+            await self._run('nmcli', 'dev', 'reapply', 'eth0', timeout=15)
+        else:
+            await self._run('nmcli', 'radio', 'wifi', 'on', timeout=10)
+            if econ and eth.get('up'):
+                await self._run('nmcli', 'dev', 'reapply', 'eth0', timeout=15)
+
+        async def later():   # Wi-Fi se poveže za par sekundi
+            await asyncio.sleep(8)
+            await self.net_refresh()
+            if mode == 'wifi':
+                await self.wifi_scan()
+        asyncio.get_running_loop().create_task(later())
+        await self.net_refresh()
+        return {'ok': 'Mreža: kabl (Wi-Fi isključen)' if mode == 'eth' else 'Mreža: Wi-Fi' + (' · kabl je rezerva' if eth.get('up') else '')}
 
     # ---------- Wi-Fi (nmcli): traženje mreža, povezivanje, brisanje sačuvanih
     @staticmethod
@@ -2532,7 +2686,8 @@ class Teco:
                     await self._run('nmcli', 'con', 'delete', 'id', ssid, timeout=10)
                 msg = out.strip().splitlines()[-1] if out.strip() else ''
                 return {'err': 'Nije povezano' + (': pogrešna lozinka' if 'Secrets were required' in out or 'password' in out.lower() else (': ' + msg[:100] if msg else '.'))}
-            await self._run('nmcli', 'con', 'mod', 'id', ssid, 'ipv6.method', 'disabled', timeout=10)
+            await self._run('nmcli', 'con', 'mod', 'id', ssid, 'ipv6.method', 'disabled',
+                            'ipv4.route-metric', '100' if self.st.get('net_pref') == 'wifi' else '600', timeout=10)
             return {'ok': 'Povezano na ' + ssid}
         finally:
             self.wifi['busy'] = None
@@ -2547,9 +2702,12 @@ class Teco:
 
     async def net_set(self, a):
         import ipaddress
-        con = await self._eth_con()
+        wifi = a.get('if') == 'wifi'
+        if not wifi and self.st.get('net_direct'):
+            return {'err': 'Kabl je sada za PS2 (direktna veza). Prvo je isključi u Deljenju fajlova.'}
+        con = await (self._wifi_con() if wifi else self._eth_con())
         if not con:
-            return {'err': 'Kablovska veza nije pronađena.'}
+            return {'err': 'Prvo se poveži na Wi-Fi mrežu.' if wifi else 'Kablovska veza nije pronađena.'}
         if a.get('mode') == 'static':
             try:
                 iface = ipaddress.IPv4Interface(str(a.get('ip', '')).strip())
@@ -2578,7 +2736,7 @@ class Teco:
             await self._run('nmcli', 'con', 'up', con, timeout=30)
             await self.net_refresh()
         asyncio.get_running_loop().create_task(reconnect())
-        return {'ok': msg + ' sačuvana. Ako se stranica ne vrati, otvori http://tecopi.local'}
+        return {'ok': '%s: %s sačuvana. Ako se stranica ne vrati, otvori http://tecopi.local' % ('Wi-Fi' if wifi else 'Kabl', msg)}
 
     async def dns_set(self, a):
         """DNS za kabl i sve Wi-Fi mreže: od rutera (DHCP) ili ručno (npr. 1.1.1.1 8.8.8.8).
@@ -2910,11 +3068,17 @@ class Teco:
             return await self.net_set(a)
         elif c == 'dns_set':
             return await self.dns_set(a)
+        elif c == 'net_mode':
+            return await self.net_mode(a.get('v'))
+        elif c == 'smb_opt':
+            return await self.smb_opt(a)
+        elif c == 'smb_name':
+            return await self.smb_rename(a)
         elif c == 'alarm_cfg':
             return await self.alarm_cfg_set(a)
         elif c == 'alarm':   # uključi/isključi: dozvoljeno svima u mreži (izbor korisnika)
             return await self.alarm_do(a)
-        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear'):
+        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events'):
             return await self.alarm_extra(c, a)
         elif c == 'ntp_set':
             return await self.ntp_set(a)
@@ -2934,7 +3098,12 @@ class Teco:
         elif c == 'smb_eject':
             return await self.usb_eject(str(a.get('dev') or ''))
         elif c == 'smb_pw':
-            return await self.smb_password(a.get('pw'))
+            return await self.smb_password(a.get('pw'), a.get('user'))
+        elif c == 'smb_pw_get':
+            cfg = self.smb_cfg()
+            return {'user': cfg.get('user') or USER, 'pw': cfg.get('pass') or ''}
+        elif c == 'smb_direct':
+            return await self.net_direct(bool(a.get('v')))
         elif c == 'smb_ls':
             return await self.smb_ls(a)
         elif c == 'smb_dir':
@@ -3653,6 +3822,8 @@ def make_app():
     app.router.add_get('/send', send_page)
     app.router.add_get('/api/play', api_play)
     app.router.add_post('/api/play', api_play)
+    import mimetypes
+    mimetypes.add_type('application/manifest+json', '.webmanifest')   # PWA (prečica na telefonu)
     app.router.add_static('/static', STATIC)
     app.router.add_static('/img', IMAGES)
     app.on_startup.append(on_start)

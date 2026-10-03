@@ -29,10 +29,29 @@ log = logging.getLogger('teco-alarm')
 
 state = {'run': 'stop', 'err': None, 'since': None, 'panel': None}
 alarm = None
-EV_FILE = DATA / 'alarm-events.json'   # dnevnik događaja (poslednjih 300), ostaje posle restarta
+EV_FILE = DATA / 'alarm-events.json'   # dnevnik događaja (poslednjih EV_MAX), ostaje posle restarta
+EV_MAX = 1000
 events = []
 version = 0                           # raste na svaku promenu: server čeka /wait?v= i dobija stanje odmah
 changed_ev = None                     # asyncio.Event koji budi čekanje (/wait)
+
+
+site = {}   # podaci o centrali i IP modulu (iz poruka PAI pri povezivanju): model, verzija, serijski brojevi
+
+
+class SiteLog(logging.Handler):
+    """PAI podatke o centrali samo upiše u log pri povezivanju; ovde se pokupe za prikaz na stranici."""
+    def emit(self, record):
+        try:
+            m = record.getMessage()
+            r = re.search(r'Panel Identified (\S+) version (.+)$', m)
+            if r:
+                site.update(model=r.group(1), fw=r.group(2))
+            r = re.search(r'IP\((\w+)\) Module version (\w+), firmware: ([\d.]+), serial: (\w+)', m)
+            if r:
+                site.update(ip_type=r.group(1), ip_fw=r.group(3), ip_serial=r.group(4).upper())
+        except Exception:
+            pass
 
 
 def bump():
@@ -45,14 +64,14 @@ def bump():
 def load_events():
     global events
     try:
-        events = json.loads(EV_FILE.read_text())[-300:]
+        events = json.loads(EV_FILE.read_text())[-EV_MAX:]
     except (OSError, ValueError):
         events = []
 
 
 def save_events():
     try:
-        EV_FILE.write_text(json.dumps(events[-300:], ensure_ascii=False))
+        EV_FILE.write_text(json.dumps(events[-EV_MAX:], ensure_ascii=False))
     except OSError as e:
         log.warning('dnevnik: %s', e)
 
@@ -62,12 +81,34 @@ REPORT_RE = re.compile(r'kiss.?off|telephone|communicat|dialer|report|tlm|ground
 REPORT_KEYS = {'tlm_trouble', 'dialer_trouble', 'com_pc_trouble', 'module_tlm_trouble', 'module_fail_to_com_trouble'}
 
 
+RAW_LOG = None   # dijagnostika: '/tmp/teco-alarm-ev.log' upisuje svaki događaj pre filtera (tmpfs, raste brzo)
+PART_KEEP = {'current_state'}   # od promena stanja particije samo ova; ostalo (memorija, sirena, ciljno stanje…) je šum
+
+
+def _ts(v):
+    """Vreme događaja: živi događaji imaju datetime (sat centrale), promene stanja broj."""
+    if hasattr(v, 'timestamp'):
+        return int(v.timestamp())
+    try:
+        return int(v) or int(time.time())
+    except (TypeError, ValueError):
+        return int(time.time())
+
+
 def on_event(event=None, **kw):
     """Događaj sa centrale (PAI): zona, particija, korisnik, sistem. Čuva se u dnevniku."""
     global _save_h
     try:
-        p = event.props if hasattr(event, 'props') else {}
-        e = {'t': int(getattr(event, 'timestamp', 0) or time.time()),
+        live = hasattr(event, 'major')   # živi događaj sa centrale (odmah), inače promena stanja (na 4 s)
+        if RAW_LOG:   # privremeno: svaki događaj pre filtera (dijagnostika zona)
+            with open(RAW_LOG, 'a') as f:
+                f.write('%s live=%s type=%s id=%s label=%r lvl=%s change=%s tags=%s msg=%r\n' % (
+                    time.strftime('%H:%M:%S'), live, getattr(event, 'type', None), getattr(event, 'id', None), getattr(event, 'label', None),
+                    getattr(getattr(event, 'level', None), 'name', ''), getattr(event, 'change', None), getattr(event, 'tags', None),
+                    getattr(event, 'message', '')))
+        if live and getattr(event, 'type', '') in ('partition', 'user', 'system') and getattr(event, 'label', '') != 'date':
+            full_status_now()   # uključenje/isključenje sa tastature i sl.: stanje particije odmah
+        e = {'t': _ts(getattr(event, 'timestamp', 0)),
              'type': str(getattr(event, 'type', '') or ''),
              'label': str(getattr(event, 'label', '') or ''),
              'msg': str(getattr(event, 'message', '') or ''),
@@ -76,29 +117,82 @@ def on_event(event=None, **kw):
              'change': {k: v for k, v in (getattr(event, 'change', None) or {}).items() if isinstance(v, (bool, int, float, str))}}
         if not e['msg'] and not e['change']:
             return
-        if e['lvl'] == 'DEBUG' or (e['type'] == 'system' and e['label'] == 'date'):
+        if re.search(r'WinLoad (in|out)', e['msg'], re.I):
+            return   # povezivanje softvera (Teco.Pi most, Swan, WinLoad) na centralu: stalno se ponavlja, ne znači ništa
+        # zona otvorena / zatvorena (PAI: DEBUG). Ova EVO centrala preko IP150 ne šalje žive događaje zona:
+        # stižu samo kao promena stanja (čitanje na KEEP_ALIVE_INTERVAL), pa se uzimaju odatle
+        zone_oc = e['type'] == 'zone' and set(e['change']) == {'open'}
+        if zone_oc and not e['change']['open']:
+            return   # u dnevnik ide samo otvaranje zone (izbor korisnika), zatvaranje ne
+        if (e['lvl'] == 'DEBUG' and not zone_oc) or (e['type'] == 'system' and e['label'] == 'date'):
             return   # „Panel time is…“ na svake 4 s i sl. ne ide u dnevnik
         # dojava (PSTN/glasovna/IP): potvrda prijema, zvonjenje, neuspela dojava, telefonska linija…
-        if REPORT_RE.search(e['msg']) or any(k in REPORT_KEYS or k.startswith('fail_central') for k in e['change']):
+        if (REPORT_RE.search(e['msg']) and not re.search(r'non-?reportable', e['msg'], re.I)) \
+                or any(k in REPORT_KEYS or k.startswith('fail_central') for k in e['change']):   # „Non-reportable event“ nije dojava
             e['cat'] = 'report'
         if e['type'] == 'partition' and ('zones closed' in e['msg'] or set(e['change']) & {'all_zone_closed', 'ready', 'ready_status'}):
             return   # „sve zone zatvorene / nije spremna“ prati svako otvaranje zone: šum
-        if e['type'] == 'zone':   # zone: samo one sa „Monitor“ (bira se na stranici), osim alarma i sabotaže
+        if e['type'] == 'partition' and not live and e.get('cat') != 'report' and not set(e['change']) & PART_KEEP:
+            return   # jedan krug uključi/alarm/isključi pravio je ~15 upisa i gurao zone iz dnevnika
+        if e['type'] == 'zone':   # zone: otvaranje/zatvaranje samo za zone sa „Monitor“; alarm, sabotaža, požar uvek
             zid = zone_id(event)
             e['zid'] = zid
-            if zid not in monitored() and not set(e['change']) & {'alarm', 'tamper', 'fire'} and 'alarm' not in e['tags']:
+            important = set(e['change']) & {'alarm', 'tamper', 'fire', 'generated_alarm', 'presently_in_alarm', 'fire_alarm', 'zone_tamper_trouble'} \
+                or set(e['tags']) & {'alarm', 'trouble'}
+            if zid not in monitored() and not important:
                 return
-        if events and all(events[-1].get(k) == e[k] for k in ('type', 'label', 'msg', 'change')) and e['t'] - events[-1]['t'] < 3:
+        same = ('type', 'zid', 'change') if e['type'] == 'zone' else ('type', 'label', 'msg', 'change')   # zona: živi i promena imaju različit naziv
+        if any(all(o.get(k) == e.get(k) for k in same) and abs(e['t'] - o['t']) < 8 for o in events[-6:]):
             return   # isti događaj dvaput (živi događaj + promena stanja)
-        events.append(e)
-        del events[:-300]
-        bump()
-        loop = asyncio.get_event_loop()
-        if _save_h:
-            _save_h.cancel()
-        _save_h = loop.call_later(3, save_events)   # upis na karticu najviše na 3 s
+        push_event(e)
     except Exception as ex:
         log.warning('događaj: %s', ex)
+
+
+def push_event(e):
+    global _save_h
+    events.append(e)
+    del events[:-EV_MAX]
+    bump()
+    loop = asyncio.get_event_loop()
+    if _save_h:
+        _save_h.cancel()
+    _save_h = loop.call_later(3, save_events)   # upis na karticu najviše na 3 s
+
+
+# Dojava: centrala o pozivu ne šalje događaje, ali svaki njen odgovor nosi zastavicu „alarm reporting pending“
+# (ima poruku za slanje / bira), a RAM blok 1 zastavice linije (zvono, kiss off = prijem potvrđen).
+rep = {'pending': None, 'ring': None, 'kiss': None, 't0': None}
+
+
+def report_event(msg, tags):
+    push_event({'t': int(time.time()), 'type': 'system', 'label': '', 'msg': msg, 'lvl': 'INFO',
+                'tags': tags, 'change': {}, 'cat': 'report'})
+    log.info('dojava: %s', msg)
+
+
+def report_watch(message, res):
+    try:
+        v = message.fields.value
+        pend = bool(getattr(getattr(v.po, 'status', None), 'alarm_reporting_pending', False))
+        if rep['pending'] is not None and pend != rep['pending']:
+            if pend:
+                rep['t0'] = time.time()
+                report_event('Dojava počela: centrala bira broj', ['trouble'])
+            else:
+                dur = int(time.time() - (rep['t0'] or time.time()))
+                report_event('Dojava završena' + (' (%d s)' % dur if dur else ''), ['disarm'])
+        rep['pending'] = pend
+        if res is not None and v.address == 1:
+            sf = res.get('_system_flags') or {}
+            ring, kiss = bool(sf.get('line_ring')), bool(sf.get('kiss_off'))
+            if rep['ring'] is not None and ring and not rep['ring']:
+                report_event('Telefonska linija: zvono', ['info'])
+            if rep['kiss'] is not None and kiss and not rep['kiss']:
+                report_event('Dojava potvrđena (kiss off)', ['disarm'])
+            rep['ring'], rep['kiss'] = ring, kiss
+    except Exception as ex:
+        log.warning('dojava (status): %s', ex)
 
 
 def on_change(change=None, **kw):
@@ -128,7 +222,7 @@ def zone_id(event):
     lab = getattr(event, 'label', None)
     try:
         for key, z in alarm.storage.get_container('zone').items():
-            if key == lab or z.get('label') == lab or str(z.get('id')) == str(lab):
+            if lab in (key, z.get('key'), z.get('label')) or str(z.get('id')) == str(lab):   # promena stanja: ključ („Hodnik_IC“)
                 return int(z.get('id') or key)
     except Exception:
         pass
@@ -151,7 +245,13 @@ def write_pai_cfg(c):
         'IP_CONNECTION_PORT': int(c.get('port') or 10000),
         'IP_CONNECTION_PASSWORD': str(c.get('ip_password') or 'paradox'),
         'PASSWORD': pc or None,
-        'KEEP_ALIVE_INTERVAL': 4,   # stanje (smetnje, napajanje) na 4 s; zone i particije stižu odmah kao događaji
+        # pauza između čitanja stanja: ova centrala zone ne javlja sama (nema živih događaja zona), pa je ovo kašnjenje
+        # senzora; samo čitanje preko IP150 traje ~1,4 s, pa je ceo krug ~2,4 s
+        'KEEP_ALIVE_INTERVAL': 1,
+        # odgovor centrale preko IP150 zna da kasni (Wi-Fi): sa 0,5 s (PAI podrazumevano) stizao je posle isteka
+        # („Already handled / No handler for message 5“) i PAI je prekidao vezu na ~5 min
+        'IO_TIMEOUT': 2.0,
+        'LIMITS': {'door': [], 'module': []},   # vrata i moduli se ne koriste: brže povezivanje (~8 s manje)
         'SYNC_TIME': False,
         'MQTT_ENABLE': False,
         'IP_INTERFACE_ENABLE': False,
@@ -196,7 +296,20 @@ def snapshot():
                     s['system'][str(key)] = _plain(el)
         except Exception:
             pass
-    s['events'] = events[-80:]
+    s['site'] = dict(site, host=load_cfg().get('host'))
+    st = getattr(getattr(alarm, 'panel', None), 'settings', None)   # serijski broj centrale, ako ga PAI ima
+    if st is not None:
+        for k in ('serial_number', 'panel_id'):
+            v = getattr(st, k, None) if not isinstance(st, dict) else st.get(k)
+            if isinstance(v, (bytes, bytearray)):
+                s['site']['serial'] = v.hex().upper()
+                break
+    try:   # korisnici sa imenom (ne „User 005“…)
+        s['site']['users'] = [u.get('label') for _, u in alarm.storage.get_container('user').items()
+                              if u.get('label') and not re.fullmatch(r'User \d+', u.get('label'))]
+    except Exception:
+        pass
+    s['events'] = events[-200:]
     s['v'] = version
     return s
 
@@ -204,6 +317,44 @@ def snapshot():
 def setstate(**kw):
     state.update(kw)
     bump()
+
+
+FULL_EVERY = 10   # ceo status (particije, PGM, alarm/bypass zona) na svaki 10. krug (~15 s) i odmah posle događaja particije/komande
+
+
+def fast_status(panel):
+    """PAI na svakom krugu čita sve RAM blokove centrale (~3,3 s preko IP150), a otvorenost zona, smetnje i napajanje
+    su u bloku 1. Brzi krug čita samo blok 1 (~0,5 s), pa senzor kasni ~1 s umesto 6-7 s."""
+    orig = panel.get_status_requests
+    orig_hs = panel.handle_status
+
+    def hs(message, parser_map):   # svaki odgovor na čitanje stanja: zastavice dojave (report_watch)
+        res = orig_hs(message, parser_map)
+        report_watch(message, res)
+        return res
+    panel.handle_status = hs
+    addrs = list(getattr(panel, 'status_request_addresses', []) or [])
+    if 1 not in addrs:
+        return
+    n = [0]
+
+    def get():
+        n[0] += 1
+        if n[0] % FULL_EVERY == 1 or getattr(alarm, 'teco_full', False):
+            alarm.teco_full = False
+            return orig()
+        return (panel.request_status(i) for i in (1,))
+    panel.get_status_requests = get
+
+
+def full_status_now():
+    """Posle komande (uključi/isključi, PGM, zona): sledeći krug odmah i ceo."""
+    if alarm is not None:
+        alarm.teco_full = True
+        try:
+            alarm.request_status_refresh()
+        except Exception:
+            pass
 
 
 async def run_alarm():
@@ -225,13 +376,17 @@ async def run_alarm():
     ps.subscribe(on_event, 'events')     # živi događaji: dnevnik
     ps.subscribe(on_change, 'changes')   # svaka promena stanja: server dobija novo stanje odmah
     wait = 2
+    # JEDNA instanca za sve pokušaje (kao PAI main): Paradox() se pri pravljenju pretplaćuje na promene,
+    # pa je nova instanca na svaki prekid množila događaje (2×, 4×…) i usporavala most
+    alarm = Paradox()
     while True:
-        alarm = Paradox()
         setstate(run='connecting', err=None, since=time.time())
         try:
             if await alarm.full_connect():
                 wait = 2
                 panel = getattr(alarm, 'panel', None)
+                if panel is not None:
+                    fast_status(panel)
                 setstate(run='run', err=None, since=time.time(),
                          panel=type(panel).__name__.replace('Panel_', '') if panel else None)
                 log.info('povezan sa centralom (%s)', state['panel'])
@@ -284,6 +439,7 @@ async def h_partition(request):
     p = str(a.get('p') or 'all')
     ok = await alarm.control_partition(p, cmd)
     log.info('particija %s: %s -> %s', p, cmd, ok)
+    full_status_now()
     return web.json_response({'ok': bool(ok)} if ok else {'err': 'Centrala nije prihvatila komandu.'})
 
 
@@ -298,10 +454,17 @@ async def h_pgm(request):
     if alarm is None or state['run'] != 'run':
         return web.json_response({'err': 'Alarm nije povezan.'}, status=503)
     p = str(a.get('p') or '')
+    via = 'broadcast'   # ova centrala odgovara na pgm_override; 0x40 (PAI) ostaje bez odgovora — samo rezerva
     ok = await pgm_override(p, cmd)
-    if not ok:   # rezerva: obična PAI komanda (na ovoj EVO centrali ne dobija odgovor)
-        ok = await alarm.control_output(p, cmd)
-    log.info('PGM %s: %s -> %s', p, cmd, ok)
+    if not ok:
+        via = '0x40'
+        try:
+            ok = await alarm.control_output(p, cmd)
+        except Exception as e:
+            log.warning('PGM %s %s (0x40): %s', p, cmd, e)
+            ok = False
+    log.info('PGM %s: %s -> %s (%s)', p, cmd, ok, via)
+    full_status_now()
     return web.json_response({'ok': bool(ok)} if ok else {'err': 'Centrala nije prihvatila komandu.'})
 
 
@@ -316,8 +479,16 @@ async def h_zone(request):
     p = str(a.get('p') or 'all')
     ok = await alarm.control_zone(p, cmd)
     log.info('zona %s: %s -> %s', p, cmd, ok)
+    full_status_now()
     bump()
     return web.json_response({'ok': bool(ok)} if ok else {'err': 'Centrala nije prihvatila komandu.'})
+
+
+async def h_events_range(request):
+    """Događaji između from i to (unix vreme, to=0: do sada), najnoviji poslednji, najviše 500."""
+    a = await request.json()
+    t0, t1 = int(a.get('from') or 0), int(a.get('to') or 0) or int(time.time()) + 60
+    return web.json_response({'events': [e for e in events if t0 <= e['t'] <= t1][-500:]})
 
 
 async def h_events_clear(request):
@@ -332,20 +503,21 @@ EVO_OVR = {'on': 'override_on', 'off': 'override_off', 'on_override': 'override_
 
 async def pgm_override(p, cmd):
     """EVO: PGM kao iz BabyWare statusnog prozora (broadcast „pgm_override“ ka centrali, adresa 0).
-    PAI-jeva komanda 0x40 na EVO192 ostaje bez odgovora (timeout), a ovako centrala direktno menja izlaz.
-    Centrala na ovaj paket ne šalje potvrdu koju PAI razume, pa se šalje jednom i smatra poslatim."""
+    Provereno 3.10.2026: ovo okida PGM na ovoj centrali (EVO48 v2.20), ali centrala obično ne pošalje potvrdu,
+    pa se šalje jednom i ne čeka se (inače PGM ostaje uključen duže). PAI-jeva komanda 0x40 ovde ne radi.
+    (Ranije je 'sub_command' bio van 'po' pa se paket nije ni sastavio, a u logu je pisalo „poslato“.)"""
     try:
         from paradox.hardware.evo import parsers as evp
         pid = int(p)
         if not 1 <= pid <= 16 or cmd not in EVO_OVR:
             return False
         data = evp.PGMBroadcastCommand.build({pid: EVO_OVR[cmd]})
-        try:
-            await alarm.send_wait(evp.BroadcastRequest, dict(sub_command='pgm_override', bus_address=0, data=data),
-                                  retries=1, timeout=1)
+        try:   # jednom; centrala izvrši, ali ne odgovara uvek
+            reply = await alarm.send_wait(evp.BroadcastRequest, dict(po=dict(sub_command='pgm_override'), bus_address=0, data=data),
+                                          reply_expected=0xA, retries=1, timeout=0.3)
         except asyncio.TimeoutError:
-            pass   # nema potvrde — očekivano
-        log.info('PGM %s: %s (pgm_override) poslato', pid, EVO_OVR[cmd])
+            reply = None
+        log.info('PGM %s: %s (pgm_override) poslato, %s', pid, EVO_OVR[cmd], 'potvrđeno' if reply is not None else 'bez potvrde')
         return True
     except Exception as e:
         log.warning('PGM override %s %s: %s', p, cmd, e)
@@ -353,6 +525,7 @@ async def pgm_override(p, cmd):
 
 
 async def main():
+    logging.getLogger('PAI').addHandler(SiteLog())
     app = web.Application()
     app.router.add_get('/state', h_state)
     app.router.add_get('/wait', h_wait)
@@ -361,6 +534,7 @@ async def main():
     app.router.add_post('/pgm', h_pgm)
     app.router.add_post('/zone', h_zone)
     app.router.add_post('/events/clear', h_events_clear)
+    app.router.add_post('/events/range', h_events_range)
     runner = web.AppRunner(app, access_log=None)   # server pita na 1,5 s: bez zapisa svakog upita (/tmp je u RAM-u)
     await runner.setup()
     await web.TCPSite(runner, '127.0.0.1', PORT).start()   # samo lokalno: spolja se ide preko Teco.Pi servera

@@ -1,0 +1,39 @@
+<!-- ekran pri otvaranju prečice (PWA): nastavlja se na iOS sliku za otvaranje (static/splash), nestaje kad stigne prvo stanje -->
+<style>
+#boot{position:fixed;inset:0;z-index:100;background:#0b1018;color:#e6edf5;transition:opacity .35s ease;font-family:-apple-system,"Segoe UI",system-ui,sans-serif}
+#boot.out{opacity:0;pointer-events:none}
+#boot .bl{position:absolute;left:36vw;top:calc(42vh - 14vw);width:28vw;height:28vw}
+#boot .bt{position:absolute;left:0;right:0;top:calc(42vh + 14vw + 7vw);text-align:center;font-weight:600;font-size:8.5vw;line-height:1;letter-spacing:.01em}
+#boot .bb{position:absolute;left:50%;top:calc(42vh + 14vw + 22vw);width:30vw;height:3px;margin-left:-15vw;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden}
+#boot .bb i{position:absolute;top:0;bottom:0;width:40%;border-radius:2px;background:#2dd4bf;animation:bootbar 1.1s ease-in-out infinite}
+#boot .bs{position:absolute;left:0;right:0;top:calc(42vh + 14vw + 22vw + 16px);text-align:center;font-size:13px;color:#7d8aa0;opacity:0;transition:opacity .3s}
+#boot.slow .bs{opacity:1}
+#boot .ring{transform-origin:32px 32px;animation:bootring 1.6s linear infinite}
+#boot .dot{transform-origin:32px 32px;animation:bootdot 1.6s ease-in-out infinite}
+@keyframes bootbar{0%{left:-40%}100%{left:100%}}
+@keyframes bootring{to{transform:rotate(360deg)}}
+@keyframes bootdot{0%,100%{transform:scale(1)}50%{transform:scale(.7)}}
+@media not all and (display-mode:standalone){#boot{display:none}}
+@media (min-aspect-ratio:1/1){#boot .bl{left:calc(50vw - 14vh);top:28vh;width:28vh;height:28vh}#boot .bt{top:63vh;font-size:6vh}#boot .bb{top:74vh}#boot .bs{top:calc(74vh + 16px)}}
+@media (prefers-reduced-motion:reduce){#boot .ring,#boot .dot{animation:none}}
+</style>
+<div id="boot" aria-hidden="true">
+  <!-- podloga znaka je slika (ugrađena): iPhone tek uz sliku smatra da strana ima sadržaj i odmah skida statični ekran -->
+  <img class="bl" src="data:image/png;base64,{{BOOT_BG}}" alt="">
+  <svg class="bl" viewBox="2 2 60 60">
+    <circle cx="32" cy="32" r="14.4" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="5.4"/>
+    <circle class="ring" cx="32" cy="32" r="14.4" fill="none" stroke="#fff" stroke-width="5.4" stroke-linecap="round" stroke-dasharray="60 31"/>
+    <circle class="dot" cx="32" cy="32" r="4.5" fill="#fff"/>
+  </svg>
+  <div class="bt">Teco.Pi</div>
+  <div class="bb"><i></i></div>
+  <div class="bs">Povezujem se sa Teco.Pi…</div>
+</div>
+<script>
+(function () {   // posle 4 s: „Povezujem se…“; posle 12 s ustupa mesto poruci da Teco.Pi nije dostupan
+  var b = document.getElementById('boot');
+  setTimeout(function () { b.classList.add('slow'); }, 4000);
+  window.bootDone = function () { if (!b.parentNode) return; b.classList.add('out'); setTimeout(function () { b.remove(); }, 400); };
+  setTimeout(window.bootDone, 12000);
+})();
+</script>
