@@ -37,7 +37,8 @@ ALARM_CFG = DATA / 'alarm.json'     # IP modul: adresa, port, lozinke (chmod 600
 ALARM_API = 'http://127.0.0.1:8098'
 ALARM_CMDS = {'arm': 'Uključen (Regular)', 'arm_stay': 'Uključen (Stay)', 'arm_instant': 'Uključen (Instant)',
               'arm_force': 'Uključen (Force)', 'disarm': 'Isključen'}
-PGM_CMDS = {'on': 'uključen', 'off': 'isključen', 'release': 'vraćen na automatski rad', 'pulse': 'uključen na 5 s'}
+PGM_PULSE = 3   # s: impuls PGM-a (vrata, prečice PGM1/PGM2), posle se vraća na normalan rad
+PGM_CMDS = {'on': 'uključen', 'off': 'isključen', 'release': 'vraćen na automatski rad', 'pulse': 'uključen na %d s' % PGM_PULSE}
 NTP_CONF = Path('/etc/systemd/timesyncd.conf.d/teco.conf')   # NTP serveri iz podešavanja mreže
 SMB_CONF = Path('/etc/samba/smb.conf')   # Teco.Pi ga piše ceo (deljenje fajlova iz admina)
 SHARE = BASE / 'share'                   # deljeni folder na SD kartici (\\tecopi\Teco)
@@ -55,7 +56,10 @@ MPV_SOCK = '/tmp/mpvsocket'
 FM_SOCK = '/tmp/mpvfm'
 ST_SOCK = '/tmp/mpvstream'
 HELPER_SOCKS = (FM_SOCK, ST_SOCK)   # pomoćni mpv-ovi za zvuk (FM i internet radio)
-SOURCES = ('av1', 'av2', 'av3', 'av4', 'fm', 'st', 'tv')
+SOURCES = ('av1', 'av2', 'av3', 'av4', 'fm', 'st', 'tv', 'arc')   # arc = Arcade (emulator na Pi-ju)
+ARC_DIR = DATA / 'arcade'                                            # podešavanje, save, BIOS (data/arcade/bios)
+ARC_CORES = Path.home() / '.config/retroarch/cores'
+ARC_EXT = ('.cue', '.chd', '.pbp', '.iso')                            # PS1 igre u folderu CD na flash-u (podfolder = igra)
 # av1 je YouTube (Pi); ulazi za konzole su interno av2-av4, a na ekranu se zovu AV1-AV3
 AVS = ('av2', 'av3', 'av4')
 AVL = {'av2': 'AV1', 'av3': 'AV2', 'av4': 'AV3'}
@@ -123,6 +127,7 @@ DEFAULT_STATE = {
     'boot': 'last',                     # posle uključivanja: 'last' (kao pre gašenja) ili izvor (av1, fm, ...)
     'events': {},                      # popunjava se iz DEFAULT_EVENTS pri pokretanju
     'slide_sec': 10,
+    'devices': [],                     # Smart Home uređaji: [{'id', 'name', 'type': 'light', 'proto': 'wiz', 'ip'}]
     'idle': 'slides',                 # šta je na ekranu kad nema videa: 'slides' ili 'clock'
     'relays': [
         {'n': 'AV1', 'pin': 22, 'on': False, 'role': 'av2'},
@@ -185,10 +190,183 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
 ADMIN_CMDS = {'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
               # Bluetooth: povezivanje već uparenih (bt_connect/bt_disconnect) je za sve, uparivanje samo Admin
               'bt_scan', 'bt_pair', 'bt_remove', 'pin_req',
-              'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct',
+              'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct', 'alarm_cfg_get',
+              'dev_add', 'dev_edit', 'dev_del', 'dev_scan',   # uređaji se dodaju u Adminu; dev_set (upravljanje) je za sve   # uređaji (dev_*): svi u mreži (za sada samo svetla)
               'net_mode', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
               'cons', 'name', 'fm_save', 'fm_del', 'st_add', 'st_del', 'set_pin'}
 
+
+# ---------------------------------------------------------------- Smart Home drajveri (po proizvođaču)
+
+DEV_TYPES = {'light': 'Svetlo', 'camera': 'Kamera', 'door': 'Vrata', 'intercom': 'Interfon'}   # kasnije: 'plug' (utičnica), 'switch', 'sensor'…
+
+
+class DevDriver:
+    key, label, ready, dtype = '', '', False, 'light'   # ready=False: vidi se u izboru kao „uskoro“; dtype: vrsta uređaja
+
+    async def probe(self, ip):   # dict sa podacima (npr. mac) ako uređaj odgovara, inače None
+        return None
+
+    async def poll(self, d):     # {'ok', 'on', 'dim', …}
+        return {'ok': False}
+
+    async def set(self, d, on=None, dim=None, temp=None, rgb=None, mode=None):
+        return False
+
+    async def scan(self):        # [{'ip', 'mac', 'on'}]
+        return []
+
+
+class WizDriver(DevDriver):
+    """WiZ: lokalni UDP API (port 38899), bez oblaka. getPilot / setPilot, pretraga broadcast-om."""
+    key, label, ready = 'wiz', 'WiZ', True
+
+    @staticmethod
+    def _send(ip, msg, timeout=1.5, broadcast=False):
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(timeout)
+        if broadcast:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            s.sendto(json.dumps(msg).encode(), (ip, 38899))
+            out = []
+            while True:
+                try:
+                    data, addr = s.recvfrom(4096)
+                except socket.timeout:
+                    break
+                try:
+                    out.append((addr[0], json.loads(data)))
+                except ValueError:
+                    pass
+                if not broadcast:
+                    break
+            return out
+        finally:
+            s.close()
+
+    async def call(self, ip, method, params=None, broadcast=False, timeout=1.5):
+        return await asyncio.get_running_loop().run_in_executor(
+            None, self._send, ip, {'method': method, 'params': params or {}}, timeout, broadcast)
+
+    async def probe(self, ip):
+        r = await self.call(ip, 'getPilot')
+        return (r[0][1].get('result') or {}) if r else None
+
+    async def poll(self, d):
+        res = await self.probe(d['ip'])
+        if res is None:
+            return {'ok': False}
+        rgb = [res.get(k) for k in ('r', 'g', 'b')]
+        return {'ok': True, 'on': bool(res.get('state')), 'dim': res.get('dimming'), 'temp': res.get('temp'), 'rssi': res.get('rssi'),
+                'rgb': '#%02x%02x%02x' % tuple(rgb) if all(isinstance(x, int) for x in rgb) else None}
+
+    async def set(self, d, on=None, dim=None, temp=None, rgb=None, mode=None):
+        if mode == 'max':         # najjače: tople i hladne bele diode punom snagom
+            p = {'state': True, 'c': 255, 'w': 255, 'dimming': 100}
+        elif temp is not None:    # bela: toplo/dnevno/hladno (WiZ 2200-6500 K)
+            p = {'state': True, 'temp': max(2200, min(6500, int(temp)))}
+        elif rgb:                 # boja '#rrggbb'
+            h = str(rgb).lstrip('#')
+            p = {'state': True, 'r': int(h[0:2], 16), 'g': int(h[2:4], 16), 'b': int(h[4:6], 16)}
+        elif dim is not None:
+            p = {'state': True, 'dimming': max(10, min(100, int(dim)))}
+        else:
+            p = {'state': bool(on)}
+        return bool(await self.call(d['ip'], 'setPilot', p))
+
+    async def scan(self):
+        r = await self.call('255.255.255.255', 'getPilot', broadcast=True, timeout=2.5)
+        return [{'ip': ip, 'mac': (m.get('result') or {}).get('mac'), 'on': (m.get('result') or {}).get('state')} for ip, m in r if m.get('result')]
+
+
+class CameraDriver(DevDriver):
+    """IP kamera (RTSP). Teco.Pi sastavlja RTSP adresu; slika ide u stranicu kao HLS (CCTV_*), samo dok neko gleda.
+    probe/poll samo proveravaju da li je RTSP port otvoren (bez slike, skoro bez troška)."""
+    dtype, ready = 'camera', True
+
+    def __init__(self, key, label):
+        self.key, self.label = key, label
+
+    def url(self, d, sub=True):
+        cam = d.get('cam') or {}
+        if self.key == 'camurl':
+            return cam.get('url') or ''
+        from urllib.parse import quote
+        auth = '%s:%s@' % (quote(cam.get('user') or '', safe=''), quote(cam.get('pass') or '', safe='')) if cam.get('user') else ''
+        ch = int(cam.get('ch') or 1)
+        if self.key == 'hikvision':   # 101 = kanal 1 glavni, 102 = kanal 1 sporedni (substream)
+            path = '/Streaming/Channels/%d0%d' % (ch, 2 if sub else 1)
+        else:                         # dahua: subtype 0 glavni, 1 sporedni
+            path = '/cam/realmonitor?channel=%d&subtype=%d' % (ch, 1 if sub else 0)
+        return 'rtsp://%s%s:%d%s' % (auth, d['ip'], int(cam.get('port') or 554), path)
+
+    @staticmethod
+    async def _port_open(host, port):
+        try:
+            _, w = await asyncio.wait_for(asyncio.open_connection(host, port), 2)
+            w.close()
+            return True
+        except (OSError, asyncio.TimeoutError):
+            return False
+
+    def _hostport(self, d):
+        from urllib.parse import urlparse
+        if self.key == 'camurl':
+            u = urlparse((d.get('cam') or {}).get('url') or '')
+            return u.hostname, u.port or {'rtsp': 554, 'https': 443}.get(u.scheme, 80)
+        return d['ip'], int((d.get('cam') or {}).get('port') or 554)
+
+    async def probe(self, ip, d=None):
+        host, port = self._hostport(d or {'ip': ip})
+        return {} if host and await self._port_open(host, port) else None
+
+    _seen = {}   # id -> (vreme provere, dostupna)
+
+    async def poll(self, d):
+        t, ok = self._seen.get(d['id'], (0, None))
+        if time.time() - t < 30 and ok is not None:   # proverava na 30 s, ne na 5 s
+            return {'ok': ok}
+        host, port = self._hostport(d)
+        ok = bool(host) and await self._port_open(host, port)
+        self._seen[d['id']] = (time.time(), ok)
+        return {'ok': ok}
+
+
+class PgmDoorDriver(DevDriver):
+    """Vrata/kapija/garaža preko PGM izlaza alarma (Paradox most). Nema mreže: stanje (otvoreno) iz zone alarma,
+    a komanda ide kroz Teco.alarm_do (pgm pulse / on / off). Vidi Teco.dev_cmd i dev_snapshot."""
+    key, label, ready, dtype = 'alarmpgm', 'Alarm PGM', True, 'door'
+
+    async def probe(self, ip, d=None):
+        return {}
+
+    async def poll(self, d):
+        return {'ok': True}
+
+
+class ZoneIntercomDriver(DevDriver):
+    """Interfon: okidač je zona alarma (zona se otvori kad neko zvoni). Teco pokreće obaveštenje i pamti poziv."""
+    key, label, ready, dtype = 'alarmzone', 'Zona alarma', True, 'intercom'
+
+    async def probe(self, ip, d=None):
+        return {}
+
+    async def poll(self, d):
+        return {'ok': True}
+
+
+class SoonDriver(DevDriver):
+    def __init__(self, key, label):
+        self.key, self.label = key, label
+
+
+DEV_DRIVERS = {d.key: d for d in (WizDriver(), SoonDriver('sonoff', 'Sonoff'), SoonDriver('shelly', 'Shelly'), SoonDriver('tasmota', 'Tasmota'),
+                                   CameraDriver('hikvision', 'Hikvision'), CameraDriver('dahua', 'Dahua'), CameraDriver('camurl', 'Drugi (RTSP/HTTP adresa)'),
+                                   PgmDoorDriver(), ZoneIntercomDriver())}
+CCTV_DIR = Path('/tmp/cctv')   # HLS segmenti kamera (tmpfs, RAM)
+CCTV_IDLE = 20                 # s bez gledanja -> ffmpeg se gasi
 
 # ---------------------------------------------------------------- stanje na disku
 
@@ -508,8 +686,12 @@ class Teco:
     # ---------- mpv događaji
     def _mpv_changed(self, name):
         if name == 'connected':
-            # posle restarta servera izvor je AV1: skloni sliku konzole ako je ostala na ekranu
-            asyncio.get_running_loop().create_task(self.hide_console())
+            if getattr(self, 'mpv_back', False):   # mpv vraćen posle igre: novi izvor sam postavlja sliku
+                self.mpv_back = False
+            elif self.source == 'arc' and not self.arc_running():   # restart servera/plejera na Arcade
+                asyncio.get_running_loop().create_task(self.show_arcade())
+            else:   # posle restarta servera izvor je AV1: skloni sliku konzole ako je ostala na ekranu
+                asyncio.get_running_loop().create_task(self.hide_console())
         if name == 'idle-active' and self.mpv.props.get('idle-active') and self.mode == 'yt':
             asyncio.get_running_loop().create_task(self.start_slides())
         if getattr(self, 'yt_loading', None) and self.mode == 'yt' and name == 'event:playback-restart':
@@ -719,6 +901,7 @@ class Teco:
         try:   # isti zadaci, ali u stalno upaljenom Node-u (~3 s brže po videu)
             from yt_dlp.extractor.youtube.jsc._builtin import node as jnode
             worker, orig = JscWorker(), jnode.NodeJCP._run_js_runtime
+            self.jsc_worker = worker   # Arcade ga gasi dok se igra (sam se ponovo pali za sledeći video)
 
             def fast(prov, stdin):
                 try:
@@ -1072,6 +1255,37 @@ class Teco:
 </svg>'''
         await self._overlay(['cons', s, c['svg'], name], build, keep=True, show=show)
 
+    async def show_arcade(self, show=True):
+        """Arcade bez pokrenute igre: PlayStation 1 slika (kao konzole na AV ulazima)."""
+        try:
+            c = json.loads((STATIC / 'consoles.json').read_text())['ps1']
+        except (OSError, ValueError, KeyError):
+            return
+        n = len(self.arc_games())
+        line = ('%d %s · izaberi igru na telefonu' % (n, 'igra' if n % 10 == 1 and n % 100 != 11 else 'igre' if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else 'igara')) \
+            if n else 'Nema igara — stavi ih na flash u folder CD'
+        color = '#f59e0b'
+
+        def build(w, h):
+            ch = int(h * 0.46)
+            cw = int(ch * 260 / 150)
+            if cw > w * 0.8:
+                cw = int(w * 0.8)
+                ch = int(cw * 150 / 260)
+            cx, cy = (w - cw) // 2, int(h * 0.1)
+            inner = c['svg'].replace('<svg viewBox="0 0 260 150"', '<svg x="%d" y="%d" width="%d" height="%d" viewBox="0 0 260 150"' % (cx, cy, cw, ch), 1)
+            ty = cy + ch + int(h * 0.1)
+            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
+<defs><radialGradient id="bgGlow" cx="50%" cy="0%" r="90%"><stop offset="0" stop-color="{color}" stop-opacity=".35"/><stop offset="1" stop-color="{color}" stop-opacity="0"/></radialGradient></defs>
+<rect width="{w}" height="{h}" fill="#0b1018"/><rect width="{w}" height="{h}" fill="url(#bgGlow)"/>
+<ellipse cx="{w // 2}" cy="{cy + ch * 0.78:.0f}" rx="{cw * 0.4:.0f}" ry="{h * 0.02:.0f}" fill="#000" fill-opacity=".5"/>
+{inner}
+<text x="{w // 2}" y="{ty}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.038:.0f}" letter-spacing="3" fill="{color}">ARCADE</text>
+<text x="{w // 2}" y="{ty + h * 0.095:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.075:.0f}" fill="#ffffff">PlayStation 1</text>
+<text x="{w // 2}" y="{ty + h * 0.165:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-size="{h * 0.036:.0f}" fill="#9aa4b3">{self._esc(line)}</text>
+</svg>'''
+        await self._overlay(['arc', c['svg'], line], build, keep=True, show=show)
+
     async def hide_console(self):
         self.logo_on = False
         await self.mpv.cmd('overlay-remove', 0)
@@ -1134,6 +1348,8 @@ class Teco:
     async def _set_source(self, s, title=None):
         prev, self.source = self.source, s
         log.info('izvor: %s -> %s', prev, s)
+        if prev == 'arc' and s != 'arc':   # prvo ugasi igru i sačekaj mpv — tek onda slika novog izvora
+            await self.arc_stop()
         if s == 'av1' and prev != 'av1':
             snap = self.yt_snap if self.mode != 'yt' else None
             if title or (snap and snap.get('urls')):   # video se tek učitava: YouTube slika umesto prethodnog izvora
@@ -1144,6 +1360,8 @@ class Teco:
             await self.stream_stop()
         if prev == 'tv' and s != 'tv':
             await self.tv_stop()
+        if s == 'arc' and prev != 'arc' and self.mode == 'yt':   # YouTube lista se pamti dok se igra (mpv se gasi za emulator)
+            self.yt_snap = self.yt_snapshot() or self.yt_snap
         self.st['last_source'] = s
         if s in AVS:
             self.st['last_av'] = s   # AV dugme na stranici pamti poslednji ulaz
@@ -1173,11 +1391,205 @@ class Teco:
             await self.hide_clock()  # sat je overlay 1 i bio bi iznad slike konzole/radija
         if s in AVS:
             await self.show_console(s)
+        elif s == 'arc':
+            if not self.arc_running():
+                await self.show_arcade()
         elif s == 'av1' and not getattr(self, 'yt_loading', None):
             await self.hide_console()
         if s != 'av1':
             self.yt_loading = None
         self.mark()
+
+    # ---------- Arcade: PS1 emulator (RetroArch + PCSX ReARMed), radi SAMO dok se igra
+    def arc_games(self):
+        """Igre sa USB diskova: <disk>/CD/<igra>/*.cue|chd|pbp|iso (ili fajl direktno u CD). Keš 30 s."""
+        c = getattr(self, '_arc_cache', None)
+        if c and time.time() - c[0] < 30:
+            return c[1]
+        games = []
+        for cd in sorted(glob.glob(str(USB_MNT / '*' / 'CD'))):
+            for e in sorted(os.scandir(cd), key=lambda x: x.name.lower()):
+                if e.name.startswith(('.', '__MACOSX')):
+                    continue
+                files = [e.path] if e.is_file() else sorted(
+                    f for pat in ('*', '*/*') for f in glob.glob(os.path.join(glob.escape(e.path), pat))   # i jedan podfolder dublje
+                    if '__MACOSX' not in f and not os.path.basename(f).startswith('.')) if e.is_dir() else []
+                pick = next((f for ext in ARC_EXT for f in files if f.lower().endswith(ext)), None)
+                if pick:
+                    name = e.name if e.is_dir() else os.path.splitext(e.name)[0]
+                    reg = next((r for r in ('USA', 'Europe', 'Japan', 'PAL', 'NTSC') for t in (name, os.path.basename(pick)) if '(%s' % r in t), '')
+                    # omot: game-art.jpg/png u folderu igre (ili cover/folder.*)
+                    art = next((f for stem in ('game-art', 'cover', 'folder') for f in files
+                                if os.path.splitext(os.path.basename(f))[0].lower() == stem
+                                and f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))), None)
+                    games.append({'id': hashlib.md5(pick.encode()).hexdigest()[:10], 'name': re.sub(r'\s*\([^)]*\)', '', name).strip() or name,
+                                  'region': reg, 'path': pick, 'sys': 'PS1', 'art': art,
+                                  'artv': int(os.stat(art).st_mtime) if art else 0})
+        self._arc_cache = (time.time(), games)
+        return games
+
+    def arc_cfg(self):
+        """Minimalni RetroArch: slika direktno na ekran (KMS), zvuk PipeWire, tastatura/džojstik (udev).
+        Na kompozitnom (PAL) TV-u: 288p 50 Hz + igra u PAL ritmu (50 fps) -> vsync i zvuk usklađeni."""
+        for sub in ('saves', 'states', 'bios'):
+            (ARC_DIR / sub).mkdir(parents=True, exist_ok=True)
+        opts = {
+            'video_driver': 'gl', 'video_context_driver': 'kms', 'video_fullscreen': 'true', 'video_vsync': 'false',
+            'video_threaded': 'false', 'video_smooth': 'false', 'video_refresh_rate': '50.000000', 'video_max_swapchain_images': '2',
+            'audio_driver': 'pulse', 'audio_latency': '128', 'audio_sync': 'true', 'audio_rate_control': 'true', 'audio_rate_control_delta': '0.005',
+            'input_driver': 'udev', 'input_joypad_driver': 'udev', 'input_autodetect_enable': 'true', 'menu_driver': 'rgui', 'video_font_enable': 'false',
+            'pause_nonactive': 'false', 'config_save_on_exit': 'false', 'menu_show_load_content_animation': 'false',
+            'savefile_directory': str(ARC_DIR / 'saves'), 'savestate_directory': str(ARC_DIR / 'states'), 'system_directory': str(ARC_DIR / 'bios'),
+            'libretro_directory': str(ARC_CORES), 'core_options_path': str(ARC_DIR / 'core-options.cfg'),
+            'input_exit_emulator': 'escape', 'input_menu_toggle': 'f1', 'input_save_state': 'f2', 'input_load_state': 'f4',
+            'input_player1_start': 'enter', 'input_player1_select': 'rshift', 'input_player1_a': 'x', 'input_player1_b': 'z',
+            'input_player1_x': 's', 'input_player1_y': 'a', 'input_player1_l': 'q', 'input_player1_r': 'w',
+            'input_player1_l2': 'num1', 'input_player1_r2': 'num2',
+        }
+        # podrazumevane RetroArch prečice koje se lako slučajno pritisnu (Space = ubrzanje, kvari zvuk; L, K, E, F, P, O, H...)
+        for k in ('toggle_fast_forward', 'hold_fast_forward', 'frame_advance', 'slowmotion', 'hold_slowmotion', 'toggle_fullscreen',
+                  'pause_toggle', 'reset', 'rewind', 'movie_record_toggle', 'shader_next', 'shader_prev', 'audio_mute', 'osk_toggle',
+                  'screenshot', 'netplay_game_watch', 'game_focus_toggle', 'cheat_index_plus', 'cheat_index_minus', 'cheat_toggle',
+                  'volume_up', 'volume_down', 'state_slot_increase', 'state_slot_decrease', 'disk_eject_toggle', 'disk_next', 'disk_prev',
+                  'fps_toggle', 'recording_toggle', 'streaming_toggle', 'ai_service', 'runahead_toggle', 'close_content', 'grab_mouse_toggle'):
+            opts['input_' + k] = 'nul'
+        try:
+            hdmi = Path('/sys/class/drm/card0-HDMI-A-1/status').read_text().strip() == 'connected'
+        except OSError:
+            hdmi = False
+        if not hdmi:   # kompozit 576i DRM vodi kao 25 Hz -> igra bi išla 25 fps; 288p je progresivnih 50 Hz (kao prava konzola)
+            # pikseli 288p nisu kvadratni: ceo ekran 720x288 je 4:3 na TV-u (aspect_ratio_index 20 = vrednost iz video_aspect_ratio)
+            opts.update({'video_fullscreen_x': '720', 'video_fullscreen_y': '288', 'video_refresh_rate': '50.080128',
+                         'aspect_ratio_index': '20', 'video_aspect_ratio': '2.5', 'video_vsync': 'true',
+                         # Bluetooth uzima zvuk u blokovima ~43 ms: veći bafer da se ni slika ni zvuk ne trzaju
+                         'audio_latency': '256'})
+        opts['global_core_options'] = 'true'   # inače RetroArch ignoriše core_options_path
+        (ARC_DIR / 'retroarch.cfg').write_text('# Teco.Pi Arcade (pravi server.py)\n' + ''.join('%s = "%s"\n' % kv for kv in opts.items()))
+        core = {'pcsx_rearmed_drc': 'enabled', 'pcsx_rearmed_spu_interpolation': 'simple', 'pcsx_rearmed_frameskip_type': 'disabled', 'pcsx_rearmed_async_cd': 'async',
+                'pcsx_rearmed_neon_enhancement_enable': 'disabled', 'pcsx_rearmed_show_bios_bootlogo': 'disabled'}
+        if not hdmi:   # PAL TV (NTSC slika je isprana): igra u PAL ritmu 50 fps = 50 Hz ekran, glatko i bez kidanja zvuka
+            core['pcsx_rearmed_region'] = 'PAL'   # tačno ovako (velikim slovima), inače jezgro vrati na auto
+        (ARC_DIR / 'core-options.cfg').write_text(''.join('%s = "%s"\n' % kv for kv in core.items()))
+        return ARC_DIR / 'retroarch.cfg'
+
+    async def arc_start(self, gid):
+        g = next((x for x in self.arc_games() if x['id'] == gid), None)
+        if not g:
+            return {'err': 'Igra nije pronađena (flash priključen?).'}
+        core = ARC_CORES / 'pcsx_rearmed_libretro.so'
+        if not core.exists() or not shutil.which('retroarch'):
+            return {'err': 'Emulator nije instaliran.'}
+        if self.source != 'arc':
+            await self.set_source('arc')
+        self.arc_starting = True
+        try:
+            return await self._arc_launch(g, core)
+        finally:
+            self.arc_starting = False
+
+    async def _arc_launch(self, g, core):
+        await self.arc_stop()
+        env = dict(os.environ, XDG_RUNTIME_DIR='/run/user/%d' % os.getuid())
+        vol, mute = (100, False) if self.amp_active() else (self.cur_vol(), self.cur_mute())   # pre gašenja mpv-a
+        await self.fm_stop()
+        await self.stream_stop()
+        await self.tv_stop()
+        await self._run('systemctl', '--user', 'stop', 'teco-player', timeout=15)   # mpv oslobađa ekran (DRM) i procesor
+        # oslobodi procesor za emulator: CCTV strim, YouTube Node pomoćnik; procesor na punu brzinu dok se igra
+        self.cctv_stop()
+        w = getattr(self, 'jsc_worker', None)
+        if w and w.p and w.p.poll() is None:
+            w.p.kill()
+        await self._run('sudo', '-n', 'sh', '-c', 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > $f; done', timeout=5)
+        log_f = open('/tmp/teco-arcade.log', 'w')
+        proc = await asyncio.create_subprocess_exec('retroarch', '--config', str(self.arc_cfg()), '-L', str(core), g['path'],
+                                                    stdout=log_f, stderr=asyncio.subprocess.STDOUT, env=env)
+        self.arc = {'proc': proc, 'game': g, 't0': time.time(), 'vol': vol, 'mute': mute, 'node': None}
+        log.info('Arcade: %s', g['name'])
+        loop = asyncio.get_running_loop()
+        loop.create_task(self.arc_wait(proc, log_f))
+        loop.create_task(self.arc_audio(wait=20))   # jačina sa stranice čim emulator otvori zvuk
+        self.mark()
+        return {'ok': 'Pokrećem: ' + g['name']}
+
+    def arc_running(self):
+        a = getattr(self, 'arc', None)
+        return bool(a and a['proc'].returncode is None)
+
+    async def arc_audio(self, wait=0):
+        """Jačina/utišano na zvučni tok emulatora (PipeWire), ista skala kao mpv (kubna)."""
+        env = dict(os.environ, XDG_RUNTIME_DIR='/run/user/%d' % os.getuid())
+        t_end = time.time() + wait
+        while self.arc_running():
+            a = self.arc
+            if not a['node']:
+                try:
+                    p = await asyncio.create_subprocess_exec('pw-dump', stdout=asyncio.subprocess.PIPE,
+                                                             stderr=asyncio.subprocess.DEVNULL, env=env)
+                    out, _ = await asyncio.wait_for(p.communicate(), 5)
+                    a['node'] = next((o['id'] for o in json.loads(out) if (((o.get('info') or {}).get('props') or {}).get(
+                        'application.name') == 'RetroArch' and o['info']['props'].get('media.class') == 'Stream/Output/Audio')), None)
+                except (OSError, ValueError, KeyError, asyncio.TimeoutError):
+                    pass
+            if a['node']:
+                n = str(a['node'])
+                await self._run('wpctl', 'set-volume', n, '%.3f' % (a['vol'] / 100), timeout=5)   # wpctl je već kubna skala (kao mpv)
+                await self._run('wpctl', 'set-mute', n, '1' if a['mute'] else '0', timeout=5)
+                return
+            if time.time() > t_end:
+                return
+            await asyncio.sleep(1)
+
+    async def arc_wait(self, proc, log_f):
+        """Kad se igra završi (Esc ili Izađi): mpv nazad; YouTube lista se vraća pri izboru YT (yt_snap)."""
+        await proc.wait()
+        log_f.close()
+        a = getattr(self, 'arc', None)
+        if a and a.get('proc') is proc:
+            await self.arc_restore(a)
+            if self.arc is a:
+                self.arc = None
+                if self.source == 'arc' and self.mpv.connected:   # izašao iz igre (Esc), ostao na Arcade
+                    await self.show_arcade()
+        log.info('Arcade: kraj igre')
+        self.mark()
+
+    def arc_restore(self, a):
+        """mpv nazad posle igre — jednom po igri; arc_stop i arc_wait čekaju isti zadatak."""
+        if not a.get('rt'):
+            a['rt'] = asyncio.get_running_loop().create_task(self._arc_restore())
+        return a['rt']
+
+    async def _arc_restore(self):
+        if getattr(self, 'arc_starting', False):   # odmah sledeća igra: mpv ostaje ugašen
+            return
+        await self._run('sudo', '-n', 'sh', '-c', 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo ondemand > $f; done', timeout=5)
+        self.mpv_back = True   # na povezivanje mpv-a NE sklanjaj sliku (novi izvor je upravo postavlja)
+        await self._run('systemctl', '--user', 'start', 'teco-player', timeout=15)
+        for _ in range(150):   # čekaj da se mpv poveže pre komandi novog izvora (inače ostane Teco.Pi slika)
+            if not self.mpv_back:
+                break
+            await asyncio.sleep(0.1)
+        self.mpv_back = False
+
+    async def arc_stop(self):
+        a = getattr(self, 'arc', None)
+        if a and a['proc'].returncode is None:
+            a['proc'].terminate()   # RetroArch snima SRAM (memorijsku karticu) i izlazi
+            try:
+                await asyncio.wait_for(a['proc'].wait(), 8)
+            except asyncio.TimeoutError:
+                a['proc'].kill()
+                await a['proc'].wait()
+        if a:
+            await self.arc_restore(a)
+
+    def arc_snapshot(self):
+        a = getattr(self, 'arc', None)
+        return {'games': [dict({k: v for k, v in g.items() if k not in ('path', 'art')}, art=bool(g['art'])) for g in self.arc_games()],
+                'run': {'id': a['game']['id'], 'name': a['game']['name'], 't0': a['t0'], 'art': bool(a['game']['art']),
+                        'artv': a['game']['artv']} if a and a['proc'].returncode is None else None,
+                'bios': any((ARC_DIR / 'bios').glob('scph*')) if ARC_DIR.exists() else False}
 
     # ---------- YouTube lista: pamćenje i vraćanje (TV, ponovno pokretanje)
     def yt_snapshot(self):
@@ -1415,10 +1827,18 @@ class Teco:
         return bool(d and not d['bt'])
 
     def cur_vol(self):
-        return int(self.st.get('amp_vol', 60)) if self.amp_active() else int(self.mpv.props.get('volume') or 70)
+        if self.amp_active():
+            return int(self.st.get('amp_vol', 60))
+        if self.arc_running():
+            return self.arc['vol']
+        return int(self.mpv.props.get('volume') or 70)
 
     def cur_mute(self):
-        return self.amp.muted if self.amp_active() else bool(self.mpv.props.get('mute'))
+        if self.amp_active():
+            return self.amp.muted
+        if self.arc_running():
+            return self.arc['mute']
+        return bool(self.mpv.props.get('mute'))
 
     def play_vol(self):
         """Jačina za plejere: pun signal kad jačinu drži pojačalo (manje šuma sa jack-a)."""
@@ -1789,6 +2209,296 @@ class Teco:
         await self._run('systemctl', '--user', 'stop', CAST_UNIT, timeout=15)
         self.cast_sender = None
         await self.cast_refresh()
+
+    # ---------- Smart Home uređaji: registar + drajveri po proizvođaču (DEV_DRIVERS). Svaki drajver zna
+    # probe (da li uređaj odgovara), poll (stanje), set (upali/ugasi, jačina) i scan (pretraga u mreži).
+    # Za sada WiZ (lokalni UDP API, port 38899); Sonoff/Shelly/Tasmota se dodaju kao nove klase.
+    def dev_snapshot(self):
+        """Za stranicu: bez lozinki i adresa sa lozinkom kamera (cam ostaje na Pi-ju)."""
+        ds = getattr(self, 'dev_state', {})
+        out = []
+        for d in self.st.get('devices', []):
+            x = {k: v for k, v in d.items() if k != 'cam'}
+            if d.get('cam'):
+                x['cam'] = {'user': d['cam'].get('user') or '', 'ch': d['cam'].get('ch') or 1, 'has_pass': bool(d['cam'].get('pass'))}
+            st = dict(ds.get(d['id'], {'ok': False}))
+            if d.get('type') == 'door':   # vrata: stanje iz zone alarma (ako je izabrana), PGM uključen
+                dr, al = d.get('door') or {}, getattr(self, 'alarm', None) or {}
+                z = next((z for z in al.get('zones', []) if dr.get('zone') and z.get('id') == int(dr['zone'])), None)
+                g = next((g for g in al.get('pgms', []) if g.get('id') == int(dr.get('pgm') or 0)), None)
+                st = {'ok': al.get('run') == 'run', 'open': z.get('open') if z else None, 'zone_label': z.get('label') if z else None,
+                      'pgm_on': bool(g and g.get('on')) or time.time() < getattr(self, 'door_until', {}).get(d['id'], 0)}
+            if d.get('type') == 'intercom':   # interfon: zvoni (zona otvorena sada) i poslednji poziv
+                al = getattr(self, 'alarm', None) or {}
+                zid = int((d.get('intercom') or {}).get('zone') or 0)
+                z = next((z for z in al.get('zones', []) if z.get('id') == zid), None)
+                st = {'ok': al.get('run') == 'run', 'ringing': bool(z and z.get('open')), 'zone_label': z.get('label') if z else None,
+                      'last_ring': getattr(self, 'ring_last', {}).get(d['id'])}
+            out.append(dict(x, **st))
+        return out
+
+    @staticmethod
+    def door_fields(a, old=None):
+        dr = dict((old or {}).get('door') or {})
+        try:
+            if a.get('door_pgm') not in (None, ''):
+                dr['pgm'] = max(1, min(32, int(a['door_pgm'])))
+            if a.get('door_zone') is not None:
+                dr['zone'] = int(a['door_zone']) if str(a['door_zone']).strip() not in ('', '0') else None
+        except (TypeError, ValueError):
+            return None, 'PGM i zona su brojevi.'
+        if a.get('door_mode') in ('pulse', 'toggle'):
+            dr['mode'] = a['door_mode']
+        if not dr.get('pgm'):
+            return None, 'Izaberi PGM izlaz.'
+        dr.setdefault('mode', 'pulse')
+        return dr, None
+
+    @staticmethod
+    def cam_fields(a, drv, old=None):
+        """Podaci kamere iz forme: korisnik, lozinka (prazno = ostaje stara), kanal, ili cela adresa (Drugi)."""
+        from urllib.parse import urlparse
+        cam = dict((old or {}).get('cam') or {})
+        if drv.key == 'camurl':
+            url = str(a.get('cam_url') if a.get('cam_url') is not None else cam.get('url', '')).strip()
+            u = urlparse(url)
+            if u.scheme not in ('rtsp', 'rtsps', 'http', 'https') or not u.hostname:
+                return None, None, 'Adresa kamere treba da počinje sa rtsp:// ili http(s)://'
+            cam['url'] = url
+            return cam, u.hostname, None
+        for k in ('user', 'ch', 'port'):
+            if a.get('cam_' + k) not in (None, ''):
+                cam[k] = str(a['cam_' + k]).strip()[:40]
+        if a.get('cam_pass'):
+            cam['pass'] = str(a['cam_pass'])[:64]
+        return cam, None, None
+
+    async def dev_poll(self, d):
+        drv = DEV_DRIVERS.get(d.get('proto'))
+        st = await drv.poll(d) if drv and drv.ready else {'ok': False}
+        if not hasattr(self, 'dev_state'):
+            self.dev_state = {}
+        if self.dev_state.get(d['id']) != st:
+            self.dev_state[d['id']] = st
+            self.mark()
+
+    async def dev_loop(self):
+        """Stanje uređaja na 5 s; komanda sa stranice osveži odmah."""
+        while True:
+            for d in list(self.st.get('devices', [])):
+                try:
+                    await self.dev_poll(d)
+                except Exception as e:
+                    log.warning('uređaj %s: %s', d.get('name'), e)
+            await asyncio.sleep(5)
+
+    @staticmethod
+    def dev_fields(a, d=None):
+        """Naziv, prostorija, IP iz forme (za dodavanje i izmenu)."""
+        import ipaddress
+        try:
+            ip = str(ipaddress.IPv4Address(str(a.get('ip') if a.get('ip') is not None else (d or {}).get('ip', '')).strip()))
+        except ValueError:
+            return None, 'IP adresa nije ispravna.'
+        name = str(a.get('name') if a.get('name') is not None else (d or {}).get('name', '')).strip()[:40]
+        room = str(a.get('room') if a.get('room') is not None else (d or {}).get('room', '')).strip()[:30]
+        return {'ip': ip, 'name': name, 'room': room}, None
+
+    async def dev_cmd(self, c, a):
+        devs = self.st.setdefault('devices', [])
+        if c == 'dev_scan':
+            drv = DEV_DRIVERS.get(a.get('proto') or 'wiz')
+            if not drv or not drv.ready:
+                return {'err': 'Pretraga za ovog proizvođača još ne postoji.'}
+            have = {d['ip'] for d in devs}
+            found = await drv.scan()
+            for x in found:
+                x['added'] = x['ip'] in have
+            return {'found': sorted(found, key=lambda x: x['ip'])}
+        if c == 'dev_add':
+            drv = DEV_DRIVERS.get(a.get('proto') or 'wiz')
+            if not drv or not drv.ready:
+                return {'err': (drv.label if drv else 'Ovaj proizvođač') + ' još nije podržan.'}
+            if drv.dtype == 'intercom':   # interfon: zona alarma kao okidač, obaveštenje koje se pokreće
+                try:
+                    zone = int(a.get('ic_zone') or 0)
+                except (TypeError, ValueError):
+                    zone = 0
+                if not zone:
+                    return {'err': 'Izaberi zonu alarma koja se okida kad neko zvoni.'}
+                d = {'id': secrets.token_hex(4), 'type': 'intercom', 'proto': drv.key, 'ip': '',
+                     'intercom': {'zone': zone, 'event': a.get('ic_event') if a.get('ic_event') in self.st.get('events', {}) else 'interfon'},
+                     'name': str(a.get('name') or '').strip()[:40] or 'Interfon', 'room': str(a.get('room') or '').strip()[:30]}
+                devs.append(d)
+                save_state(self.st)
+                self.mark()
+                return {'ok': 'Dodato: ' + d['name']}
+            if drv.dtype == 'door':   # vrata preko PGM-a alarma: bez IP adrese
+                dr, err = self.door_fields(a)
+                if err:
+                    return {'err': err}
+                d = {'id': secrets.token_hex(4), 'type': 'door', 'proto': drv.key, 'ip': '', 'door': dr,
+                     'name': str(a.get('name') or '').strip()[:40] or 'Vrata', 'room': str(a.get('room') or '').strip()[:30]}
+                devs.append(d)
+                save_state(self.st)
+                self.mark()
+                return {'ok': 'Dodato: ' + d['name']}
+            cam = None
+            if drv.dtype == 'camera':
+                cam, host, err = self.cam_fields(a, drv)
+                if err:
+                    return {'err': err}
+                if host:   # Drugi (adresa): IP/host iz adrese
+                    a = dict(a, ip=host)
+            f, err = self.dev_fields(a) if not (cam and drv.key == 'camurl') else ({'ip': a['ip'], 'name': str(a.get('name') or '').strip()[:40], 'room': str(a.get('room') or '').strip()[:30]}, None)
+            if err:
+                return {'err': err}
+            if drv.dtype != 'camera' and any(d['ip'] == f['ip'] for d in devs):
+                return {'err': 'Uređaj sa tom adresom već postoji.'}
+            tmp = dict(f, id='', cam=cam)
+            info = await (drv.probe(f['ip'], tmp) if drv.dtype == 'camera' else drv.probe(f['ip']))
+            if info is None:
+                return {'err': '%s na %s ne odgovara.' % (drv.label, f['ip'])}
+            d = dict(f, id=secrets.token_hex(4), type=drv.dtype, proto=drv.key, mac=info.get('mac'),
+                     name=f['name'] or DEV_TYPES.get(drv.dtype, 'Uređaj'))
+            if cam is not None:
+                d['cam'] = cam
+            devs.append(d)
+            save_state(self.st)
+            await self.dev_poll(d)
+            self.mark()
+            return {'ok': 'Dodato: ' + d['name']}
+        d = next((x for x in devs if x['id'] == a.get('id')), None)
+        if not d:
+            return {'err': 'Uređaj nije pronađen.'}
+        if c == 'dev_edit' and d.get('type') == 'intercom':
+            ic = dict(d.get('intercom') or {})
+            try:
+                if a.get('ic_zone') not in (None, ''):
+                    ic['zone'] = int(a['ic_zone'])
+            except (TypeError, ValueError):
+                return {'err': 'Zona je broj.'}
+            if a.get('ic_event') in self.st.get('events', {}):
+                ic['event'] = a['ic_event']
+            d.update(intercom=ic, name=str(a.get('name') or d['name']).strip()[:40], room=str(a.get('room') if a.get('room') is not None else d.get('room', '')).strip()[:30])
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Sačuvano: ' + d['name']}
+        if c == 'dev_edit' and d.get('type') == 'door':
+            dr, err = self.door_fields(a, d)
+            if err:
+                return {'err': err}
+            d.update(door=dr, name=str(a.get('name') or d['name']).strip()[:40], room=str(a.get('room') if a.get('room') is not None else d.get('room', '')).strip()[:30])
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Sačuvano: ' + d['name']}
+        if c == 'dev_set' and d.get('type') == 'door':   # otvori (impuls 5 s) ili uključi / isključi PGM
+            dr = d.get('door') or {}
+            if a.get('stop'):   # dugo držanje: ugasi relej odmah (PGM nazad na normalan rad)
+                getattr(self, 'door_until', {}).pop(d['id'], None)
+                r = await self.alarm_do({'pgm': str(dr.get('pgm')), 'cmd': 'release'})
+                self.mark()
+                return {'err': r['err']} if r.get('err') else {'ok': d['name'] + ': relej ugašen'}
+            cmd = 'pulse' if dr.get('mode', 'pulse') == 'pulse' else ('on' if a.get('on') else 'off')
+            r = await self.alarm_do({'pgm': str(dr.get('pgm')), 'cmd': cmd})
+            if not r.get('err') and cmd == 'pulse':   # centrala PGM ne javlja odmah: server pamti impuls 5 s i prikazuje ga svima
+                if not hasattr(self, 'door_until'):
+                    self.door_until = {}
+                self.door_until[d['id']] = time.time() + 2   # dugme 2 s piše „Vrata otvorena“ (i drugim korisnicima)
+                self.mark()
+                asyncio.get_running_loop().call_later(2.2, self.mark)
+            return {'err': r['err']} if r.get('err') else {'ok': d['name'] + (': otvaram' if cmd == 'pulse' else ': ' + ('uključeno' if cmd == 'on' else 'isključeno'))}
+        if c == 'dev_edit':
+            drv = DEV_DRIVERS.get(d.get('proto'))
+            if drv and drv.dtype == 'camera':   # kamera: korisnik/lozinka/kanal ili adresa, bez provere IPv4 za „Drugi“
+                cam, host, err = self.cam_fields(a, drv, d)
+                if err:
+                    return {'err': err}
+                f = {'ip': host or (str(a.get('ip')).strip() if a.get('ip') else d['ip']),
+                     'name': str(a.get('name') or d['name']).strip()[:40], 'room': str(a.get('room') if a.get('room') is not None else d.get('room', '')).strip()[:30]}
+                d.update(f, cam=cam)
+                self.cctv_stop(d['id'])   # nova adresa/lozinka: strim se pokreće iznova
+                save_state(self.st)
+                await self.dev_poll(d)
+                self.mark()
+                return {'ok': 'Sačuvano: ' + d['name']}
+            f, err = self.dev_fields(a, d)
+            if err:
+                return {'err': err}
+            if f['ip'] != d['ip']:
+                if any(x['ip'] == f['ip'] and x is not d for x in devs):
+                    return {'err': 'Uređaj sa tom adresom već postoji.'}
+                if drv and drv.ready and await drv.probe(f['ip']) is None:
+                    return {'err': 'Na %s nema odgovora.' % f['ip']}
+            d.update(f, name=f['name'] or d['name'])
+            save_state(self.st)
+            await self.dev_poll(d)
+            self.mark()
+            return {'ok': 'Sačuvano: ' + d['name']}
+        if c == 'dev_del':
+            self.cctv_stop(d['id'])
+            devs.remove(d)
+            getattr(self, 'dev_state', {}).pop(d['id'], None)
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Uklonjeno: ' + d['name']}
+        if c == 'dev_set':
+            drv = DEV_DRIVERS.get(d.get('proto'))
+            if not drv or not drv.ready:
+                return {'err': 'Proizvođač nije podržan.'}
+            rgb = a.get('rgb') if re.fullmatch(r'#?[0-9a-fA-F]{6}', str(a.get('rgb') or '')) else None
+            ok = await drv.set(d, on=a.get('on'), dim=a.get('dim'), temp=a.get('temp'), rgb=rgb, mode=a.get('mode'))
+            if not ok:
+                return {'err': '%s ne odgovara.' % d['name']}
+            await self.dev_poll(d)
+            return {}
+    # ---------- CCTV: kamera -> HLS (ffmpeg samo prepakuje, bez pretvaranja slike), samo dok neko gleda
+    def cctv_stop(self, dev_id=None, key=None):
+        for k, s in list(getattr(self, 'cctv', {}).items()):
+            if key == k or (key is None and (dev_id is None or k.startswith(dev_id + '-'))):
+                try:
+                    s['proc'].kill()
+                except ProcessLookupError:
+                    pass
+                shutil.rmtree(s['dir'], ignore_errors=True)
+                del self.cctv[k]
+                log.info('CCTV %s ugašen', k)
+
+    async def cctv_start(self, d, sub):
+        if not hasattr(self, 'cctv'):
+            self.cctv = {}
+        key = '%s-%s' % (d['id'], 's' if sub else 'm')
+        s = self.cctv.get(key)
+        if s and s['proc'].returncode is None:
+            s['t'] = time.monotonic()
+            return s
+        self.cctv_stop(key=key)
+        drv = DEV_DRIVERS.get(d.get('proto'))
+        url = drv.url(d, sub) if isinstance(drv, CameraDriver) else ''
+        if not url:
+            return None
+        out = CCTV_DIR / key
+        shutil.rmtree(out, ignore_errors=True)
+        out.mkdir(parents=True, exist_ok=True)
+        args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-fflags', 'nobuffer']
+        if url.startswith('rtsp'):
+            args += ['-rtsp_transport', 'tcp', '-timeout', '5000000']
+        args += ['-i', url, '-an', '-c:v', 'copy', '-f', 'hls', '-hls_time', '1', '-hls_list_size', '5',
+                 '-hls_flags', 'delete_segments+omit_endlist+independent_segments', '-hls_segment_type', 'fmp4', str(out / 'index.m3u8')]
+        proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        self.cctv[key] = s = {'proc': proc, 'dir': out, 't': time.monotonic()}
+        log.info('CCTV %s pokrenut (%s)', key, 'sporedni' if sub else 'glavni')
+        if not hasattr(self, 'cctv_reaper'):
+            self.cctv_reaper = asyncio.get_running_loop().create_task(self.cctv_reap())
+        return s
+
+    async def cctv_reap(self):
+        """Gasi strimove koje niko ne gleda (stranica traži playlistu na ~1 s dok gleda)."""
+        while True:
+            await asyncio.sleep(5)
+            for k, s in list(getattr(self, 'cctv', {}).items()):
+                if time.monotonic() - s['t'] > CCTV_IDLE or s['proc'].returncode is not None:
+                    self.cctv_stop(key=k)
 
     # ---------- deljenje fajlova (Samba): folder na SD kartici + USB diskovi (npr. ISO igrice za PS2 / OPL)
     @staticmethod
@@ -2255,10 +2965,10 @@ class Teco:
             # „aktiviraj na 5 s“: vraćanje radi server (i ako se stranica zatvori). 'release', ne 'off':
             # 'off' (override_off) ostavlja PGM zaključan na isključeno, pa ga ni šifrator/Insite Gold ne bi okinuli
             async def later():
-                await asyncio.sleep(5)
+                await asyncio.sleep(PGM_PULSE)
                 try:
                     r2 = await post('release')
-                    log.info('alarm pgm: %s release posle 5 s -> %s', target, r2)
+                    log.info('alarm pgm: %s release posle %s s -> %s', target, PGM_PULSE, r2)
                 except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
                     log.warning('alarm pgm: %s release nije uspeo: %s', target, e)
             asyncio.get_running_loop().create_task(later())
@@ -2293,8 +3003,41 @@ class Teco:
                     await asyncio.sleep(2)
                 if st != self.alarm:
                     self.alarm = st
+                    self.pgm_events(st)
                     self.mark()
 
+    def pgm_events(self, st):
+        """Obaveštenja vezana za PGM alarma: PGM se uključi -> pokreni obaveštenje (zvono, interfon…)."""
+        if st.get('run') != 'run':
+            return
+        # interfoni: zona alarma se otvori (zvoni) -> obaveštenje + zapamti vreme poziva
+        zc = {z.get('id'): bool(z.get('open')) for z in st.get('zones', [])}
+        zp = getattr(self, '_zone_prev', None)
+        self._zone_prev = zc
+        if zp is not None:
+            for dv in self.st.get('devices', []):
+                if dv.get('type') != 'intercom':
+                    continue
+                ic = dv.get('intercom') or {}
+                zid = int(ic.get('zone') or 0)
+                if zid and zc.get(zid) and not zp.get(zid):
+                    if not hasattr(self, 'ring_last'):
+                        self.ring_last = {}
+                    self.ring_last[dv['id']] = int(time.time())
+                    log.info('interfon %s zvoni (zona %s)', dv.get('name'), zid)
+                    ev = ic.get('event') or 'interfon'
+                    if self.st.get('events', {}).get(ev, {}).get('on', True):
+                        asyncio.get_running_loop().create_task(self.fire_event(ev))
+        cur = {g.get('id'): bool(g.get('on')) for g in st.get('pgms', [])}
+        prev = getattr(self, '_pgm_prev', None)
+        self._pgm_prev = cur
+        if prev is None:   # prvo stanje posle pokretanja: samo zapamti
+            return
+        for eid, ev in self.st.get('events', {}).items():
+            p = ev.get('pgm')
+            if p and ev.get('on', True) and cur.get(p) and not prev.get(p):
+                log.info('obaveštenje %s: PGM %s uključen', eid, p)
+                asyncio.get_running_loop().create_task(self.fire_event(eid))
     def alarm_snapshot(self):
         c = self.alarm_cfg()
         st = self.alarm or {}
@@ -2506,7 +3249,7 @@ class Teco:
         for eid, ev in self.st['events'].items():
             snd = self.event_sound(eid)
             out.append({'id': eid, 'n': ev['n'], 'on': ev.get('on', True), 'sec': ev['sec'], 'pause': ev.get('pause', True),
-                        'sound': snd.name if snd else None, 'dir': str(EVENTS_DIR / eid), 'alarm': eid in ALARMS})
+                        'sound': snd.name if snd else None, 'dir': str(EVENTS_DIR / eid), 'alarm': eid in ALARMS, 'pgm': ev.get('pgm')})
         return out
 
     # ---------- mreža
@@ -2824,6 +3567,10 @@ class Teco:
                 log.warning('pojačalo: %s', e)
             self.mark()
             v = 100
+        if self.arc_running():   # igra: mpv je ugašen, jačina ide na zvuk emulatora
+            self.arc['vol'], self.arc['mute'] = v, False
+            await self.arc_audio()
+            self.mark()
         await self.mpv.cmd('set_property', 'volume', v)
         await self.mpv.cmd('set_property', 'mute', False)
         for sock in HELPER_SOCKS:
@@ -2836,6 +3583,11 @@ class Teco:
                 await self._i2c(self.amp.set_mute, not self.amp.muted)
             except OSError as e:
                 log.warning('pojačalo: %s', e)
+            self.mark()
+            return
+        if self.arc_running():
+            self.arc['mute'] = not self.arc['mute']
+            await self.arc_audio()
             self.mark()
             return
         m = not bool(self.mpv.props.get('mute'))
@@ -3056,6 +3808,8 @@ class Teco:
                 ev['sec'] = max(1, min(120, int(a['sec'])))
             if 'pause' in a:
                 ev['pause'] = bool(a['pause'])
+            if 'pgm' in a:   # okida ga PGM alarma (kad se uključi), prazno = ne
+                ev['pgm'] = int(a['pgm']) if str(a['pgm']).strip() not in ('', '0', 'None') else None
             save_state(self.st)
             await self.events_assets()
         elif c == 'ev_test':
@@ -3070,10 +3824,20 @@ class Teco:
             return await self.dns_set(a)
         elif c == 'net_mode':
             return await self.net_mode(a.get('v'))
+        elif c == 'arc_start':
+            return await self.arc_start(str(a.get('id') or ''))
+        elif c == 'arc_stop':
+            await self.arc_stop()
+            return {'ok': 'Izlazim iz igre'}
+        elif c in ('dev_add', 'dev_edit', 'dev_del', 'dev_set', 'dev_scan'):
+            return await self.dev_cmd(c, a)
         elif c == 'smb_opt':
             return await self.smb_opt(a)
         elif c == 'smb_name':
             return await self.smb_rename(a)
+        elif c == 'alarm_cfg_get':   # samo Admin: lozinke IP modula i PC (za prikaz u formi, oko)
+            cfg = self.alarm_cfg()
+            return {'ip_password': cfg.get('ip_password') or '', 'pc_password': cfg.get('pc_password') or ''}
         elif c == 'alarm_cfg':
             return await self.alarm_cfg_set(a)
         elif c == 'alarm':   # uključi/isključi: dozvoljeno svima u mreži (izbor korisnika)
@@ -3509,6 +4273,9 @@ class Teco:
             'cast': {'on': bool(self.st.get('cast')), 'run': bool(getattr(self, 'cast_run', False)),
                      'sender': self.cast_sender},
             'smb': self.smb_snapshot(),
+            'devices': self.dev_snapshot(),
+            'arcade': self.arc_snapshot(),
+            'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
             'sys': self.sys,
         }
 
@@ -3743,6 +4510,32 @@ def make_app():
         await teco.smb_refresh()
         return web.json_response({'ok': 'Sačuvano: %s/%s na %s' % (folder, name, sh['n'])})
 
+    async def cctv_http(request):
+        """/cctv/<id>/<s|m>/<fajl>: HLS kamere; prvi zahtev pokreće ffmpeg, svaki sledeći ga drži živim."""
+        dev = next((x for x in teco.st.get('devices', []) if x['id'] == request.match_info['id'] and x.get('type') == 'camera'), None)
+        name = request.match_info['name']
+        if not dev or not re.fullmatch(r'[\w.-]+\.(m3u8|m4s|mp4|ts)', name):
+            raise web.HTTPNotFound()
+        s = await teco.cctv_start(dev, request.match_info['q'] != 'm')
+        if not s:
+            raise web.HTTPNotFound()
+        f = s['dir'] / name
+        for _ in range(100):   # prvi segment stiže za ~2-5 s
+            if f.exists() or s['proc'].returncode is not None:
+                break
+            await asyncio.sleep(0.1)
+        if not f.exists():
+            err = (await s['proc'].stderr.read(400)).decode(errors='replace').strip() if s['proc'].returncode is not None else 'kamera ne šalje sliku'
+            return web.json_response({'err': err[:300] or 'kamera ne odgovara'}, status=502)
+        return web.FileResponse(f, headers={'Cache-Control': 'no-cache'})
+
+    async def arc_art(request):
+        """/arc/art/<id>: omot igre sa flasha (?v=vreme izmene -> pregledač ga sme dugo čuvati)."""
+        g = next((x for x in teco.arc_games() if x['id'] == request.match_info['id']), None)
+        if not g or not g['art'] or not os.path.isfile(g['art']):
+            raise web.HTTPNotFound()
+        return web.FileResponse(g['art'], headers={'Cache-Control': 'public, max-age=604800'})
+
     async def on_start(app):
         await teco.events_assets()
         if teco.st.get('cast'):
@@ -3750,7 +4543,7 @@ def make_app():
         await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
         if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
             await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop())]
+        app['tasks'] = [asyncio.create_task(t) for t in (teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
 
     async def on_stop(app):
         await teco.fm_stop()
@@ -3763,6 +4556,8 @@ def make_app():
     app.router.add_get('/ws', ws_handler)
     app.router.add_post('/api/upload', upload)
     app.router.add_post('/api/game', game_upload)
+    app.router.add_get('/cctv/{id}/{q}/{name}', cctv_http)
+    app.router.add_get('/arc/art/{id}', arc_art)
     app.router.add_post('/api/cast', cast_api)
     async def api_event(request):
         # okidanje zvona/interfona; za sada samo sa samog Teco.Pi (kasnije ESP)

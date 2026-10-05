@@ -247,10 +247,10 @@ def write_pai_cfg(c):
         'PASSWORD': pc or None,
         # pauza između čitanja stanja: ova centrala zone ne javlja sama (nema živih događaja zona), pa je ovo kašnjenje
         # senzora; samo čitanje preko IP150 traje ~1,4 s, pa je ceo krug ~2,4 s
-        'KEEP_ALIVE_INTERVAL': 1,
+        'KEEP_ALIVE_INTERVAL': 2,   # 1 s je preopterećivao IP150 (deli ga i Swan/Insite Gold) i rušio vezu
         # odgovor centrale preko IP150 zna da kasni (Wi-Fi): sa 0,5 s (PAI podrazumevano) stizao je posle isteka
         # („Already handled / No handler for message 5“) i PAI je prekidao vezu na ~5 min
-        'IO_TIMEOUT': 2.0,
+        'IO_TIMEOUT': 5.0,   # IP150 ponekad odgovara i posle 2 s kad ga istovremeno koristi Swan
         'LIMITS': {'door': [], 'module': []},   # vrata i moduli se ne koriste: brže povezivanje (~8 s manje)
         'SYNC_TIME': False,
         'MQTT_ENABLE': False,

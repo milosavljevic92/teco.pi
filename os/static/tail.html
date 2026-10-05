@@ -186,7 +186,17 @@ body[data-view="tools"] .grid{display:none!important}
 .shtile svg.i{width:26px;height:26px;color:var(--accent)}
 .shtile.go{cursor:pointer;text-align:left;font:inherit;color:inherit}.shtile.go:hover{border-color:var(--accent)}
 /* PRIMER stranice (samo izgled): Svetla, Navodnjavanje */
-body:not([data-view="lights"]) #lightsCard,body:not([data-view="water"]) #waterCard,body:not([data-view="devices"]) #devicesCard,body:not([data-view="power"]) #powerCard,body:not([data-view="weather"]) #weatherCard{display:none!important}
+body:not([data-view="lights"]) #lightsCard,body:not([data-view="water"]) #waterCard,body:not([data-view="power"]) #powerCard,body:not([data-view="weather"]) #weatherCard,body:not([data-view="doors"]) #doorsCard{display:none!important}
+body[data-view="doors"] main.wrap>*:not(#doorsCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
+body[data-view="doors"] .grid{display:none!important}
+.titems a.cur{color:var(--accent);font-weight:800;background:var(--accent-soft);border-radius:8px}
+.titems a .tld{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:middle}
+.dr{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
+.dr .dri{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--surface);color:var(--muted)}.dr.ring{border-color:var(--warn);animation:drpulse 1s ease-in-out infinite}.dr.ring .dri{background:color-mix(in srgb,var(--warn) 25%,transparent);color:var(--warn)}.dr.ring .t small{color:var(--warn);font-weight:800}
+.dr.open .dri{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}.dr .dri svg.i{width:22px;height:22px}
+.dr .t b{display:block;font-size:15px}.dr .t small{font-size:12.5px;color:var(--muted)}.dr.open .t small{color:var(--warn);font-weight:700}
+.drb{height:42px;padding:0 16px;font-weight:800;border-radius:12px;position:relative;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}.drb>*{position:relative;z-index:1}
+.drb.run{background:var(--warn);color:#1c1300;animation:drpulse 1s ease-in-out infinite}@keyframes drpulse{50%{opacity:.65}}
 body[data-view="weather"] main.wrap>*:not(#weatherCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
 body[data-view="weather"] .grid{display:none!important}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
@@ -214,6 +224,49 @@ body[data-view="lights"] .grid,body[data-view="water"] .grid{display:none!import
 .demotag{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
 .demo{display:flex;flex-direction:column;gap:12px}
 .demo>*{align-self:stretch;width:auto}
+.lcol{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.lcol button,.lrgb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;font-weight:700;cursor:pointer;position:relative}
+.lcol i{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15)}
+.lcol [aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.lrgb input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.arcp{display:flex;flex-direction:column;gap:10px}
+.arcgrid{display:flex;flex-direction:column;gap:8px}
+.arcg{display:grid;grid-template-columns:64px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:14px;align-items:center;align-content:center;padding:8px 14px 8px 8px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.arcg:hover{border-color:color-mix(in srgb,#f59e0b 45%,var(--line))}
+.arcg:disabled{opacity:.6}
+.arcart{grid-row:1/3;position:relative;width:64px;aspect-ratio:1;border-radius:10px;overflow:hidden;background:linear-gradient(145deg,hsl(var(--h) 55% 42%),hsl(calc(var(--h) + 40) 60% 22%));box-shadow:0 3px 10px rgb(0 0 0/.18)}
+.arcart img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.arcart .ini{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-weight:900;color:rgb(255 255 255/.92);text-shadow:0 1px 5px rgb(0 0 0/.3)}
+.arcg b{align-self:end;font-size:15px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arcg small{align-self:start;font-size:12px;color:var(--muted);margin-top:2px}
+.arcg .arcc{grid-column:3;grid-row:1/3;font-size:10.5px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,#f59e0b 20%,transparent);color:#b45309}
+.arcg.on{border-color:#f59e0b;background:color-mix(in srgb,#f59e0b 12%,var(--surface-2))}
+.arcg.on .arcc{background:#f59e0b;color:#fff}
+.arcrun{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border-radius:14px;background:color-mix(in srgb,#f59e0b 14%,var(--surface-2));border:1px solid #f59e0b}
+.arci svg.i{width:28px;height:28px;color:#f59e0b}
+/* „plejer“ igre: veći omot, naziv, dugme za izlaz u svom redu (ne preklapa se sa nazivom) */
+.arcrun{grid-template-columns:96px minmax(0,1fr);grid-template-rows:auto;gap:12px 16px;padding:14px}
+.arcrun .arci{grid-row:1;width:96px;aspect-ratio:1;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,#f59e0b 22%,transparent)}
+.arcrun .arci svg.i{width:44px;height:44px}
+.arcrun .t{align-self:center;min-width:0}
+.arcrun small{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase}
+.arcrun b{display:block;font-size:19px;line-height:1.25;margin-top:3px;overflow-wrap:anywhere}
+.arcrun #arcStop{grid-column:1/-1;justify-content:center;width:100%}
+.arcrun>.volbox,.arcrun>#outs{grid-column:1/-1;margin:0}
+.arcrun.art .arci{overflow:hidden;box-shadow:0 0 0 2px #f59e0b,0 6px 16px rgb(0 0 0/.25)}
+@media (min-width:560px){.arcrun{grid-template-columns:120px minmax(0,1fr) auto;grid-template-rows:auto}.arcrun .arci{width:120px}.arcrun #arcStop{grid-column:3;grid-row:1;width:auto}}
+.arci img{display:block;width:100%;height:100%;object-fit:cover}.arcrun small{display:block;font-size:11px;color:var(--muted);font-weight:700}.arcrun b{font-size:15px}
+.arckeys{font-size:12.5px;color:var(--muted)}.arckeys summary{cursor:pointer;font-weight:700}.arckeys div{margin-top:6px;line-height:1.7}
+.camgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.camtile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);text-align:left;font:inherit;color:inherit;cursor:pointer}
+.camtile.on{border-color:var(--accent)}.camtile b{font-size:15px}.camtile small{font-size:12px;color:var(--muted)}
+.cti{position:relative}.cti svg.i{width:28px;height:28px;color:var(--accent)}.cti i{position:absolute;right:-6px;top:-2px;width:9px;height:9px;border-radius:50%;background:var(--faint)}.cti i.ok{background:var(--ok)}
+.camplayer{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.cph{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.cph b{font-size:15px}.cps{font-size:12px;color:var(--muted);flex:1}.cph .btn{height:34px;padding:0 10px}
+#camVideo{width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;object-fit:contain}
+.mylights{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}.dl.off{opacity:.55}
+.devedit{padding:12px;border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px;margin:-2px 0 4px}
+.devadd{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important}.devadd .field{flex:none;width:100%;height:40px;box-sizing:border-box}
 .demo .card-head h2 .lights{display:none}
 .dsum{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .dscenes{display:flex;gap:6px;flex-wrap:wrap}
@@ -238,6 +291,7 @@ body[data-view="lights"] .grid,body[data-view="water"] .grid{display:none!import
 /* dugme nazad (Alarm, CCTV → Smart Home) ispred naslova kartice */
 .card-head .shback{margin-right:4px}
 #alList .card-head h2,#cctvCard .card-head h2{flex:1}
+#devicesCard{order:8}
 #alList .card-head h2 .lights,#cctvCard .card-head h2 .lights{display:none}
 /* indikator stanja alarma (gore desno na pločici) */
 .shtile{position:relative}
@@ -297,6 +351,8 @@ body[data-view="alarm"] .grid .col>*:not(#alCard):not(#alList){display:none!impo
 /* popup sa podacima o objektu (dodir na zeleni natpis gore desno) */
 .alsite{position:absolute;top:58px;right:16px;z-index:20;width:min(320px,calc(100% - 32px));padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;gap:8px;animation:rfade .15s ease-out}
 .alsite b{font-size:14px}
+.pwbox{position:relative;display:block}.pwbox .field{width:100%;box-sizing:border-box;padding-right:44px}
+.pweye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--muted)}.pweye.on{color:var(--accent)}.pweye svg.i{width:18px;height:18px}
 .alsite dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;font-size:13px}
 .alsite dt{color:var(--muted);font-weight:600}
 .alsite dd{margin:0;font-family:var(--f-mono);font-size:12.5px;overflow-wrap:anywhere}
@@ -307,6 +363,7 @@ body[data-view="alarm"] .grid .col>*:not(#alCard):not(#alList){display:none!impo
 /* filter događaja (Sve / Zone / Particije / Dojava / Sistem): poseban red, preko cele širine, jednaka dugmad */
 .alzhead #alEf{order:5;flex:1 1 100%;display:flex;margin-left:0!important}
 .alzhead #alEf button{flex:1 1 0;min-width:0;padding:6px 4px;text-align:center}
+.evpgm{display:flex;align-items:center;gap:8px}.evpgm .field{flex:none;width:auto;height:36px}
 .alrange{order:6;flex:1 1 100%;display:flex;gap:8px;align-items:flex-end;min-width:0}
 @media (max-width:620px){.alrange{flex-direction:column;align-items:stretch}.alrange .btn{align-self:flex-end}}   /* polje za datum i vreme ne može da se suzi */
 .alrange label{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:700;color:var(--muted)}
@@ -485,6 +542,7 @@ header.top .logo{display:none}
 .smbbar i{display:block;height:100%;background:var(--accent)}
 .smbpath{font-family:var(--f-mono);font-size:12px;user-select:all}
 #pwaCard{order:8}
+.pwa-vpn{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
 .pwa-pc{display:flex;align-items:center;gap:14px}
 .pwa-qr{flex:none;width:132px;height:132px;padding:8px;border-radius:12px;background:#fff;display:grid;place-items:center}
 .pwa-qr svg{width:100%;height:100%}
@@ -838,6 +896,8 @@ html.admin .rfab{display:none}
     // posle ne otvore (ruter ne prenosi mDNS sa kabla na Wi-Fi), pa bi stranica ostala na grešci
     if (!/iP(hone|ad|od)|Android/.test(navigator.userAgent)) return;
     if (!/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) || standalone) return;
+    // samo kućna adresa Pi-ja (zapamćena iz mreže); VPN adresa (npr. 10.10.255.6) ostaje, tecopi.local kroz VPN ne radi
+    const lan = store.get('teco-ip'); if (lan && lan !== location.hostname) return;
     if (new URLSearchParams(location.search).has('ip')) { try { sessionStorage.setItem('teco-ip-only', '1'); } catch (e) {} }
     try { if (sessionStorage.getItem('teco-ip-only')) return; } catch (e) {}
     const q = location.search;   // ?pwa=1 ide dalje (vodič se otvara na tecopi.local)
@@ -865,6 +925,16 @@ html.admin .rfab{display:none}
     if (isPhone && !isStandalone) showPwaGuide();
   }
   $('#pwaGo').hidden = !isPhone || isStandalone; $('#pwaPc').hidden = isPhone;
+  let pwaVpnIp = null;
+  function pwaVpn() {   // VPN prečica: adresa sa tun0 (npr. 10.10.255.6)
+    const t = ((S.net || {}).ifs || []).find(i => /^tun/.test(i.n) && i.ip && i.ip.length);
+    const ip = t ? t.ip[0].split('/')[0] : null;
+    $('#pwaVpn').hidden = !ip; if (!ip || ip === pwaVpnIp) return; pwaVpnIp = ip;
+    const url = 'http://' + ip + '/?pwa=1';
+    $('#pwaVpnIp').textContent = ip; $('#pwaVpnGo').href = url; $('#pwaVpnGo').hidden = !isPhone; $('#pwaQrVpn').parentElement.hidden = isPhone;
+    const draw = () => { try { const q = qrcode(0, 'M'); q.addData(url); q.make(); $('#pwaQrVpn').innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); } catch (e) { $('#pwaQrVpn').textContent = url; } };
+    if (window.qrcode) draw(); else if (!isPhone) { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; sc.onload = draw; sc.onerror = () => { $('#pwaQrVpn').textContent = url; }; document.head.appendChild(sc); }
+  }
   let pwaQrDone = false;
   function pwaQr() {   // QR kod (biblioteka sa cdnjs, učitava se tek u Adminu)
     if (pwaQrDone || isPhone) return; pwaQrDone = true;
@@ -1075,7 +1145,7 @@ html.admin .rfab{display:none}
   volHold($('#mbVd'), -1, 5); volHold($('#mbVu'), 1, 5);
   $('#mbMute').onclick = () => act('mute');
   $('#mbRc').onclick = openRemote;
-  let heroOut = false;
+  let heroOut = false, mbArc = false;
   // glavni plejer je van ekrana kad mu je donja ivica iznad vrha prozora (skrol) — radi i na starijim telefonima
   // mini plejer se pojavi čim kontrole plejera (dugmad i jačina) odu iznad vrha ekrana, ne tek kad ceo Hub nestane
   const heroCheck = () => { const v = $('.volbox'), r = (v && v.offsetParent ? v : $('#hero')).getBoundingClientRect();
@@ -1083,7 +1153,7 @@ html.admin .rfab{display:none}
     const o = r.top < top + (heroOut ? 110 : 90) || $('#hero').getBoundingClientRect().top > innerHeight;
     if (o !== heroOut) { heroOut = o; mbarShow(); } };
   addEventListener('scroll', heroCheck, { passive: true }); addEventListener('resize', heroCheck);
-  function mbarShow() { const on = heroOut && !isAdmin(), m = $('#mbar'); m.hidden = false; m.classList.toggle('show', on); m.inert = !on; document.body.classList.toggle('mb-on', on);
+  function mbarShow() { const on = heroOut && !isAdmin() && !mbArc, m = $('#mbar'); m.hidden = false; m.classList.toggle('show', on); m.inert = !on; document.body.classList.toggle('mb-on', on);
     if (on && mbWant != null && mbLast == null) mbTitle(mbWant, true); }
   // Sistem: iskačući prozor sa čipa u zaglavlju (CPU, temperatura, RAM, napajanje)
   const openSys = () => { $('#sysSheet').hidden = false; document.body.classList.add('rsheet-open'); };
@@ -1210,7 +1280,7 @@ html.admin .rfab{display:none}
   $('#bootSel').onchange = e => act('boot', { v: e.target.value });
   $$('#themeSeg button').forEach(b => b.onclick = () => act('theme', { v: b.dataset.v }));
   /* meni sa strane: delovi Multimedija / Alarm / CCTV (pamti se izbor, adresa #/alarm radi i kao link) */
-  const VIEWS = ['media', 'smart', 'lights', 'water', 'devices', 'power', 'weather', 'alarm', 'cctv', 'tools', 'admin'];
+  const VIEWS = ['media', 'smart', 'lights', 'water', 'devices', 'power', 'weather', 'doors', 'alarm', 'cctv', 'tools', 'admin'];
   const navOpen = on => { document.body.classList.toggle('nav-open', on); $('#sideBg').hidden = !on; $('#navBtn').setAttribute('aria-expanded', on); };
   function setView(v, target) {
     if (!VIEWS.includes(v)) v = 'media';
@@ -1218,9 +1288,10 @@ html.admin .rfab{display:none}
     if (v !== 'admin' && isAdmin()) setAdmin(false);                        // odlazak sa Admin stranice = izlaz iz admina
     const changedView = document.body.dataset.view !== v;
     document.body.dataset.view = v;
-    $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v || (g.dataset.view === 'smart' && ['alarm', 'cctv', 'lights', 'water', 'devices', 'power', 'weather'].includes(v))));   // Alarm i CCTV su pod Smart Home
-    $('#ptTxt').textContent = { media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', admin: 'Admin' }[v];
-    $('#ptIco').setAttribute('href', { media: '#i-media', smart: '#i-home', lights: '#i-bulb', water: '#i-drop', devices: '#i-plug', power: '#i-zap', weather: '#i-sun', alarm: '#i-shield', cctv: '#i-cam', tools: '#i-tool', admin: '#i-unlock' }[v]);
+    $$('.titems a').forEach(a => a.classList.toggle('cur', a.dataset.view === v && v !== 'admin'));   // trenutna strana u meniju
+    $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v || (g.dataset.view === 'smart' && ['alarm', 'cctv', 'lights', 'water', 'devices', 'power', 'weather', 'doors'].includes(v))));   // Alarm i CCTV su pod Smart Home
+    $('#ptTxt').textContent = { media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', doors: 'Interfon', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', admin: 'Admin' }[v];
+    $('#ptIco').setAttribute('href', { media: '#i-media', smart: '#i-home', lights: '#i-bulb', water: '#i-drop', devices: '#i-plug', power: '#i-zap', weather: '#i-sun', doors: '#i-door', alarm: '#i-shield', cctv: '#i-cam', tools: '#i-tool', admin: '#i-unlock' }[v]);
     store.set('teco-view', v);
     try { if (location.hash !== '#/' + v) history.replaceState(null, '', '#/' + v); } catch (e) {}
     navOpen(false);
@@ -1264,13 +1335,186 @@ html.admin .rfab{display:none}
   const alList = () => (S && S.alarm ? [S.alarm] : []);   // za sada jedan; server je spreman za listu
   const alGet = () => alList().find(a => a.id === alSel);
   function alOpen(id) { alSel = id; if (S) alRender(S.alarm, true); window.scrollTo(0, 0); }
+  // oko pored lozinki alarma: prikaži (sačuvane lozinke se čitaju iz Teco.Pi samo u Adminu)
+  $$('.pweye').forEach(b => b.onclick = async () => {
+    const inp = $('#' + b.dataset.for), show = inp.type === 'password';
+    if (show && !inp.value) { const r = await send('alarm_cfg_get'); if (r.err) { toast(r.err); return; }
+      if (!$('#alIpPw').value) $('#alIpPw').value = r.ip_password || ''; if (!$('#alPcPw').value) $('#alPcPw').value = r.pc_password || ''; }
+    inp.type = show ? 'text' : 'password'; b.classList.toggle('on', show);
+  });
   $('#alBack').onclick = () => alOpen(null);
   $$('.shtile[data-go]').forEach(b => b.onclick = () => setView(b.dataset.go));   // prečice na strani Smart Home
   $$('.shback').forEach(b => b.onclick = () => setView(b.dataset.up));   // nazad na Smart Home (Alarm, CCTV)
+  // Smart Home uređaji: registar (strana Uređaji) i prava svetla (strana Svetla)
+  $('#devScan').onclick = async () => {
+    const b = $('#devScan'); b.disabled = true; b.querySelector('span').textContent = 'Tražim…';
+    const pr = $('#devProto'), lbl = pr.selectedOptions[0] ? pr.selectedOptions[0].textContent : '';
+    const r = await send('dev_scan', { proto: pr.value }); b.disabled = false; b.querySelector('span').textContent = 'Pronađi ' + lbl;
+    if (r.err) { toast(r.err); return; }
+    const box = $('#devFound');
+    box.innerHTML = (r.found || []).map(x => `<div class="btd"><span class="ic"><svg class="i"><use href="#i-bulb"/></svg></span><div class="t"><b>${esc(pr.selectedOptions[0].textContent)} ${esc(x.ip)}</b><span>${x.mac ? esc(x.mac.toUpperCase()) : ''}${x.added ? ' · već dodato' : ''}</span></div><div class="bb">${x.added ? '' : `<button class="btn gel" type="button" data-ip="${esc(x.ip)}">Dodaj</button>`}</div></div>`).join('')
+      || '<p class="muted" style="font-size:13px;margin:0">Nije pronađena nijedna WiZ sijalica.</p>';
+    box.querySelectorAll('[data-ip]').forEach(btn => btn.onclick = () => { $('#devIp').value = btn.dataset.ip; $('#devName').focus(); });
+  };
+  $('#devAdd').onclick = async () => { const r = await act('dev_add', { name: $('#devName').value, room: $('#devRoom').value, ip: $('#devIp').value, type: $('#devType').value, proto: $('#devProto').value,
+      cam_user: $('#devCamUser').value, cam_pass: $('#devCamPass').value, cam_ch: $('#devCamCh').value, cam_url: $('#devCamUrl').value,
+      door_pgm: $('#devDoorPgm').value, door_zone: $('#devDoorZone').value, door_mode: $('#devDoorMode').value, ic_zone: $('#devIcZone').value, ic_event: $('#devIcEvent').value });
+    if (!r.err) { ['#devName', '#devRoom', '#devIp', '#devCamUser', '#devCamPass', '#devCamUrl'].forEach(k => { $(k).value = ''; }); $('#devFound').innerHTML = ''; } };
+  $('#devProto').onchange = () => { $('#devScanTxt').textContent = 'Pronađi ' + $('#devProto').selectedOptions[0].textContent.replace(' (uskoro)', ''); $('#devFound').innerHTML = ''; };
+  let devEdit = null;   // id uređaja koji se menja
+  function icSelects(zoneSel, evSel, zone, ev) {   // interfon: zona okidač i obaveštenje
+    const zs = ((S && S.alarm) || {}).zones || [], evs = (S && S.events) || [];
+    const zv = zone != null ? zone : zoneSel.value, ev0 = ev != null ? ev : evSel.value;
+    zoneSel.innerHTML = zs.map(z => `<option value="${z.id}">Zona ${z.id} · ${esc(z.label || '')}</option>`).join('') || '<option value="">alarm nije povezan</option>';
+    evSel.innerHTML = evs.map(e => `<option value="${esc(e.id)}">${esc(e.n)}</option>`).join('');
+    if (zv) zoneSel.value = zv; evSel.value = ev0 || 'interfon';
+  }
+  function doorSelects(pgmSel, zoneSel, pgm, zone) {   // PGM i zone iz alarma za izbor kod vrata
+    const al = (S && S.alarm) || {}, pg = (al.pgms || []).filter(g => g.id <= 16), zs = al.zones || [];
+    const pv = pgm != null ? pgm : pgmSel.value, zv = zone != null ? zone : zoneSel.value;
+    pgmSel.innerHTML = (pg.length ? pg : [1, 2, 3, 4, 5].map(id => ({ id }))).map(g => `<option value="${g.id}">PGM ${g.id}${(g.label || '').trim() ? ' · ' + esc(g.label.trim()) : ''}</option>`).join('');
+    zoneSel.innerHTML = '<option value="">— bez stanja —</option>' + zs.map(z => `<option value="${z.id}">Zona ${z.id} · ${esc(z.label || '')}</option>`).join('');
+    if (pv) pgmSel.value = pv; zoneSel.value = zv || '';
+  }
+  function devProtoFill(force) {   // proizvođači za izabranu vrstu (svetlo / kamera) i polja forme
+    const t = $('#devType').value, drvs = (S && S.dev_drivers || []).filter(v => v.type === t), pr = $('#devProto');
+    const sig = t + drvs.map(v => v.key).join();
+    if (force || pr.dataset.sig !== sig) { pr.dataset.sig = sig; pr.innerHTML = drvs.map(v => `<option value="${esc(v.key)}"${v.ready ? '' : ' disabled'}>${esc(v.label)}${v.ready ? '' : ' (uskoro)'}</option>`).join(''); }
+    const cam = t === 'camera', url = pr.value === 'camurl';
+    const door = t === 'door', ic = t === 'intercom';
+    $$('.devcam').forEach(e => { e.hidden = !cam || url; }); $$('.devurl').forEach(e => { e.hidden = !url; }); $$('.devipl').forEach(e => { e.hidden = url || door || ic; }); $$('.devdoor').forEach(e => { e.hidden = !door; }); $$('.devic').forEach(e => { e.hidden = !ic; });
+    if (ic) icSelects($('#devIcZone'), $('#devIcEvent'));
+    if (door) doorSelects($('#devDoorPgm'), $('#devDoorZone'));
+    $('#devScan').hidden = cam || door || ic; $('#devName').placeholder = ic ? 'npr. Interfon ulaz' : door ? 'npr. Kapija' : cam ? 'npr. Ulaz' : 'npr. Plafon';
+  }
+  $('#devType').addEventListener('change', () => { devProtoFill(true); $('#devFound').innerHTML = ''; });
+  $('#devProto').addEventListener('change', () => devProtoFill());
+  $('#devList').addEventListener('click', async e => {
+    const b = e.target.closest('[data-del]'); if (b && confirm('Ukloniti uređaj ' + b.dataset.n + '?')) { act('dev_del', { id: b.dataset.del }); return; }
+    const ed = e.target.closest('[data-edit]'); if (ed) { devEdit = devEdit === ed.dataset.edit ? null : ed.dataset.edit; memo.devs = null; devRender(S.devices || []); return; }
+    const sv = e.target.closest('[data-save]');
+    if (sv) { const fm = sv.closest('.devedit'), g = k => { const e = fm.querySelector('[name=' + k + ']'); return e ? e.value : undefined; };
+      const r = await act('dev_edit', { id: sv.dataset.save, name: g('n'), room: g('r'), ip: g('i'), cam_url: g('u') || undefined, cam_user: g('cu'), cam_pass: g('cp') || undefined, cam_ch: g('cc'), door_pgm: g('dp'), door_zone: g('dz'), door_mode: g('dm'), ic_zone: g('iz'), ic_event: g('ie') });
+      if (!r.err) { devEdit = null; memo.devs = null; devRender(S.devices || []); } return; }
+    if (e.target.closest('[data-cancel]')) { devEdit = null; memo.devs = null; devRender(S.devices || []); }
+  });
+  $('#myLights').addEventListener('click', e => { const t = e.target.closest('[data-lt]'); if (t) { const on = !t.closest('.dl').classList.contains('on'); t.closest('.dl').classList.toggle('on', on); send('dev_set', { id: t.dataset.lt, on }).then(r => { if (r.err) toast(r.err); }); } });
+  $('#myLights').addEventListener('change', e => { const s = e.target.closest('[data-ld]'); if (s) { s.closest('.dl').classList.add('on'); send('dev_set', { id: s.dataset.ld, dim: +s.value }).then(r => { if (r.err) toast(r.err); }); } });
+  $('#myLights').addEventListener('click', e => { const t = e.target.closest('[data-temp]'); if (t) { const id = t.closest('.lcol').dataset.id; t.closest('.lcol').querySelectorAll('[aria-pressed]').forEach(x => x.setAttribute('aria-pressed', x === t)); send('dev_set', t.dataset.temp === 'max' ? { id, mode: 'max' } : { id, temp: +t.dataset.temp }).then(r => { if (r.err) toast(r.err); }); } });
+  $('#myLights').addEventListener('change', e => { const c = e.target.closest('[data-rgb]'); if (c) { const l = c.closest('.lrgb'); l.querySelector('i').style.background = c.value; l.closest('.lcol').querySelectorAll('[aria-pressed]').forEach(x => x.setAttribute('aria-pressed', x === l)); send('dev_set', { id: c.dataset.rgb, rgb: c.value }).then(r => { if (r.err) toast(r.err); }); } });
+  $('#myLights').addEventListener('input', e => { const s = e.target.closest('[data-ld]'); if (s) s.closest('.dl').querySelector('.lv').textContent = s.value + '%'; });
+  // CCTV: pločice kamera; otvara se jedna po jedna (štedi Pi: ffmpeg radi samo za kameru koja se gleda)
+  let camCur = null, camQ = 's', camHls = null;
+  function camRender(cams) {
+    $('#camEmpty').hidden = !!cams.length;
+    $('#camGrid').innerHTML = cams.map(x => `<button class="camtile${camCur === x.id ? ' on' : ''}" type="button" data-cam="${esc(x.id)}"><span class="cti"><svg class="i"><use href="#i-cam"/></svg><i class="${x.ok ? 'ok' : ''}"></i></span><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ok ? 'dostupna' : 'ne odgovara'}</small></button>`).join('');
+    const t = $('#shCctv small'); if (t) t.textContent = cams.length ? cams.length + (cams.length === 1 ? ' kamera' : ' kamere') : 'nema kamera';
+  }
+  function camLoadLib() {
+    return window.Hls ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+  }
+  function camClose() { if (camHls) { camHls.destroy(); camHls = null; } const v = $('#camVideo'); v.pause(); v.removeAttribute('src'); v.load(); camCur = null; $('#camPlayer').hidden = true; memo.devs = null; if (S) devRender(S.devices || []); }
+  async function camOpen(id) {
+    const dv = (S.devices || []).find(x => x.id === id); if (!dv) return;
+    if (camHls) { camHls.destroy(); camHls = null; }
+    camCur = id; $('#camPlayer').hidden = false; $('#camTitle').textContent = dv.name; $('#camState').textContent = 'povezujem…';
+    $$('#camQ button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === camQ));
+    const v = $('#camVideo'), src = `/cctv/${encodeURIComponent(id)}/${camQ}/index.m3u8`;
+    v.onplaying = () => { $('#camState').textContent = 'uživo'; };
+    if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = src; v.play().catch(() => {}); }   // Safari / iPhone: sam ume HLS
+    else {
+      try { await camLoadLib(); } catch (e) { $('#camState').textContent = 'nema hls.js (internet?)'; return; }
+      camHls = new Hls({ liveSyncDurationCount: 2, maxBufferLength: 6, lowLatencyMode: true });
+      camHls.on(Hls.Events.ERROR, (e, data) => { if (data.fatal) $('#camState').textContent = 'kamera ne šalje sliku'; });
+      camHls.loadSource(src); camHls.attachMedia(v); v.play().catch(() => {});
+    }
+    memo.devs = null; devRender(S.devices || []);
+  }
+  $('#camGrid').addEventListener('click', e => { const t = e.target.closest('[data-cam]'); if (t) (camCur === t.dataset.cam ? camClose() : camOpen(t.dataset.cam)); });
+  $('#camClose').onclick = camClose;
+  $$('#camQ button').forEach(b => b.onclick = () => { camQ = b.dataset.v; if (camCur) camOpen(camCur); });
+  $('#camFull').onclick = () => { const v = $('#camVideo'); (v.requestFullscreen ? v.requestFullscreen() : v.webkitEnterFullscreen && v.webkitEnterFullscreen()); };
+  // Vrata: impuls (Otvori, jedan dodir) ili uključi/isključi; stanje iz zone alarma ako je vezana
+  function doorRender(doors, ics) {
+    ics = ics || [];
+    $('#icEmpty').hidden = !!ics.length;
+    $('#icGrid').innerHTML = ics.map(x => `<div class="dr${x.ringing ? ' ring' : ''}"><span class="dri"><svg class="i"><use href="#i-bell"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ringing ? 'ZVONI!' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : (x.ok ? 'bez poziva' : 'alarm nije povezan')}</small></span><span></span></div>`).join('');
+    $('#doorEmpty').hidden = !!doors.length;
+    $('#doorCount').textContent = doors.length ? doors.length + (doors.length === 1 ? ' vrata' : ' vrata') : '';
+    $('#doorGrid').innerHTML = doors.map(x => { const dr = x.door || {}, tog = dr.mode === 'toggle';
+      const st = x.open == null ? (x.ok ? (tog ? (x.pgm_on ? 'uključeno' : 'isključeno') : 'spremno') : 'alarm nije povezan') : x.open ? 'otvorena' : 'zatvorena';
+      return `<div class="dr${x.open ? ' open' : ''}"><span class="dri"><svg class="i"><use href="#i-door"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${st}</small></span>`
+        + (tog ? `<button class="dvs" type="button" role="switch" aria-checked="${!!x.pgm_on}" data-dtog="${esc(x.id)}"${x.ok ? '' : ' disabled'}></button>`
+               : `<button class="btn gel drb${x.pgm_on ? ' run' : ''}" type="button" data-dopen="${esc(x.id)}"${x.ok ? '' : ' disabled'}><span>${x.pgm_on ? 'Vrata otvorena' : 'Otvori'}</span></button>`) + '</div>'; }).join('');
+    const t = $('#shDoors small'); if (t) t.textContent = ics.some(x => x.ringing) ? 'ZVONI!' : doors.some(x => x.open) ? 'otvoreno: ' + doors.filter(x => x.open).map(x => x.name).join(', ') : (doors.length || ics.length) ? (doors.length ? doors.length + ' vrata' : '') + (doors.length && ics.length ? ' · ' : '') + (ics.length ? ics.length + ' interfon' : '') : 'nema uređaja';
+  }
+  // otvaranje vrata: jedan dodir (bez zadrške); držanje 1,5 s gasi relej; dugme pokazuje kad je relej (PGM) uključen
+  { let lT = null;
+    $('#doorGrid').addEventListener('pointerdown', e => { const o = e.target.closest('[data-dopen]'); if (!o || o.disabled) return; clearTimeout(lT);
+      lT = setTimeout(() => { lT = null; o.dataset.long = '1'; o.querySelector('span').textContent = 'Gasim…'; act('dev_set', { id: o.dataset.dopen, stop: true }).finally(() => { memo.devs = null; if (S) devRender(S.devices || []); }); }, 1500); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('#doorGrid').addEventListener(ev, () => { clearTimeout(lT); lT = null; }, true));
+    $('#doorGrid').addEventListener('contextmenu', e => { if (e.target.closest('[data-dopen]')) e.preventDefault(); }); }
+  $('#doorGrid').addEventListener('click', e => {
+    const o = e.target.closest('[data-dopen]'); if (o && o.dataset.long) { delete o.dataset.long; return; }   // bilo je dugo držanje
+    if (o) { o.disabled = true; o.classList.add('run'); o.querySelector('span').textContent = 'Vrata otvorena';   // 2 s pa nazad, bez obzira na centralu
+      act('dev_set', { id: o.dataset.dopen }); setTimeout(() => { o.disabled = false; o.classList.remove('run'); o.querySelector('span').textContent = 'Otvori'; memo.devs = null; if (S) devRender(S.devices || []); }, 2000); return; }
+    const s = e.target.closest('[data-dtog]'); if (s) { const on = s.getAttribute('aria-checked') !== 'true'; s.setAttribute('aria-checked', on); act('dev_set', { id: s.dataset.dtog, on }); }
+  });
+  // Arcade: lista igara sa flash-a (CD), pokretanje i izlaz; emulator radi samo dok se igra
+  function arcRender(a) {
+    if (!changed('arc', a)) return;
+    const g = a.games || [], run = a.run;
+    $('#arcEmpty').hidden = !!g.length;
+    $('#arcRun').hidden = !run; if (run) $('#arcRunName').textContent = run.name;
+    const ri = run ? (run.art ? `<img src="/arc/art/${esc(run.id)}?v=${run.artv}" alt="">` : `<svg class="i"><use href="#i-arcade"/></svg>`) : '';
+    if ($('#arcRun .arci').dataset.h !== ri) { $('#arcRun .arci').innerHTML = ri; $('#arcRun .arci').dataset.h = ri; }
+    $('#arcRun').classList.toggle('art', !!(run && run.art));
+    const ini = n => n.split(/[\s:,-]+/).filter(w => /^[A-Za-z0-9]/.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const hue = n => [...n].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);   // omot bez slike: boja po imenu igre
+    const html = g.map(x => `<button class="arcg${run && run.id === x.id ? ' on' : ''}" type="button" data-game="${esc(x.id)}" title="${esc(x.name)}">`
+      + `<span class="arcart" style="--h:${hue(x.name)}">${x.art ? `<img src="/arc/art/${esc(x.id)}?v=${x.artv}" alt="" loading="lazy">` : `<span class="ini">${esc(ini(x.name))}</span>`}`
+      + `</span><b>${esc(x.name)}</b><small>${esc(x.region || x.sys)}</small>`
+      + `<span class="arcc">${run && run.id === x.id ? '▶ IGRA SE' : esc(x.sys)}</span></button>`).join('');
+    if ($('#arcGrid').dataset.h !== html) { $('#arcGrid').innerHTML = html; $('#arcGrid').dataset.h = html; }   // ne crtaj slike ponovo na svaki broadcast
+  }
+  $('#arcGrid').addEventListener('click', e => { const b = e.target.closest('[data-game]'); if (b) { b.disabled = true; act('arc_start', { id: b.dataset.game }).finally(() => { b.disabled = false; }); } });
+  $('#arcStop').onclick = () => act('arc_stop');
+  function devRender(devs) {
+    if (!changed('devs', devs)) return;
+    $('#devCount').textContent = devs.length ? devs.length + (devs.length === 1 ? ' uređaj' : ' uređaja') : '';
+    if ($('#devList').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // ne prekidaj kucanje u izmeni
+    const drvs = S.dev_drivers || [], vend = k => (drvs.find(v => v.key === k) || {}).label || k;
+    devProtoFill();
+    const stTxt = x => x.type === 'intercom' ? (x.ringing ? 'ZVONI' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : 'bez poziva') : x.type === 'door' ? (x.open == null ? (x.ok ? 'alarm povezan' : 'alarm nije povezan') : x.open ? 'otvorena' : 'zatvorena') : x.type === 'camera' ? (x.ok ? 'dostupna' : 'ne odgovara') : x.ok ? (x.on ? 'upaljeno' + (x.dim ? ' ' + x.dim + '%' : '') : 'ugašeno') : 'ne odgovara';
+    $('#devList').innerHTML = devs.map(x => {
+      const cam = x.type === 'camera', url = x.proto === 'camurl', c = x.cam || {}, door = x.type === 'door', dr = x.door || {}, ic = x.type === 'intercom', icd = x.intercom || {};
+      const row = `<div class="btd${x.ok ? ' conn' : ''}"><span class="ic"><svg class="i"><use href="#${ic ? 'i-bell' : door ? 'i-door' : cam ? 'i-cam' : 'i-bulb'}"/></svg></span><div class="t"><b>${esc(x.name)}</b><span>${x.room ? esc(x.room) + ' · ' : ''}${ic ? 'Interfon · zona ' + esc(icd.zone) + (x.zone_label ? ' (' + esc(x.zone_label) + ')' : '') : door ? 'Vrata · PGM ' + esc(dr.pgm) + (dr.mode === 'toggle' ? ' · uključi/isključi' : ' · impuls 5 s') + (x.zone_label ? ' · ' + esc(x.zone_label) : '') : (cam ? 'Kamera' : 'Svetlo') + ' · ' + esc(vend(x.proto)) + ' · ' + esc(x.ip) + (cam && !url ? ' · kanal ' + esc(c.ch) : '')} · ${stTxt(x)}</span></div><div class="bb"><button class="btn" type="button" data-edit="${esc(x.id)}">Izmeni</button><button class="btn ghost" type="button" data-del="${esc(x.id)}" data-n="${esc(x.name)}">Ukloni</button></div></div>`;
+      if (devEdit !== x.id) return row;
+      const fld = (lbl, n, v, ex) => `<label>${lbl}<input class="field" name="${n}" value="${esc(v)}"${ex || ''}></label>`;
+      return row + `<div class="devedit"><div class="netst devadd">${fld('Naziv', 'n', x.name)}${fld('Prostorija', 'r', x.room || '')}`
+        + (ic ? `<label>Okidač (zona alarma)<select class="field" name="iz" data-v="${esc(icd.zone)}"></select></label><label>Obaveštenje<select class="field" name="ie" data-v="${esc(icd.event || 'interfon')}"></select></label>` : door ? `<label>PGM izlaz<select class="field" name="dp" data-v="${esc(dr.pgm)}"></select></label><label>Zona za stanje<select class="field" name="dz" data-v="${esc(dr.zone || '')}"></select></label><label>Način<select class="field" name="dm"><option value="pulse"${dr.mode !== 'toggle' ? ' selected' : ''}>Impuls 5 s</option><option value="toggle"${dr.mode === 'toggle' ? ' selected' : ''}>Uključi / isključi</option></select></label>` : url ? fld('Adresa strima', 'u', '', ' placeholder="nova adresa (prazno = ostaje)"') : fld('IP adresa', 'i', x.ip, ' inputmode="decimal"'))
+        + (cam && !url ? fld('Korisnik', 'cu', c.user || '') + fld('Lozinka', 'cp', '', ' type="password" placeholder="' + (c.has_pass ? 'ostaje ista' : '') + '"') + fld('Kanal', 'cc', c.ch || 1, ' inputmode="numeric"') : '')
+        + `</div><div class="smbrow"><button class="btn ghost" type="button" data-cancel>Otkaži</button><button class="btn gel" type="button" data-save="${esc(x.id)}">Sačuvaj</button></div></div>`;
+    }).join('')
+      || '<p class="muted" style="font-size:13px;margin:0">Još nema uređaja. Dodaj prvi ispod.</p>';
+    $('#devList').querySelectorAll('select[name=iz]').forEach(s => { const ev = s.closest('.devadd').querySelector('select[name=ie]'); icSelects(s, ev, s.dataset.v, ev.dataset.v); });
+    $('#devList').querySelectorAll('select[name=dp]').forEach(s => { const z = s.closest('.devadd').querySelector('select[name=dz]'); doorSelects(s, z, s.dataset.v, z.dataset.v); });
+    camRender(devs.filter(x => x.type === 'camera'));
+    doorRender(devs.filter(x => x.type === 'door'), devs.filter(x => x.type === 'intercom'));    const lights = devs.filter(x => x.type === 'light');
+    if (!$('#myLights').contains(document.activeElement)) {
+      $('#myLights').innerHTML = lights.map(x => `<div class="dl${x.on ? ' on' : ''}${x.ok ? '' : ' off'}"><button class="dlt" type="button" data-lt="${esc(x.id)}" title="Upali / ugasi"><svg class="i"><use href="#i-bulb"/></svg></button><span class="t"><b>${esc(x.name)}</b><small>${x.ok ? (x.room ? esc(x.room) + ' · ' : '') + '<span class="lv">' + (x.dim || 100) + '%</span>' : 'ne odgovara'}</small></span><input type="range" min="10" max="100" value="${x.dim || 100}" data-ld="${esc(x.id)}" aria-label="Jačina">`
+        + `<div class="lcol" data-id="${esc(x.id)}">${[['2700', 'Toplo', '#ffb46b'], ['4200', 'Dnevno', '#fff1d9'], ['6500', 'Hladno', '#d6e6ff'], ['max', 'Najjače', '#ffffff']].map(([k, t, sw]) => `<button type="button" data-temp="${k}" aria-pressed="${k !== 'max' && !x.rgb && Math.abs((x.temp || 0) - k) < 700}"><i style="background:${sw}"></i>${t}</button>`).join('')}`
+        + `<label class="lrgb" aria-pressed="${!!x.rgb}"><i style="background:${x.rgb || 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)'}"></i>RGB<input type="color" value="${x.rgb || '#ff5500'}" data-rgb="${esc(x.id)}"></label></div></div>`).join('');
+    }
+    $('#myLights').hidden = !lights.length; $('#lgEmpty').hidden = !!lights.length;
+    const on = lights.filter(x => x.on).length;
+    $('#lgMine').textContent = lights.length ? on + ' od ' + lights.length + ' upaljeno' : '';
+    if (lights.length) $('#shLights small').textContent = on ? on + ' upaljeno' : 'sve ugašeno';
+    if (!$('#shLights .shdot')) $('#shLights').insertAdjacentHTML('afterbegin', '<i class="shdot lg" aria-hidden="true"></i>');
+    $('#shLights .shdot').hidden = !on;   // zelena lampica: nešto je upaljeno
+    const ml = $('.titems a[data-view="lights"]'); if (ml) { let dt = ml.querySelector('.tld'); if (!dt) { dt = document.createElement('i'); dt.className = 'tld'; ml.appendChild(dt); } dt.hidden = !on; }
+  }
   // PRIMER (samo izgled): paljenje svetala i prekidači reaguju lokalno, bez prave kontrole
-  const lgCount = () => { const all = $$('#lgGrid .dl'), on = all.filter(x => x.classList.contains('on')).length; $('#lgCount').textContent = on + ' od ' + all.length + ' upaljeno'; };
-  $$('#lgGrid .dlt').forEach(b => b.onclick = () => { b.closest('.dl').classList.toggle('on'); lgCount(); });
-  $('[data-demo="alloff"]').onclick = () => { $$('#lgGrid .dl').forEach(x => x.classList.remove('on')); lgCount(); };
   $$('.dvs').forEach(b => b.onclick = () => { const on = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', on); b.closest('.dv').classList.toggle('on', on); });
   $('#pBars').innerHTML = [2,1,1,1,1,2,9,14,8,5,4,6,7,5,4,4,6,10,15,18,14,10,6,3].map((v, i) => `<i style="height:${v * 5.5}%" title="${String(i).padStart(2, '0')}h · ${(v * 0.1).toFixed(1)} kWh"></i>`).join('');   // primer: kWh po satu
   $$('[data-demo="sw"]').forEach(b => b.onclick = () => b.setAttribute('aria-checked', b.getAttribute('aria-checked') !== 'true'));
@@ -1319,7 +1563,7 @@ html.admin .rfab{display:none}
     haptic(); b.classList.add('run'); const s = b.querySelector('small'); let left = 5; s.textContent = 'Aktivno · još ' + left + ' s';
     const tk = setInterval(() => { left--; s.textContent = left > 0 ? 'Aktivno · još ' + left + ' s' : 'Isključuje se…'; }, 1000);
     act('alarm', { pgm: b.dataset.key, cmd: 'pulse' }).then(r => { if (r.err) left = 0; });
-    setTimeout(() => { clearInterval(tk); b.classList.remove('run'); s.textContent = 'Aktiviraj na 5 s'; }, 5600); });
+    setTimeout(() => { clearInterval(tk); b.classList.remove('run'); s.textContent = 'Aktiviraj na 3 s'; }, 5600); });
   $('#alPgms').addEventListener('click', e => { const b = e.target.closest('button[data-pcmd]'); if (!b) return;
     b.disabled = true; act('alarm', { pgm: b.closest('.alg').dataset.key, cmd: b.dataset.pcmd }).finally(() => { b.disabled = false; }); });
   // stanje particije iz PAI polja (EVO): alarm, odlaganje, uključen (Regular/Stay/Instant), isključen
@@ -1866,8 +2110,8 @@ html.admin .rfab{display:none}
 
   function render() {
     const s = S, adm = isAdmin();
-    if (adm) pwaQr();
-    if (!s.mpv) { $('#connTxt').textContent = 'Plejer (mpv) ne radi. Teco.Pi ga ponovo pokreće...'; $('#connBar').hidden = false; }
+    if (adm) { pwaQr(); pwaVpn(); }
+    if (!s.mpv && !(s.arcade && s.arcade.run)) { $('#connTxt').textContent = 'Plejer (mpv) ne radi. Teco.Pi ga ponovo pokreće...'; $('#connBar').hidden = false; }
     else if (ws && ws.readyState === 1) $('#connBar').hidden = true;
 
     const cs = s.cast || {};
@@ -1948,13 +2192,17 @@ html.admin .rfab{display:none}
     curAv = isAv ? view : (s.last_av || 'av2');
     $$('.avpick button').forEach(b => b.setAttribute('aria-pressed', b.dataset.av === curAv && isAv));
     $('#avSub').textContent = srcName(curAv);
-    const isFm = view === 'fm', isSt = view === 'st', isTv = view === 'tv', isCon = isAv;
+    const isFm = view === 'fm', isSt = view === 'st', isTv = view === 'tv', isCon = isAv, isArc = view === 'arc';
+    if (isArc !== mbArc) { mbArc = isArc; mbarShow(); }   // na Arcade nema mini plejera
     // jačina je deo plejera: odmah ispod kontrola izabranog izvora (isti klizač svuda)
-    const ctl = isFm ? $('#fmPanel .fmctl') : isSt ? $('#stPanel .fmctl') : isTv ? $('#tvPanel .fmctl') : isCon ? $('#consPanel') : $('.transport');
-    if (ctl.nextElementSibling !== $('.volbox')) { ctl.after($('.volbox')); $('.volbox').after($('#outs')); }
+    const ctl = isFm ? $('#fmPanel .fmctl') : isSt ? $('#stPanel .fmctl') : isTv ? $('#tvPanel .fmctl') : isCon ? $('#consPanel') : isArc ? $('#arcPanel') : $('.transport');
+    if (isArc && s.arcade && s.arcade.run) {   // igra se: jačina i izlaz zvuka u samom „plejeru“ igre
+      if ($('.volbox').parentElement !== $('#arcRun')) { $('#arcStop').before($('.volbox'), $('#outs')); }
+    } else if (ctl.nextElementSibling !== $('.volbox')) { ctl.after($('.volbox')); $('.volbox').after($('#outs')); }
     $('#admAv1').hidden = !(adm && view === 'av1');
-    $('#fmPanel').hidden = !isFm; $('#stPanel').hidden = !isSt; $('#tvPanel').hidden = !isTv; $('#consPanel').hidden = !isCon; $('#lcd').hidden = isFm || isSt || isTv || isCon;
-    $('.transport').hidden = isFm || isSt || isTv || isCon;
+    $('#fmPanel').hidden = !isFm; $('#stPanel').hidden = !isSt; $('#tvPanel').hidden = !isTv; $('#consPanel').hidden = !isCon; $('#arcPanel').hidden = !isArc; $('#lcd').hidden = isFm || isSt || isTv || isCon || isArc;
+    $('.transport').hidden = isFm || isSt || isTv || isCon || isArc;
+    arcRender(s.arcade || {});
     if (document.activeElement !== $('#bootSel')) $('#bootSel').value = s.boot || 'last';
 
     /* TV */
@@ -2197,6 +2445,7 @@ html.admin .rfab{display:none}
     $('#sysPillIc').setAttribute('href', worst === 'ok' ? '#i-check' : '#i-alert');
     pill.style.color = pc; pill.style.background = `color-mix(in srgb, ${pc} 14%, transparent)`;
     alRender(s.alarm);
+    devRender(s.devices || []);
     { // meteorologija: spoljna temperatura i vlažnost uživo, ako senzor šalje (/api/outside)
       const o = s.sys || {}, fx = v => String(Math.round(v * 10) / 10).replace('.', ',');
       if (o.out != null) { $('#mTemp').innerHTML = fx(o.out) + '<i>°C</i>'; $('#mTempSub').textContent = 'uživo · spoljni senzor'; $('#mTemp').closest('.mt').classList.add('live'); $('#shWeatherTxt').textContent = fx(o.out) + ' °C' + (o.out_hum != null ? ' · ' + Math.round(o.out_hum) + '%' : ''); }
@@ -2233,6 +2482,7 @@ html.admin .rfab{display:none}
             <div class="ev-top">${ev.alarm ? '<b class="ev-n">' + esc(ev.n) + '</b>' : '<input class="field" maxlength="30" aria-label="Naziv">'}<button class="swb" role="switch" aria-checked="${ev.on}" aria-label="Uključeno"><span class="sw"></span></button></div>
             <div class="row"><span class="muted">Na ekranu</span><input class="field evsec" type="number" inputmode="numeric" min="1" max="120" value="${ev.sec}" aria-label="Sekundi"><span class="muted">s</span></div>
             <label class="chk"><input type="checkbox" ${ev.pause ? 'checked' : ''}>Pauziraj video</label>
+            <label class="row evpgm"><span class="muted">Okida PGM alarma</span><select class="field">${['<option value="">— ne —</option>'].concat(((S.alarm || {}).pgms || [1, 2, 3, 4, 5].map(id => ({ id }))).filter(g => g.id <= 16).map(g => `<option value="${g.id}"${ev.pgm === g.id ? ' selected' : ''}>PGM ${g.id}</option>`)).join('')}</select></label>
             ${snd}
           </div>`;
         const nm = d.querySelector('.ev-top .field');
@@ -2240,6 +2490,7 @@ html.admin .rfab{display:none}
         d.querySelector('.swb').onclick = () => act('ev_set', { id: ev.id, on: !ev.on });
         const sec = d.querySelector('.evsec'); sec.addEventListener('change', () => { const v = Math.round(+sec.value); if (v >= 1 && v <= 120) act('ev_set', { id: ev.id, sec: v }); else { sec.value = ev.sec; toast('Od 1 do 120 sekundi.'); } });
         d.querySelector('.chk input').onchange = e => act('ev_set', { id: ev.id, pause: e.target.checked });
+        d.querySelector('.evpgm select').onchange = e => act('ev_set', { id: ev.id, pgm: e.target.value });
         d.querySelector('[data-a="test"]').onclick = () => act('ev_test', { id: ev.id });
         const del = d.querySelector('[data-a="del"]'); if (del) del.onclick = () => act('ev_sound_del', { id: ev.id });
         const fin = d.querySelector('input[type=file]'); if (fin) fin.onchange = async e => {
@@ -2320,7 +2571,7 @@ html.admin .rfab{display:none}
       if (myIp) store.set('teco-ip', myIp[0].split('/')[0]);   // rezerva kad tecopi.local ne radi
       const rows = [['Adresa', n.host ? `<a href="http://${esc(n.host)}.local/">http://${esc(n.host)}.local</a>` : '—']];
       (n.ifs || []).filter(i => i.up || i.ip.length).forEach(i => {
-        rows.push([i.n === 'eth0' ? 'Kabl' : i.n === 'wlan0' ? 'Wi-Fi' : i.n, esc((i.ip.join(', ') || 'bez adrese').replace(/\/\d+/g, ''))]);
+        rows.push([i.n === 'eth0' ? 'Kabl' : i.n === 'wlan0' ? 'Wi-Fi' : /^tun/.test(i.n) ? 'VPN' : i.n, esc((i.ip.join(', ') || 'bez adrese').replace(/\/\d+/g, ''))]);
       });
       rows.push(['Gateway', esc(n.gw || '—')]);
       if (n.ssid) rows.push(['Wi-Fi mreža', esc(n.ssid) + ' · signal ' + esc(n.signal) + '%']);
