@@ -622,6 +622,8 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
   <symbol id="i-door" viewBox="0 0 24 24"><path d="M5 21V4.5a1 1 0 0 1 .8-1l9-1.8a1 1 0 0 1 1.2 1V21M3 21h18M16 5h2.5a.5.5 0 0 1 .5.5V21"/><circle cx="13" cy="12.5" r="1" fill="currentColor"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="10" rx="2"/><rect x="13" y="3" width="8" height="6" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="15" width="8" height="6" rx="2"/></symbol>
   <symbol id="i-arcade" viewBox="0 0 24 24"><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M8 13V9"/><circle cx="8" cy="7" r="2.5"/><circle cx="15" cy="16.5" r="1" fill="currentColor"/><circle cx="18" cy="16.5" r="1" fill="currentColor"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7M5.5 9.5V20h4.5v-6h4v6h4.5V9.5"/></symbol>
   <symbol id="i-stay" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><rect x="9.5" y="13.5" width="5" height="4.5" rx="1"/><path d="M10.5 13.5v-1a1.5 1.5 0 0 1 3 0v1"/></symbol>
@@ -639,6 +641,10 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
 <nav class="side" id="side" aria-label="Meni">
   <div class="side-logo"><span class="mark" aria-hidden="true"></span><span class="slt">Teco.Pi</span></div>
   <div class="tree">
+    <div class="tgrp" data-view="dash">
+      <button class="tsec" data-view="dash" title="Dashboard"><svg class="i"><use href="#i-dash"/></svg><span>Dashboard</span></button>
+    </div>
+    <div class="tsep" role="separator"></div>
     <div class="tgrp" data-view="media">
       <button class="tsec" data-view="media" title="Multimedija"><svg class="i"><use href="#i-media"/></svg><span>Multimedija</span></button>
     </div>
@@ -646,7 +652,8 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
       <button class="tsec" data-view="smart" title="Smart Home"><svg class="i"><use href="#i-home"/></svg><span>Smart Home</span><i class="tdot" id="navAlDot"></i></button>
       <div class="titems">
         <a href="#lightsCard" data-view="lights">Svetla</a>
-        <a href="#doorsCard" data-view="doors">Interfon</a>
+        <a href="#applCard" data-view="appl">Uređaji</a>
+        <a href="#doorsCard" data-view="doors">Interfon / Zvona</a>
         <a href="#alList" data-view="alarm">Alarm</a>
         <a href="#cctvCard" data-view="cctv">CCTV</a>
         <a href="#waterCard" data-view="water">Navodnjavanje</a>
@@ -697,11 +704,23 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <p class="demo" id="connBar" hidden><svg class="i"><use href="#i-alert"/></svg><span id="connTxt">Povezujem se sa Teco.Pi...</span></p>
   <div class="admbar adm" role="status"><svg class="i"><use href="#i-unlock"/></svg><span><b>Admin režim</b><small>Podešavanja. Za gledanje izađi iz admina.</small></span><button class="btn" id="admExit" type="button">Izađi</button></div>
 
+  <!-- Dashboard: omiljene prečice (uređaji, Smart Home strane, izvori multimedije) -->
+  <section class="card demo" id="dashCard" aria-labelledby="h-dash">
+    <div class="card-head"><h2 id="h-dash">Dashboard</h2><button class="btn" id="dashEdit" type="button"><svg class="i"><use href="#i-plus"/></svg><span>Uredi</span></button></div>
+    <div class="dashgrid" id="dashGrid"></div>
+    <p class="muted" id="dashEmpty" style="font-size:13px;margin:0">Još nema prečica. Dodirni <b>Uredi</b> i dodaj svetla, uređaje, vrata, strane Smart Home-a ili YouTube, radio i druge izvore.</p>
+    <div class="dashadd" id="dashAdd" hidden>
+      <b class="netcfg-t">Dodaj prečicu</b>
+      <div class="dashpick" id="dashPick"></div>
+      <button class="btn gel" id="dashDone" type="button"><span>Gotovo</span></button>
+    </div>
+  </section>
   <section class="card cctv" id="smartCard" aria-labelledby="h-smart">
     <div class="card-head"><h2 id="h-smart">Smart Home</h2></div>
     <div class="shgrid">
       <button class="shtile go" type="button" id="shLights" data-go="lights"><svg class="i"><use href="#i-bulb"/></svg><b>Svetla</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shDoors" data-go="doors"><svg class="i"><use href="#i-door"/></svg><b>Interfon</b><small>nema uređaja</small></button>
+      <button class="shtile go" type="button" id="shAppl" data-go="appl"><svg class="i"><use href="#i-plug"/></svg><b>Uređaji</b><small>nema uređaja</small></button>
+      <button class="shtile go" type="button" id="shDoors" data-go="doors"><svg class="i"><use href="#i-bell"/></svg><b>Interfon / Zvona</b><small>nema uređaja</small></button>
       <button class="shtile go" type="button" id="shAlarm" data-go="alarm"><i class="shdot" aria-hidden="true"></i><svg class="i"><use href="#i-shield"/></svg><b>Alarm</b><small id="shAlarmTxt">—</small></button>
       <button class="shtile go" type="button" id="shCctv" data-go="cctv"><svg class="i"><use href="#i-cam"/></svg><b>CCTV</b><small>nema kamera</small></button>
       <button class="shtile go" type="button" id="shWater" data-go="water"><svg class="i"><use href="#i-drop"/></svg><b>Navodnjavanje</b><small>primer</small></button>
@@ -714,6 +733,23 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-lights">Svetla</h2><span class="sub" id="lgMine"></span></div>
     <div class="mylights" id="myLights"></div>
     <p class="muted" id="lgEmpty" style="font-size:13px;margin:0">Nema dodatih svetala. Dodaj ih na strani <b>Uređaji</b>.</p>
+  </section>
+  <!-- Uređaji: klima, bojler, pegla… (pametne utičnice / releji: uključi-isključi) -->
+  <section class="card demo" id="applCard" aria-labelledby="h-appl">
+    <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-appl">Uređaji</h2><span class="sub" id="applCount"></span></div>
+    <div class="dgrid" id="applGrid"></div>
+    <p class="muted" id="applEmpty" style="font-size:13px;margin:0">Nema dodatih uređaja (Admin → Uređaji, vrsta <b>Uređaj</b>: klima, bojler, pegla… preko pametne utičnice ili releja alarma).</p>
+    <!-- PRIMER (samo izgled): prekidači reaguju lokalno, bez prave kontrole -->
+    <b class="netcfg-t">Primer <span class="demotag">primer</span></b>
+    <div class="dgrid">
+      <div class="dv on"><span class="dvi">❄️</span><span class="t"><b>Klima · Dnevna soba</b><small>hlađenje 23° · 850 W</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv on"><span class="dvi">🚿</span><span class="t"><b>Bojler · Kupatilo</b><small>greje · 2.000 W · voda 54°</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv"><span class="dvi">☕</span><span class="t"><b>Aparat za kafu · Kuhinja</b><small>isključen · uključi 07:00 radnim danima</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv"><span class="dvi">👕</span><span class="t"><b>Pegla · Ostava</b><small>isključena · sama se gasi posle 30 min</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv on"><span class="dvi">🧺</span><span class="t"><b>Veš mašina · Kupatilo</b><small>pere · još 42 min</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv"><span class="dvi">♨️</span><span class="t"><b>Grejalica · Spavaća soba</b><small>isključena · termostat 21°</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv"><span class="dvi">💧</span><span class="t"><b>Pumpa · Bašta</b><small>isključena</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+    </div>
   </section>
 
   <!-- PRIMER (samo izgled): Navodnjavanje -->
@@ -752,13 +788,13 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
 
   <!-- Vrata: ulazna vrata, kapija, garaža… (uređaji vrste Vrata, za sada preko PGM-a alarma) -->
   <section class="card demo" id="doorsCard" aria-labelledby="h-doors">
-    <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-doors">Interfon</h2><span class="sub" id="doorCount"></span></div>
+    <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-doors">Interfon / Zvona</h2><span class="sub" id="doorCount"></span></div>
     <b class="netcfg-t">Vrata</b>
     <div class="dgrid" id="doorGrid"></div>
     <p class="muted" id="doorEmpty" style="font-size:13px;margin:0">Nema dodatih vrata (Admin → Uređaji, vrsta Vrata, PGM izlaz alarma).</p>
-    <b class="netcfg-t">Interfon</b>
+    <b class="netcfg-t">Interfon / Zvona</b>
     <div class="dgrid" id="icGrid"></div>
-    <p class="muted" id="icEmpty" style="font-size:13px;margin:0">Nema dodatog interfona (Admin → Uređaji, vrsta Interfon, zona alarma kao okidač).</p>
+    <p class="muted" id="icEmpty" style="font-size:13px;margin:0">Nema dodatog interfona ni zvona (Admin → Uređaji, vrsta Interfon ili Zvono, zona alarma kao okidač).</p>
   </section>
   <!-- Meteorologija: temperatura i vlažnost uživo (spoljni senzor, /api/outside), ostalo primer dok se ne poveže stanica -->
   <section class="card demo" id="weatherCard" aria-labelledby="h-weather">
@@ -985,7 +1021,8 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <p class="alerr" id="alErr" hidden></p>
         <div class="alparts" id="alParts"></div>
         <div class="alquick" id="alQuick"></div>
-        <div class="alsec"><b>Stanje sistema</b></div>
+        <div class="alsec"><b>Stanje sistema</b>
+          <button class="btn ghost alclr" id="alTime" type="button" title="Podesi sat centrale prema satu Teco.Pi-ja"><svg class="i"><use href="#i-clock"/></svg><span>Sinhronizuj sat</span></button></div>
         <div class="alsys" id="alSys"></div>
         <div class="altr" id="alTr"></div>
         <div id="alMemBox" hidden><div class="alsec"><b>Memorija alarma</b><small class="muted">zone u kojima je bio alarm</small>
@@ -1047,7 +1084,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <div class="netcfg">
           <b class="netcfg-t">Dodaj uređaj</b>
           <div class="netst devadd">
-            <label>Vrsta<select class="field" id="devType"><option value="light">Svetlo</option><option value="camera">Kamera</option><option value="door">Vrata (kapija, garaža)</option><option value="intercom">Interfon (zona alarma)</option></select></label>
+            <label>Vrsta<select class="field" id="devType"><option value="light">Svetlo</option><option value="appliance">Uređaj (klima, bojler, pegla, kafe aparat…)</option><option value="camera">Kamera</option><option value="door">Vrata (kapija, garaža)</option><option value="intercom">Interfon (zona alarma)</option><option value="bell">Zvono na vratima (zona alarma)</option></select></label>
             <label>Proizvođač<select class="field" id="devProto"><option value="wiz">WiZ</option></select></label>
             <label>Naziv<input class="field" id="devName" placeholder="npr. Plafon" autocomplete="off"></label>
             <label>Prostorija<input class="field" id="devRoom" placeholder="npr. Dnevna soba" autocomplete="off"></label>
@@ -1058,6 +1095,8 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
             <label class="devdoor" hidden>PGM izlaz<select class="field" id="devDoorPgm"></select></label>
             <label class="devdoor" hidden>Zona za stanje<select class="field" id="devDoorZone"></select></label>
             <label class="devdoor" hidden>Način<select class="field" id="devDoorMode"><option value="pulse">Impuls 5 s (otvori)</option><option value="toggle">Uključi / isključi</option></select></label>
+            <label class="devappl" hidden>Šta je<select class="field" id="devApplKind"></select></label>
+            <label class="devapgm" hidden>PGM izlaz (relej)<select class="field" id="devApplPgm"></select></label>
             <label class="devic" hidden>Okidač (zona alarma)<select class="field" id="devIcZone"></select></label>
         <label class="devic" hidden>Obaveštenje na ekranu<select class="field" id="devIcEvent"></select></label>
         <label class="devurl" hidden>Adresa strima<input class="field" id="devCamUrl" placeholder="rtsp://korisnik:lozinka@ip:554/…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>

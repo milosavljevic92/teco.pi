@@ -172,6 +172,34 @@
 /* šta se vidi u kom delu */
 body:not([data-view="alarm"]) #alCard,body:not([data-view="alarm"]) #alList{display:none!important}
 body:not([data-view="cctv"]) #cctvCard{display:none!important}
+body:not([data-view="dash"]) #dashCard{display:none!important}
+body[data-view="dash"] main.wrap>*:not(#dashCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
+body[data-view="dash"] .grid{display:none!important}
+.dashgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.dtile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:16px;background:var(--surface-2);border:1px solid var(--line);cursor:pointer;min-height:112px;-webkit-user-select:none;user-select:none;transition:border-color .15s,background .15s,transform .1s}
+.dtile:active{transform:scale(.98)}.dtile:hover{border-color:var(--accent)}
+.dtile .dti{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--surface);color:var(--muted);margin-bottom:4px}
+.dtile .dti svg.i{width:22px;height:22px}.dti .em{font-size:21px;line-height:1}
+.dtile b{font-size:14.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dtile small{font-size:12px;color:var(--muted)}
+.dtile.on{border-color:color-mix(in srgb,var(--ok) 50%,var(--line));background:color-mix(in srgb,var(--ok) 9%,var(--surface-2))}
+.dtile.on .dti{background:color-mix(in srgb,var(--ok) 22%,transparent);color:var(--ok)}
+.dtile.k-src.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface-2))}.dtile.k-src.on .dti{background:var(--accent-soft);color:var(--accent)}
+.dtile.k-ring.on{border-color:var(--warn);animation:drpulse 1s ease-in-out infinite}.dtile.k-ring.on .dti{color:var(--warn);background:color-mix(in srgb,var(--warn) 22%,transparent)}
+.dtile.k-door.on .dti{color:var(--warn);background:color-mix(in srgb,var(--warn) 22%,transparent)}.dtile.k-door.on{border-color:var(--warn)}
+.dted{position:absolute;top:6px;right:6px;display:flex;gap:2px}
+.dted button{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.dted button svg.i{width:14px;height:14px}.dted .dx:hover{color:var(--crit)}
+.dashadd{display:flex;flex-direction:column;gap:10px}
+.dashpick{display:flex;flex-direction:column;gap:12px}
+.dpg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}.dpg small{grid-column:1/-1;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.dpk{display:grid;grid-template-columns:34px minmax(0,1fr) 18px;gap:10px;align-items:center;padding:6px 10px 6px 6px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font:inherit;font-size:13.5px;text-align:left;color:inherit;cursor:pointer}
+.dpk .dti{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--surface);color:var(--muted)}.dpk .dti svg.i{width:18px;height:18px}
+.dpk>svg.i{width:16px;height:16px;color:var(--accent)}.dpk span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpk.on{opacity:.55;cursor:default}.dpk.on>svg.i{color:var(--ok)}
+#dashCard .card-head h2{flex:1}
+#dashDone{align-self:flex-start}
+.tgrp[data-view="dash"]+.tsep{margin-top:4px}
 body:not([data-view="smart"]) #smartCard{display:none!important}
 body[data-view="smart"] main.wrap>*:not(#smartCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
 body[data-view="smart"] .grid{display:none!important}
@@ -186,6 +214,12 @@ body[data-view="tools"] .grid{display:none!important}
 .shtile svg.i{width:26px;height:26px;color:var(--accent)}
 .shtile.go{cursor:pointer;text-align:left;font:inherit;color:inherit}.shtile.go:hover{border-color:var(--accent)}
 /* PRIMER stranice (samo izgled): Svetla, Navodnjavanje */
+body:not([data-view="appl"]) #applCard{display:none!important}
+body[data-view="appl"] main.wrap>*:not(#applCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
+body[data-view="appl"] .grid{display:none!important}
+.dr .dri .em{font-size:22px;line-height:1}.dr.on .dri{background:color-mix(in srgb,var(--ok) 20%,transparent)}.dr.on{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.dr.off{opacity:.6}
+html.admin .arcg{opacity:.45;cursor:not-allowed}
 body:not([data-view="lights"]) #lightsCard,body:not([data-view="water"]) #waterCard,body:not([data-view="power"]) #powerCard,body:not([data-view="weather"]) #weatherCard,body:not([data-view="doors"]) #doorsCard{display:none!important}
 body[data-view="doors"] main.wrap>*:not(#doorsCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
 body[data-view="doors"] .grid{display:none!important}
@@ -1174,7 +1208,7 @@ html.admin .rfab{display:none}
   // pilule 1-3 imaju svoj klik (i kad AV nije izabran): odmah taj ulaz, bez prolaska kroz pločicu
   $$('.avpick button').forEach(p => p.addEventListener('click', e => { e.stopPropagation(); curAv = p.dataset.av; pickSrc(p.dataset.av); }));
   // držanje dugmeta izvora 2 s = nasumično u toj kategoriji: AV1-AV3, internet radio stanica, TV kanal
-  [['av1', 'Nasumičan video', 'yt'], ['av', 'Nasumičan AV ulaz', 'av'], ['st', 'Nasumična stanica', 'st'], ['tv', 'Nasumičan kanal', 'tv']].forEach(([src, what, kind]) => {
+  [['av1', 'Nasumičan video', 'yt'], ['av', 'Nasumičan AV ulaz', 'av'], ['st', 'Nasumična stanica', 'st'], ['tv', 'Nasumičan kanal', 'tv'], ['arc', 'Nasumična igra', 'arc']].forEach(([src, what, kind]) => {
     const el = $(`.src[data-src="${src}"]`); if (!el) return;
     el.classList.add('hold'); el.title = 'Drži 2 sekunde: ' + what.toLowerCase();
     el.insertAdjacentHTML('beforeend', '<span class="rndmsg" aria-hidden="true"><svg class="i"><use href="#i-shuffle"/></svg><span class="rt">' + what + '</span><span class="rc"></span></span><span class="rndbar"><i></i></span>');
@@ -1280,18 +1314,21 @@ html.admin .rfab{display:none}
   $('#bootSel').onchange = e => act('boot', { v: e.target.value });
   $$('#themeSeg button').forEach(b => b.onclick = () => act('theme', { v: b.dataset.v }));
   /* meni sa strane: delovi Multimedija / Alarm / CCTV (pamti se izbor, adresa #/alarm radi i kao link) */
-  const VIEWS = ['media', 'smart', 'lights', 'water', 'devices', 'power', 'weather', 'doors', 'alarm', 'cctv', 'tools', 'admin'];
+  const VIEWS = ['dash', 'media', 'smart', 'lights', 'appl', 'water', 'devices', 'power', 'weather', 'doors', 'alarm', 'cctv', 'tools', 'admin'];
   const navOpen = on => { document.body.classList.toggle('nav-open', on); $('#sideBg').hidden = !on; $('#navBtn').setAttribute('aria-expanded', on); };
+  let dashBack = false, backUp = null;   // strana otvorena sa Dashboard-a: dugme nazad vodi na Dashboard
   function setView(v, target) {
     if (!VIEWS.includes(v)) v = 'media';
+    backUp = dashBack ? 'dash' : null; dashBack = false;
+    $$('.shback span').forEach(s => { s.textContent = backUp ? 'Dashboard' : 'Smart Home'; });
     if (v === 'admin' && !isAdmin()) { $('#adminSw').click(); return; }   // PIN; posle uključenja setAdmin vodi ovde
     if (v !== 'admin' && isAdmin()) setAdmin(false);                        // odlazak sa Admin stranice = izlaz iz admina
     const changedView = document.body.dataset.view !== v;
     document.body.dataset.view = v;
     $$('.titems a').forEach(a => a.classList.toggle('cur', a.dataset.view === v && v !== 'admin'));   // trenutna strana u meniju
-    $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v || (g.dataset.view === 'smart' && ['alarm', 'cctv', 'lights', 'water', 'devices', 'power', 'weather', 'doors'].includes(v))));   // Alarm i CCTV su pod Smart Home
-    $('#ptTxt').textContent = { media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', doors: 'Interfon', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', admin: 'Admin' }[v];
-    $('#ptIco').setAttribute('href', { media: '#i-media', smart: '#i-home', lights: '#i-bulb', water: '#i-drop', devices: '#i-plug', power: '#i-zap', weather: '#i-sun', doors: '#i-door', alarm: '#i-shield', cctv: '#i-cam', tools: '#i-tool', admin: '#i-unlock' }[v]);
+    $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v || (g.dataset.view === 'smart' && ['alarm', 'cctv', 'lights', 'appl', 'water', 'devices', 'power', 'weather', 'doors'].includes(v))));   // Alarm i CCTV su pod Smart Home
+    $('#ptTxt').textContent = { dash: 'Dashboard', media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', appl: 'Uređaji', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', doors: 'Interfon / Zvona', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', admin: 'Admin' }[v];
+    $('#ptIco').setAttribute('href', { dash: '#i-dash', media: '#i-media', smart: '#i-home', lights: '#i-bulb', appl: '#i-plug', water: '#i-drop', devices: '#i-plug', power: '#i-zap', weather: '#i-sun', doors: '#i-bell', alarm: '#i-shield', cctv: '#i-cam', tools: '#i-tool', admin: '#i-unlock' }[v]);
     store.set('teco-view', v);
     try { if (location.hash !== '#/' + v) history.replaceState(null, '', '#/' + v); } catch (e) {}
     navOpen(false);
@@ -1344,7 +1381,7 @@ html.admin .rfab{display:none}
   });
   $('#alBack').onclick = () => alOpen(null);
   $$('.shtile[data-go]').forEach(b => b.onclick = () => setView(b.dataset.go));   // prečice na strani Smart Home
-  $$('.shback').forEach(b => b.onclick = () => setView(b.dataset.up));   // nazad na Smart Home (Alarm, CCTV)
+  $$('.shback').forEach(b => b.onclick = () => setView(backUp || b.dataset.up));   // nazad na Smart Home (Alarm, CCTV)
   // Smart Home uređaji: registar (strana Uređaji) i prava svetla (strana Svetla)
   $('#devScan').onclick = async () => {
     const b = $('#devScan'); b.disabled = true; b.querySelector('span').textContent = 'Tražim…';
@@ -1358,7 +1395,8 @@ html.admin .rfab{display:none}
   };
   $('#devAdd').onclick = async () => { const r = await act('dev_add', { name: $('#devName').value, room: $('#devRoom').value, ip: $('#devIp').value, type: $('#devType').value, proto: $('#devProto').value,
       cam_user: $('#devCamUser').value, cam_pass: $('#devCamPass').value, cam_ch: $('#devCamCh').value, cam_url: $('#devCamUrl').value,
-      door_pgm: $('#devDoorPgm').value, door_zone: $('#devDoorZone').value, door_mode: $('#devDoorMode').value, ic_zone: $('#devIcZone').value, ic_event: $('#devIcEvent').value });
+      door_pgm: $('#devDoorPgm').value, door_zone: $('#devDoorZone').value, door_mode: $('#devDoorMode').value, ic_zone: $('#devIcZone').value, ic_event: $('#devIcEvent').value,
+      appl_kind: $('#devApplKind').value, appl_pgm: $('#devApplPgm').value });
     if (!r.err) { ['#devName', '#devRoom', '#devIp', '#devCamUser', '#devCamPass', '#devCamUrl'].forEach(k => { $(k).value = ''; }); $('#devFound').innerHTML = ''; } };
   $('#devProto').onchange = () => { $('#devScanTxt').textContent = 'Pronađi ' + $('#devProto').selectedOptions[0].textContent.replace(' (uskoro)', ''); $('#devFound').innerHTML = ''; };
   let devEdit = null;   // id uređaja koji se menja
@@ -1376,17 +1414,31 @@ html.admin .rfab{display:none}
     zoneSel.innerHTML = '<option value="">— bez stanja —</option>' + zs.map(z => `<option value="${z.id}">Zona ${z.id} · ${esc(z.label || '')}</option>`).join('');
     if (pv) pgmSel.value = pv; zoneSel.value = zv || '';
   }
+  // uređaji (klima, bojler…): vrsta -> naziv i ikonica
+  const APPL = { ac: ['Klima', '❄️'], boiler: ['Bojler', '🚿'], iron: ['Pegla', '👕'], coffee: ['Aparat za kafu', '☕'], heater: ['Grejalica', '♨️'], washer: ['Veš mašina', '🧺'], fan: ['Ventilator', '🌀'], pump: ['Pumpa', '💧'], other: ['Uređaj', '🔌'] };
+  const applKindOpts = v => Object.entries(APPL).map(([k, [n, e]]) => `<option value="${k}"${k === v ? ' selected' : ''}>${e} ${n}</option>`).join('');
+  function pgmOpts(sel, v) {   // PGM izlazi alarma (za relej uređaja)
+    const pg = (((S && S.alarm) || {}).pgms || []).filter(g => g.id <= 16), pv = v != null ? v : sel.value;
+    sel.innerHTML = (pg.length ? pg : [1, 2, 3, 4, 5].map(id => ({ id }))).map(g => `<option value="${g.id}">PGM ${g.id}${(g.label || '').trim() ? ' · ' + esc(g.label.trim()) : ''}</option>`).join('');
+    if (pv) sel.value = pv;
+  }
   function devProtoFill(force) {   // proizvođači za izabranu vrstu (svetlo / kamera) i polja forme
     const t = $('#devType').value, drvs = (S && S.dev_drivers || []).filter(v => v.type === t), pr = $('#devProto');
     const sig = t + drvs.map(v => v.key).join();
     if (force || pr.dataset.sig !== sig) { pr.dataset.sig = sig; pr.innerHTML = drvs.map(v => `<option value="${esc(v.key)}"${v.ready ? '' : ' disabled'}>${esc(v.label)}${v.ready ? '' : ' (uskoro)'}</option>`).join(''); }
     const cam = t === 'camera', url = pr.value === 'camurl';
-    const door = t === 'door', ic = t === 'intercom';
-    $$('.devcam').forEach(e => { e.hidden = !cam || url; }); $$('.devurl').forEach(e => { e.hidden = !url; }); $$('.devipl').forEach(e => { e.hidden = url || door || ic; }); $$('.devdoor').forEach(e => { e.hidden = !door; }); $$('.devic').forEach(e => { e.hidden = !ic; });
-    if (ic) icSelects($('#devIcZone'), $('#devIcEvent'));
+    const door = t === 'door', ic = t === 'intercom' || t === 'bell', appl = t === 'appliance', apgm = appl && pr.value === 'applpgm';
+    $$('.devcam').forEach(e => { e.hidden = !cam || url; }); $$('.devurl').forEach(e => { e.hidden = !url; }); $$('.devipl').forEach(e => { e.hidden = url || door || ic || apgm; }); $$('.devdoor').forEach(e => { e.hidden = !door; }); $$('.devic').forEach(e => { e.hidden = !ic; });
+    $$('.devappl').forEach(e => { e.hidden = !appl; }); $$('.devapgm').forEach(e => { e.hidden = !apgm; });
+    if (appl && !$('#devApplKind').options.length) $('#devApplKind').innerHTML = applKindOpts('ac');
+    if (apgm) pgmOpts($('#devApplPgm'));
+    if (ic) icSelects($('#devIcZone'), $('#devIcEvent'), null, force ? (t === 'bell' ? 'zvono' : 'interfon') : null);
     if (door) doorSelects($('#devDoorPgm'), $('#devDoorZone'));
-    $('#devScan').hidden = cam || door || ic; $('#devName').placeholder = ic ? 'npr. Interfon ulaz' : door ? 'npr. Kapija' : cam ? 'npr. Ulaz' : 'npr. Plafon';
+    $('#devScan').hidden = !['wiz', 'wizplug'].includes(pr.value);
+    $('#devScanTxt').textContent = 'Pronađi WiZ';
+    $('#devName').placeholder = t === 'bell' ? 'npr. Zvono ulaz' : ic ? 'npr. Interfon ulaz' : door ? 'npr. Kapija' : cam ? 'npr. Ulaz' : appl ? 'npr. ' + APPL[$('#devApplKind').value || 'ac'][0] + ' dnevna soba' : 'npr. Plafon';
   }
+  $('#devApplKind').addEventListener('change', () => devProtoFill());
   $('#devType').addEventListener('change', () => { devProtoFill(true); $('#devFound').innerHTML = ''; });
   $('#devProto').addEventListener('change', () => devProtoFill());
   $('#devList').addEventListener('click', async e => {
@@ -1394,7 +1446,7 @@ html.admin .rfab{display:none}
     const ed = e.target.closest('[data-edit]'); if (ed) { devEdit = devEdit === ed.dataset.edit ? null : ed.dataset.edit; memo.devs = null; devRender(S.devices || []); return; }
     const sv = e.target.closest('[data-save]');
     if (sv) { const fm = sv.closest('.devedit'), g = k => { const e = fm.querySelector('[name=' + k + ']'); return e ? e.value : undefined; };
-      const r = await act('dev_edit', { id: sv.dataset.save, name: g('n'), room: g('r'), ip: g('i'), cam_url: g('u') || undefined, cam_user: g('cu'), cam_pass: g('cp') || undefined, cam_ch: g('cc'), door_pgm: g('dp'), door_zone: g('dz'), door_mode: g('dm'), ic_zone: g('iz'), ic_event: g('ie') });
+      const r = await act('dev_edit', { id: sv.dataset.save, name: g('n'), room: g('r'), ip: g('i'), cam_url: g('u') || undefined, cam_user: g('cu'), cam_pass: g('cp') || undefined, cam_ch: g('cc'), door_pgm: g('dp'), door_zone: g('dz'), door_mode: g('dm'), ic_zone: g('iz'), ic_event: g('ie'), appl_kind: g('ak'), appl_pgm: g('ap') });
       if (!r.err) { devEdit = null; memo.devs = null; devRender(S.devices || []); } return; }
     if (e.target.closest('[data-cancel]')) { devEdit = null; memo.devs = null; devRender(S.devices || []); }
   });
@@ -1446,8 +1498,81 @@ html.admin .rfab{display:none}
       return `<div class="dr${x.open ? ' open' : ''}"><span class="dri"><svg class="i"><use href="#i-door"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${st}</small></span>`
         + (tog ? `<button class="dvs" type="button" role="switch" aria-checked="${!!x.pgm_on}" data-dtog="${esc(x.id)}"${x.ok ? '' : ' disabled'}></button>`
                : `<button class="btn gel drb${x.pgm_on ? ' run' : ''}" type="button" data-dopen="${esc(x.id)}"${x.ok ? '' : ' disabled'}><span>${x.pgm_on ? 'Vrata otvorena' : 'Otvori'}</span></button>`) + '</div>'; }).join('');
-    const t = $('#shDoors small'); if (t) t.textContent = ics.some(x => x.ringing) ? 'ZVONI!' : doors.some(x => x.open) ? 'otvoreno: ' + doors.filter(x => x.open).map(x => x.name).join(', ') : (doors.length || ics.length) ? (doors.length ? doors.length + ' vrata' : '') + (doors.length && ics.length ? ' · ' : '') + (ics.length ? ics.length + ' interfon' : '') : 'nema uređaja';
+    const t = $('#shDoors small'); if (t) t.textContent = ics.some(x => x.ringing) ? 'ZVONI!' : doors.some(x => x.open) ? 'otvoreno: ' + doors.filter(x => x.open).map(x => x.name).join(', ') : (doors.length || ics.length) ? [doors.length ? doors.length + ' vrata' : '', ics.filter(x => x.type !== 'bell').length ? ics.filter(x => x.type !== 'bell').length + ' interfon' : '', ics.filter(x => x.type === 'bell').length ? ics.filter(x => x.type === 'bell').length + ' zvono' : ''].filter(Boolean).join(' · ') : 'nema uređaja';
   }
+  // Uređaji (klima, bojler, pegla…): uključi / isključi
+  function applRender(ap) {
+    $('#applEmpty').hidden = !!ap.length;
+    const on = ap.filter(x => x.on).length;
+    $('#applCount').textContent = ap.length ? on + ' od ' + ap.length + ' uključeno' : '';
+    $('#applGrid').innerHTML = ap.map(x => { const k = APPL[(x.appl || {}).kind] || APPL.other;
+      return `<div class="dr${x.on ? ' on' : ''}${x.ok ? '' : ' off'}"><span class="dri"><span class="em">${k[1]}</span></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ok ? (x.on ? 'uključeno' : 'isključeno') + (x.w != null ? ' · ' + Math.round(x.w) + ' W' : '') : 'ne odgovara'}</small></span>`
+        + `<button class="dvs" type="button" role="switch" aria-checked="${!!x.on}" data-atog="${esc(x.id)}"${x.ok ? '' : ' disabled'} aria-label="Uključi / isključi"></button></div>`; }).join('');
+    $('#shAppl small').textContent = ap.length ? (on ? on + ' uključeno' : 'sve isključeno') : 'nema uređaja';
+    if (!$('#shAppl .shdot')) $('#shAppl').insertAdjacentHTML('afterbegin', '<i class="shdot lg" aria-hidden="true"></i>');
+    $('#shAppl .shdot').hidden = !on;
+  }
+  $('#applGrid').addEventListener('click', e => { const s = e.target.closest('[data-atog]'); if (!s || s.disabled) return;
+    const on = s.getAttribute('aria-checked') !== 'true'; s.setAttribute('aria-checked', on); s.closest('.dr').classList.toggle('on', on);
+    send('dev_set', { id: s.dataset.atog, on }).then(r => { if (r.err) { toast(r.err); memo.devs = null; if (S) devRender(S.devices || []); } }); });
+  // Dashboard: omiljene prečice — uređaj (upali/ugasi, otvori), strana Smart Home-a, izvor multimedije
+  let dashEditing = false;
+  const DASH_PAGES = { lights: ['Svetla', 'i-bulb'], appl: ['Uređaji', 'i-plug'], doors: ['Interfon / Zvona', 'i-bell'], alarm: ['Alarm', 'i-shield'], cctv: ['CCTV', 'i-cam'], water: ['Navodnjavanje', 'i-drop'], power: ['Potrošnja struje', 'i-zap'], weather: ['Meteorologija', 'i-sun'] };
+  const dashSrcs = () => [['av1', 'YouTube', 'i-yt'], ['av2', 'AV1 · ' + srcName('av2'), 'i-game'], ['av3', 'AV2 · ' + srcName('av3'), 'i-game'], ['av4', 'AV3 · ' + srcName('av4'), 'i-game'], ['fm', 'FM radio', 'i-radio'], ['st', 'Internet radio', 'i-signal'], ['tv', 'TV uživo', 'i-tv'], ['arc', 'Arcade · PS1', 'i-arcade']];
+  const DEV_ICO = { light: 'i-bulb', door: 'i-door', camera: 'i-cam', intercom: 'i-bell', bell: 'i-bell', appliance: 'i-plug' };
+  function dashTile(f, i) {   // [html pločice] ili null ako stavka više ne postoji
+    const s = S, x = f.t === 'dev' ? (s.devices || []).find(d => d.id === f.v) : null;
+    let ico = '', name = '', sub = '', on = false, kind = '';
+    if (f.t === 'dev') { if (!x) return null; name = x.name;
+      if (x.type === 'appliance') { const k = APPL[(x.appl || {}).kind] || APPL.other; ico = `<span class="em">${k[1]}</span>`; on = !!x.on; sub = x.ok ? (on ? 'uključeno' : 'isključeno') : 'ne odgovara'; kind = 'tog'; }
+      else { ico = `<svg class="i"><use href="#${DEV_ICO[x.type] || 'i-plug'}"/></svg>`;
+        if (x.type === 'light') { on = !!x.on; sub = x.ok ? (on ? 'upaljeno' + (x.dim ? ' ' + x.dim + '%' : '') : 'ugašeno') : 'ne odgovara'; kind = 'tog'; }
+        else if (x.type === 'door') { const tog = (x.door || {}).mode === 'toggle'; on = !!x.pgm_on; sub = !x.ok ? 'alarm nije povezan' : tog ? (on ? 'uključeno' : 'isključeno') : x.pgm_on ? 'otvorena' : x.open ? 'otvorena' : 'dodirni za otvaranje'; kind = tog ? 'tog' : 'door'; }
+        else if (x.type === 'camera') { sub = x.ok ? 'dostupna' : 'ne odgovara'; kind = 'cam'; }
+        else { on = !!x.ringing; sub = x.ringing ? 'ZVONI!' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : 'bez poziva'; kind = 'ring'; } } }
+    else if (f.t === 'page') { const p = DASH_PAGES[f.v]; if (!p) return null; name = p[0]; ico = `<svg class="i"><use href="#${p[1]}"/></svg>`; const sm = $(`.shtile[data-go="${f.v}"] small`); sub = sm ? sm.textContent : ''; kind = 'page'; }
+    else { const p = dashSrcs().find(v => v[0] === f.v); if (!p) return null; name = p[1]; ico = `<svg class="i"><use href="#${p[2]}"/></svg>`; on = s.source === f.v; sub = on ? 'pušta se' : 'Multimedija'; kind = 'src'; }
+    return `<div class="dtile${on ? ' on' : ''} k-${kind}" role="button" tabindex="0" data-i="${i}"><span class="dti">${ico}</span><b>${esc(name)}</b><small>${esc(sub)}</small>`
+      + (dashEditing ? `<span class="dted"><button type="button" data-dmv="-1" aria-label="Pomeri levo"><svg class="i"><use href="#i-left"/></svg></button><button type="button" data-dmv="1" aria-label="Pomeri desno"><svg class="i"><use href="#i-right"/></svg></button><button type="button" class="dx" data-ddel aria-label="Ukloni"><svg class="i"><use href="#i-x"/></svg></button></span>` : '') + '</div>';
+  }
+  function dashRender() {
+    if (!S) return;
+    const favs = S.favs || [];
+    const html = favs.map((f, i) => dashTile(f, i)).filter(Boolean).join('');
+    if ($('#dashGrid').dataset.h !== html) { $('#dashGrid').innerHTML = html; $('#dashGrid').dataset.h = html; }
+    $('#dashEmpty').hidden = !!html; $('#dashAdd').hidden = !dashEditing;
+    $('#dashEdit').hidden = dashEditing;
+    if (!dashEditing) return;
+    const has = (t, v) => favs.some(f => f.t === t && f.v === v);
+    const opt = (t, v, ico, n) => `<button type="button" class="dpk${has(t, v) ? ' on' : ''}" data-t="${t}" data-v="${esc(v)}"${has(t, v) ? ' disabled' : ''}><span class="dti">${ico}</span><span>${esc(n)}</span><svg class="i"><use href="#${has(t, v) ? 'i-check' : 'i-plus'}"/></svg></button>`;
+    const devs = (S.devices || []);
+    const grp = (title, items) => items.length ? `<div class="dpg"><small>${title}</small>${items.join('')}</div>` : '';
+    const ph = grp('Multimedija', dashSrcs().map(([v, n, ic]) => opt('src', v, `<svg class="i"><use href="#${ic}"/></svg>`, n)))
+      + grp('Uređaji', devs.map(d => opt('dev', d.id, d.type === 'appliance' ? `<span class="em">${(APPL[(d.appl || {}).kind] || APPL.other)[1]}</span>` : `<svg class="i"><use href="#${DEV_ICO[d.type] || 'i-plug'}"/></svg>`, d.name + (d.room ? ' · ' + d.room : ''))))
+      + grp('Smart Home strane', Object.entries(DASH_PAGES).map(([v, [n, ic]]) => opt('page', v, `<svg class="i"><use href="#${ic}"/></svg>`, n)));
+    if ($('#dashPick').dataset.h !== ph) { $('#dashPick').innerHTML = ph; $('#dashPick').dataset.h = ph; }
+  }
+  $('#dashEdit').onclick = () => { dashEditing = true; dashRender(); };
+  $('#dashDone').onclick = () => { dashEditing = false; dashRender(); };
+  $('#dashPick').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b && !b.disabled) send('fav_add', { t: b.dataset.t, v: b.dataset.v }).then(r => { if (r.err) toast(r.err); }); });
+  $('#dashGrid').addEventListener('click', e => {
+    const t = e.target.closest('.dtile'); if (!t) return;
+    const i = +t.dataset.i, f = (S.favs || [])[i]; if (!f) return;
+    if (e.target.closest('[data-ddel]')) { send('fav_del', { i }); return; }
+    const mv = e.target.closest('[data-dmv]'); if (mv) { send('fav_move', { i, d: +mv.dataset.dmv }); return; }
+    if (dashEditing) return;
+    dashBack = true;
+    if (f.t === 'page') { setView(f.v); return; }
+    if (f.t === 'src') { act('source', { s: f.v }); setView('media'); return; }
+    const x = (S.devices || []).find(d => d.id === f.v); if (!x) { dashBack = false; return; }
+    if (x.type === 'camera') { setView('cctv'); return; }
+    if (x.type === 'intercom' || x.type === 'bell') { setView('doors'); return; }
+    dashBack = false;   // upali/ugasi ostaje na Dashboard-u
+    if (x.type === 'door' && (x.door || {}).mode !== 'toggle') { t.classList.add('on'); t.querySelector('small').textContent = 'otvaram…'; act('dev_set', { id: x.id }); return; }
+    const on = !t.classList.contains('on'); t.classList.toggle('on', on);
+    send('dev_set', { id: x.id, on }).then(r => { if (r.err) { toast(r.err); t.classList.toggle('on', !on); } });
+  });
+  $('#dashGrid').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('dtile')) { e.preventDefault(); e.target.click(); } });
   // otvaranje vrata: jedan dodir (bez zadrške); držanje 1,5 s gasi relej; dugme pokazuje kad je relej (PGM) uključen
   { let lT = null;
     $('#doorGrid').addEventListener('pointerdown', e => { const o = e.target.closest('[data-dopen]'); if (!o || o.disabled) return; clearTimeout(lT);
@@ -1477,7 +1602,8 @@ html.admin .rfab{display:none}
       + `<span class="arcc">${run && run.id === x.id ? '▶ IGRA SE' : esc(x.sys)}</span></button>`).join('');
     if ($('#arcGrid').dataset.h !== html) { $('#arcGrid').innerHTML = html; $('#arcGrid').dataset.h = html; }   // ne crtaj slike ponovo na svaki broadcast
   }
-  $('#arcGrid').addEventListener('click', e => { const b = e.target.closest('[data-game]'); if (b) { b.disabled = true; act('arc_start', { id: b.dataset.game }).finally(() => { b.disabled = false; }); } });
+  const arcAdm = () => { if (isAdmin()) { toast('U admin režimu se igre ne pokreću.'); return true; } return false; };   // admin = podešavanja, ne igra
+  $('#arcGrid').addEventListener('click', e => { const b = e.target.closest('[data-game]'); if (b && !arcAdm()) { b.disabled = true; act('arc_start', { id: b.dataset.game }).finally(() => { b.disabled = false; }); } });
   $('#arcStop').onclick = () => act('arc_stop');
   function devRender(devs) {
     if (!changed('devs', devs)) return;
@@ -1485,22 +1611,26 @@ html.admin .rfab{display:none}
     if ($('#devList').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // ne prekidaj kucanje u izmeni
     const drvs = S.dev_drivers || [], vend = k => (drvs.find(v => v.key === k) || {}).label || k;
     devProtoFill();
-    const stTxt = x => x.type === 'intercom' ? (x.ringing ? 'ZVONI' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : 'bez poziva') : x.type === 'door' ? (x.open == null ? (x.ok ? 'alarm povezan' : 'alarm nije povezan') : x.open ? 'otvorena' : 'zatvorena') : x.type === 'camera' ? (x.ok ? 'dostupna' : 'ne odgovara') : x.ok ? (x.on ? 'upaljeno' + (x.dim ? ' ' + x.dim + '%' : '') : 'ugašeno') : 'ne odgovara';
+    const stTxt = x => x.type === 'appliance' ? (x.ok ? (x.on ? 'uključeno' : 'isključeno') : 'ne odgovara') : (x.type === 'intercom' || x.type === 'bell') ? (x.ringing ? 'ZVONI' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : 'bez poziva') : x.type === 'door' ? (x.open == null ? (x.ok ? 'alarm povezan' : 'alarm nije povezan') : x.open ? 'otvorena' : 'zatvorena') : x.type === 'camera' ? (x.ok ? 'dostupna' : 'ne odgovara') : x.ok ? (x.on ? 'upaljeno' + (x.dim ? ' ' + x.dim + '%' : '') : 'ugašeno') : 'ne odgovara';
     $('#devList').innerHTML = devs.map(x => {
-      const cam = x.type === 'camera', url = x.proto === 'camurl', c = x.cam || {}, door = x.type === 'door', dr = x.door || {}, ic = x.type === 'intercom', icd = x.intercom || {};
-      const row = `<div class="btd${x.ok ? ' conn' : ''}"><span class="ic"><svg class="i"><use href="#${ic ? 'i-bell' : door ? 'i-door' : cam ? 'i-cam' : 'i-bulb'}"/></svg></span><div class="t"><b>${esc(x.name)}</b><span>${x.room ? esc(x.room) + ' · ' : ''}${ic ? 'Interfon · zona ' + esc(icd.zone) + (x.zone_label ? ' (' + esc(x.zone_label) + ')' : '') : door ? 'Vrata · PGM ' + esc(dr.pgm) + (dr.mode === 'toggle' ? ' · uključi/isključi' : ' · impuls 5 s') + (x.zone_label ? ' · ' + esc(x.zone_label) : '') : (cam ? 'Kamera' : 'Svetlo') + ' · ' + esc(vend(x.proto)) + ' · ' + esc(x.ip) + (cam && !url ? ' · kanal ' + esc(c.ch) : '')} · ${stTxt(x)}</span></div><div class="bb"><button class="btn" type="button" data-edit="${esc(x.id)}">Izmeni</button><button class="btn ghost" type="button" data-del="${esc(x.id)}" data-n="${esc(x.name)}">Ukloni</button></div></div>`;
+      const cam = x.type === 'camera', url = x.proto === 'camurl', c = x.cam || {}, door = x.type === 'door', dr = x.door || {}, ic = x.type === 'intercom' || x.type === 'bell', icd = x.intercom || {}, appl = x.type === 'appliance', ap = x.appl || {}, apgm = x.proto === 'applpgm';
+      const row = `<div class="btd${x.ok ? ' conn' : ''}"><span class="ic"><svg class="i"><use href="#${ic ? 'i-bell' : door ? 'i-door' : cam ? 'i-cam' : appl ? 'i-plug' : 'i-bulb'}"/></svg></span><div class="t"><b>${esc(x.name)}</b><span>${x.room ? esc(x.room) + ' · ' : ''}${appl ? esc((APPL[ap.kind] || APPL.other)[0]) + ' · ' + (apgm ? 'PGM ' + esc(ap.pgm) : esc(vend(x.proto)) + ' · ' + esc(x.ip)) : ic ? (x.type === 'bell' ? 'Zvono' : 'Interfon') + ' · zona ' + esc(icd.zone) + (x.zone_label ? ' (' + esc(x.zone_label) + ')' : '') : door ? 'Vrata · PGM ' + esc(dr.pgm) + (dr.mode === 'toggle' ? ' · uključi/isključi' : ' · impuls 5 s') + (x.zone_label ? ' · ' + esc(x.zone_label) : '') : (cam ? 'Kamera' : 'Svetlo') + ' · ' + esc(vend(x.proto)) + ' · ' + esc(x.ip) + (cam && !url ? ' · kanal ' + esc(c.ch) : '')} · ${stTxt(x)}</span></div><div class="bb"><button class="btn" type="button" data-edit="${esc(x.id)}">Izmeni</button><button class="btn ghost" type="button" data-del="${esc(x.id)}" data-n="${esc(x.name)}">Ukloni</button></div></div>`;
       if (devEdit !== x.id) return row;
       const fld = (lbl, n, v, ex) => `<label>${lbl}<input class="field" name="${n}" value="${esc(v)}"${ex || ''}></label>`;
       return row + `<div class="devedit"><div class="netst devadd">${fld('Naziv', 'n', x.name)}${fld('Prostorija', 'r', x.room || '')}`
-        + (ic ? `<label>Okidač (zona alarma)<select class="field" name="iz" data-v="${esc(icd.zone)}"></select></label><label>Obaveštenje<select class="field" name="ie" data-v="${esc(icd.event || 'interfon')}"></select></label>` : door ? `<label>PGM izlaz<select class="field" name="dp" data-v="${esc(dr.pgm)}"></select></label><label>Zona za stanje<select class="field" name="dz" data-v="${esc(dr.zone || '')}"></select></label><label>Način<select class="field" name="dm"><option value="pulse"${dr.mode !== 'toggle' ? ' selected' : ''}>Impuls 5 s</option><option value="toggle"${dr.mode === 'toggle' ? ' selected' : ''}>Uključi / isključi</option></select></label>` : url ? fld('Adresa strima', 'u', '', ' placeholder="nova adresa (prazno = ostaje)"') : fld('IP adresa', 'i', x.ip, ' inputmode="decimal"'))
+        + (appl ? `<label>Šta je<select class="field" name="ak">${applKindOpts(ap.kind)}</select></label>` + (apgm ? `<label>PGM izlaz (relej)<select class="field" name="ap" data-v="${esc(ap.pgm)}"></select></label>` : fld('IP adresa', 'i', x.ip, ' inputmode="decimal"'))
+          : ic ? `<label>Okidač (zona alarma)<select class="field" name="iz" data-v="${esc(icd.zone)}"></select></label><label>Obaveštenje<select class="field" name="ie" data-v="${esc(icd.event || 'interfon')}"></select></label>` : door ? `<label>PGM izlaz<select class="field" name="dp" data-v="${esc(dr.pgm)}"></select></label><label>Zona za stanje<select class="field" name="dz" data-v="${esc(dr.zone || '')}"></select></label><label>Način<select class="field" name="dm"><option value="pulse"${dr.mode !== 'toggle' ? ' selected' : ''}>Impuls 5 s</option><option value="toggle"${dr.mode === 'toggle' ? ' selected' : ''}>Uključi / isključi</option></select></label>` : url ? fld('Adresa strima', 'u', '', ' placeholder="nova adresa (prazno = ostaje)"') : fld('IP adresa', 'i', x.ip, ' inputmode="decimal"'))
         + (cam && !url ? fld('Korisnik', 'cu', c.user || '') + fld('Lozinka', 'cp', '', ' type="password" placeholder="' + (c.has_pass ? 'ostaje ista' : '') + '"') + fld('Kanal', 'cc', c.ch || 1, ' inputmode="numeric"') : '')
         + `</div><div class="smbrow"><button class="btn ghost" type="button" data-cancel>Otkaži</button><button class="btn gel" type="button" data-save="${esc(x.id)}">Sačuvaj</button></div></div>`;
     }).join('')
       || '<p class="muted" style="font-size:13px;margin:0">Još nema uređaja. Dodaj prvi ispod.</p>';
     $('#devList').querySelectorAll('select[name=iz]').forEach(s => { const ev = s.closest('.devadd').querySelector('select[name=ie]'); icSelects(s, ev, s.dataset.v, ev.dataset.v); });
+    $('#devList').querySelectorAll('select[name=ap]').forEach(s => pgmOpts(s, s.dataset.v));
     $('#devList').querySelectorAll('select[name=dp]').forEach(s => { const z = s.closest('.devadd').querySelector('select[name=dz]'); doorSelects(s, z, s.dataset.v, z.dataset.v); });
     camRender(devs.filter(x => x.type === 'camera'));
-    doorRender(devs.filter(x => x.type === 'door'), devs.filter(x => x.type === 'intercom'));    const lights = devs.filter(x => x.type === 'light');
+    doorRender(devs.filter(x => x.type === 'door'), devs.filter(x => x.type === 'intercom' || x.type === 'bell'));
+    applRender(devs.filter(x => x.type === 'appliance'));
+    const lights = devs.filter(x => x.type === 'light');
     if (!$('#myLights').contains(document.activeElement)) {
       $('#myLights').innerHTML = lights.map(x => `<div class="dl${x.on ? ' on' : ''}${x.ok ? '' : ' off'}"><button class="dlt" type="button" data-lt="${esc(x.id)}" title="Upali / ugasi"><svg class="i"><use href="#i-bulb"/></svg></button><span class="t"><b>${esc(x.name)}</b><small>${x.ok ? (x.room ? esc(x.room) + ' · ' : '') + '<span class="lv">' + (x.dim || 100) + '%</span>' : 'ne odgovara'}</small></span><input type="range" min="10" max="100" value="${x.dim || 100}" data-ld="${esc(x.id)}" aria-label="Jačina">`
         + `<div class="lcol" data-id="${esc(x.id)}">${[['2700', 'Toplo', '#ffb46b'], ['4200', 'Dnevno', '#fff1d9'], ['6500', 'Hladno', '#d6e6ff'], ['max', 'Najjače', '#ffffff']].map(([k, t, sw]) => `<button type="button" data-temp="${k}" aria-pressed="${k !== 'max' && !x.rgb && Math.abs((x.temp || 0) - k) < 700}"><i style="background:${sw}"></i>${t}</button>`).join('')}`
@@ -1558,6 +1688,8 @@ html.admin .rfab{display:none}
   const twoTap = (id, c) => { const b = $(id), sp = b.querySelector('span'), t0 = sp.textContent; let armed = null;
     b.onclick = () => { if (!armed) { sp.textContent = 'Sigurno? Dodirni ponovo'; b.classList.add('armed'); armed = setTimeout(() => { armed = null; sp.textContent = t0; b.classList.remove('armed'); }, 3500); return; }
       clearTimeout(armed); armed = null; sp.textContent = t0; b.classList.remove('armed'); act(c); }; };
+  $('#alTime').onclick = () => { const b = $('#alTime'); b.disabled = true; b.querySelector('span').textContent = 'Podešavam…';
+    act('alarm_time').finally(() => { b.disabled = false; b.querySelector('span').textContent = 'Sinhronizuj sat'; }); };
   twoTap('#alMemClr', 'alarm_mem_clear'); twoTap('#alEvClr', 'alarm_ev_clear');
   $('#alQuick').addEventListener('click', e => { const b = e.target.closest('.qpg'); if (!b || b.classList.contains('run')) return;
     haptic(); b.classList.add('run'); const s = b.querySelector('small'); let left = 5; s.textContent = 'Aktivno · još ' + left + ' s';
@@ -2203,6 +2335,7 @@ html.admin .rfab{display:none}
     $('#fmPanel').hidden = !isFm; $('#stPanel').hidden = !isSt; $('#tvPanel').hidden = !isTv; $('#consPanel').hidden = !isCon; $('#arcPanel').hidden = !isArc; $('#lcd').hidden = isFm || isSt || isTv || isCon || isArc;
     $('.transport').hidden = isFm || isSt || isTv || isCon || isArc;
     arcRender(s.arcade || {});
+    dashRender();
     if (document.activeElement !== $('#bootSel')) $('#bootSel').value = s.boot || 'last';
 
     /* TV */

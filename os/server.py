@@ -198,7 +198,9 @@ ADMIN_CMDS = {'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_s
 
 # ---------------------------------------------------------------- Smart Home drajveri (po proizvođaču)
 
-DEV_TYPES = {'light': 'Svetlo', 'camera': 'Kamera', 'door': 'Vrata', 'intercom': 'Interfon'}   # kasnije: 'plug' (utičnica), 'switch', 'sensor'…
+DEV_TYPES = {'light': 'Svetlo', 'appliance': 'Uređaj', 'camera': 'Kamera', 'door': 'Vrata', 'intercom': 'Interfon', 'bell': 'Zvono'}
+RING_TYPES = ('intercom', 'bell')   # okidač je zona alarma (neko zvoni)
+APPL_KINDS = {'ac': 'Klima', 'boiler': 'Bojler', 'iron': 'Pegla', 'coffee': 'Aparat za kafu', 'heater': 'Grejalica', 'washer': 'Veš mašina', 'fan': 'Ventilator', 'pump': 'Pumpa', 'other': 'Uređaj'}
 
 
 class DevDriver:
@@ -247,8 +249,14 @@ class WizDriver(DevDriver):
             s.close()
 
     async def call(self, ip, method, params=None, broadcast=False, timeout=1.5):
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self._send, ip, {'method': method, 'params': params or {}}, timeout, broadcast)
+        msg = {'method': method, 'params': params or {}}
+        if broadcast:
+            return await asyncio.get_running_loop().run_in_executor(None, self._send, ip, msg, timeout, True)
+        for _ in range(3):   # UDP preko Wi-Fi-ja: izgubljen paket nije „ne odgovara“ — pokušaj još 2 puta
+            r = await asyncio.get_running_loop().run_in_executor(None, self._send, ip, msg, 0.8, False)
+            if r:
+                return r
+        return []
 
     async def probe(self, ip):
         r = await self.call(ip, 'getPilot')
@@ -357,14 +365,93 @@ class ZoneIntercomDriver(DevDriver):
         return {'ok': True}
 
 
-class SoonDriver(DevDriver):
-    def __init__(self, key, label):
-        self.key, self.label = key, label
+class ZoneBellDriver(ZoneIntercomDriver):
+    """Zvono na vratima: isto kao interfon (zona alarma se otvori kad neko pozvoni)."""
+    key, label, dtype = 'bellzone', 'Zona alarma', 'bell'
 
 
-DEV_DRIVERS = {d.key: d for d in (WizDriver(), SoonDriver('sonoff', 'Sonoff'), SoonDriver('shelly', 'Shelly'), SoonDriver('tasmota', 'Tasmota'),
+class PgmApplDriver(PgmDoorDriver):
+    """Uređaj (klima, bojler, pegla…) na releju PGM izlaza alarma: uključi / isključi. Stanje = PGM uključen."""
+    key, label, dtype = 'applpgm', 'Alarm PGM (relej)', 'appliance'
+
+
+class WizPlugDriver(WizDriver):
+    """WiZ pametna utičnica: isti lokalni API kao sijalica, samo uključi / isključi."""
+    key, label, dtype = 'wizplug', 'WiZ utičnica', 'appliance'
+
+    async def set(self, d, on=None, **kw):
+        return bool(await self.call(d['ip'], 'setPilot', {'state': bool(on)}))
+
+
+class HttpRelayDriver(DevDriver):
+    """Relej preko lokalnog HTTP API-ja, bez oblaka (Shelly, Tasmota)."""
+    dtype, ready = 'appliance', True
+
+    @staticmethod
+    async def _get(url):
+        import aiohttp
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as s:
+                async with s.get(url) as r:
+                    return await r.json(content_type=None) if r.status == 200 else None
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, OSError):
+            return None
+
+
+class ShellyDriver(HttpRelayDriver):
+    """Shelly Gen1 (/relay/0) i Gen2+ (/rpc/Switch.*): generacija se pamti iz /shelly."""
+    key, label = 'shelly', 'Shelly'
+    _gen = {}
+
+    async def probe(self, ip):
+        j = await self._get('http://%s/shelly' % ip)
+        if not isinstance(j, dict):
+            return None
+        self._gen[ip] = int(j.get('gen') or 1)
+        return {'mac': j.get('mac')}
+
+    async def _g(self, ip):
+        if ip not in self._gen:
+            await self.probe(ip)
+        return self._gen.get(ip, 1)
+
+    async def poll(self, d):
+        if await self._g(d['ip']) >= 2:
+            j = await self._get('http://%s/rpc/Switch.GetStatus?id=0' % d['ip'])
+            return {'ok': True, 'on': bool(j.get('output')), 'w': j.get('apower')} if isinstance(j, dict) else {'ok': False}
+        j = await self._get('http://%s/relay/0' % d['ip'])
+        return {'ok': True, 'on': bool(j.get('ison'))} if isinstance(j, dict) else {'ok': False}
+
+    async def set(self, d, on=None, **kw):
+        if await self._g(d['ip']) >= 2:
+            return await self._get('http://%s/rpc/Switch.Set?id=0&on=%s' % (d['ip'], 'true' if on else 'false')) is not None
+        return await self._get('http://%s/relay/0?turn=%s' % (d['ip'], 'on' if on else 'off')) is not None
+
+
+class TasmotaDriver(HttpRelayDriver):
+    """Tasmota (Sonoff i drugi sa Tasmota firmverom): /cm?cmnd=Power."""
+    key, label = 'tasmota', 'Tasmota / Sonoff'
+
+    async def probe(self, ip):
+        j = await self._get('http://%s/cm?cmnd=Status%%205' % ip)
+        if not isinstance(j, dict):
+            return None
+        return {'mac': ((j.get('StatusNET') or {}).get('Mac'))}
+
+    async def poll(self, d):
+        j = await self._get('http://%s/cm?cmnd=Power' % d['ip'])
+        if not isinstance(j, dict):
+            return {'ok': False}
+        v = j.get('POWER', j.get('POWER1'))
+        return {'ok': True, 'on': v == 'ON'}
+
+    async def set(self, d, on=None, **kw):
+        return await self._get('http://%s/cm?cmnd=Power%%20%s' % (d['ip'], 'On' if on else 'Off')) is not None
+
+
+DEV_DRIVERS = {d.key: d for d in (WizDriver(), WizPlugDriver(), ShellyDriver(), TasmotaDriver(), PgmApplDriver(),
                                    CameraDriver('hikvision', 'Hikvision'), CameraDriver('dahua', 'Dahua'), CameraDriver('camurl', 'Drugi (RTSP/HTTP adresa)'),
-                                   PgmDoorDriver(), ZoneIntercomDriver())}
+                                   PgmDoorDriver(), ZoneIntercomDriver(), ZoneBellDriver())}
 CCTV_DIR = Path('/tmp/cctv')   # HLS segmenti kamera (tmpfs, RAM)
 CCTV_IDLE = 20                 # s bez gledanja -> ffmpeg se gasi
 
@@ -1255,37 +1342,77 @@ class Teco:
 </svg>'''
         await self._overlay(['cons', s, c['svg'], name], build, keep=True, show=show)
 
-    async def show_arcade(self, show=True):
-        """Arcade bez pokrenute igre: PlayStation 1 slika (kao konzole na AV ulazima)."""
+    @staticmethod
+    def arc_svg(w, h, title, line):
+        """Arcade slika: PlayStation 1 konzola, ARCADE, naslov i red teksta (za mpv overlay i framebuffer)."""
         try:
             c = json.loads((STATIC / 'consoles.json').read_text())['ps1']
         except (OSError, ValueError, KeyError):
-            return
-        n = len(self.arc_games())
-        line = ('%d %s · izaberi igru na telefonu' % (n, 'igra' if n % 10 == 1 and n % 100 != 11 else 'igre' if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else 'igara')) \
-            if n else 'Nema igara — stavi ih na flash u folder CD'
+            c = {'svg': '<svg viewBox="0 0 260 150"></svg>'}
         color = '#f59e0b'
-
-        def build(w, h):
-            ch = int(h * 0.46)
-            cw = int(ch * 260 / 150)
-            if cw > w * 0.8:
-                cw = int(w * 0.8)
-                ch = int(cw * 150 / 260)
-            cx, cy = (w - cw) // 2, int(h * 0.1)
-            inner = c['svg'].replace('<svg viewBox="0 0 260 150"', '<svg x="%d" y="%d" width="%d" height="%d" viewBox="0 0 260 150"' % (cx, cy, cw, ch), 1)
-            ty = cy + ch + int(h * 0.1)
-            return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
+        ch = int(h * 0.46)
+        cw = int(ch * 260 / 150)
+        if cw > w * 0.8:
+            cw = int(w * 0.8)
+            ch = int(cw * 150 / 260)
+        cx, cy = (w - cw) // 2, int(h * 0.1)
+        inner = c['svg'].replace('<svg viewBox="0 0 260 150"', '<svg x="%d" y="%d" width="%d" height="%d" viewBox="0 0 260 150"' % (cx, cy, cw, ch), 1)
+        ty = cy + ch + int(h * 0.1)
+        esc = Teco._esc
+        return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
 <defs><radialGradient id="bgGlow" cx="50%" cy="0%" r="90%"><stop offset="0" stop-color="{color}" stop-opacity=".35"/><stop offset="1" stop-color="{color}" stop-opacity="0"/></radialGradient></defs>
 <rect width="{w}" height="{h}" fill="#0b1018"/><rect width="{w}" height="{h}" fill="url(#bgGlow)"/>
 <ellipse cx="{w // 2}" cy="{cy + ch * 0.78:.0f}" rx="{cw * 0.4:.0f}" ry="{h * 0.02:.0f}" fill="#000" fill-opacity=".5"/>
 {inner}
 <text x="{w // 2}" y="{ty}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.038:.0f}" letter-spacing="3" fill="{color}">ARCADE</text>
-<text x="{w // 2}" y="{ty + h * 0.095:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.075:.0f}" fill="#ffffff">PlayStation 1</text>
-<text x="{w // 2}" y="{ty + h * 0.165:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-size="{h * 0.036:.0f}" fill="#9aa4b3">{self._esc(line)}</text>
+<text x="{w // 2}" y="{ty + h * 0.095:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.075:.0f}" fill="#ffffff">{esc(title[:34])}</text>
+<text x="{w // 2}" y="{ty + h * 0.165:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-size="{h * 0.036:.0f}" fill="#9aa4b3">{esc(line)}</text>
 </svg>'''
-        await self._overlay(['arc', c['svg'], line], build, keep=True, show=show)
 
+    def arc_line(self):
+        n = len(self.arc_games())
+        return ('%d %s · izaberi igru na telefonu' % (n, 'igra' if n % 10 == 1 and n % 100 != 11 else 'igre' if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else 'igara')) \
+            if n else 'Nema igara — stavi ih na flash u folder CD'
+
+    async def show_arcade(self, show=True):
+        """Arcade bez pokrenute igre: PlayStation 1 slika (kao konzole na AV ulazima)."""
+        line = self.arc_line()
+        await self._overlay(['arc', line], lambda w, h: self.arc_svg(w, h, 'PlayStation 1', line), keep=True, show=show)
+
+    async def arc_fb(self, title, line):
+        """Arcade slika u framebuffer (/dev/fb0): vidi se u prelazu plejer <-> emulator umesto Teco.Pi logoa.
+        Kešira se (data/ovl/arcfb-*.fb); posle igre arc_fb_reset vraća Teco.Pi logo."""
+        f = DATA / 'ovl' / ('arcfb-%s.fb' % hashlib.md5(json.dumps([title, line, 1], ensure_ascii=False).encode()).hexdigest()[:12])
+        try:
+            if not f.exists():
+                f.parent.mkdir(exist_ok=True)
+                w, h = (int(x) for x in Path('/sys/class/graphics/fb0/virtual_size').read_text().split(','))
+                vw = round(h * SCREEN_ASPECT)
+                svg = f.with_suffix('.svg')
+                svg.write_text(self.arc_svg(vw, h, title, line))
+                png = f.with_suffix('.png')
+                p = await asyncio.create_subprocess_exec('rsvg-convert', '-w', str(vw), '-h', str(h), '-o', str(png), str(svg))
+                await p.wait()
+
+                def conv():
+                    from PIL import Image, ImageChops
+                    r, g, b = Image.open(png).convert('RGB').resize((w, h), Image.LANCZOS).split()
+                    # RGB565 little-endian (vc4drmfb, 16 bita): nizi bajt GGGBBBBB, viši RRRRRGGG — bitovi se ne preklapaju, pa je zbir tačan
+                    lo = ImageChops.add(g.point(lambda v: ((v >> 2) & 7) << 5), b.point(lambda v: v >> 3))
+                    hi = ImageChops.add(r.point(lambda v: (v >> 3) << 3), g.point(lambda v: v >> 5))
+                    f.write_bytes(Image.merge('LA', (lo, hi)).tobytes())
+                await asyncio.get_running_loop().run_in_executor(None, conv)
+                svg.unlink(missing_ok=True)
+                png.unlink(missing_ok=True)
+            await asyncio.get_running_loop().run_in_executor(None, lambda: Path('/dev/fb0').write_bytes(f.read_bytes()))
+        except Exception as e:
+            log.warning('Arcade slika (fb0): %s', e)
+
+    async def arc_fb_reset(self):
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, lambda: Path('/dev/fb0').write_bytes((DATA / 'splash.fb').read_bytes()))
+        except OSError:
+            pass
     async def hide_console(self):
         self.logo_on = False
         await self.mpv.cmd('overlay-remove', 0)
@@ -1494,7 +1621,9 @@ class Teco:
         await self.fm_stop()
         await self.stream_stop()
         await self.tv_stop()
+        await self.arc_fb(g['name'], 'Pokrećem igru…')   # u prelazu se vidi Arcade, ne Teco.Pi logo
         await self._run('systemctl', '--user', 'stop', 'teco-player', timeout=15)   # mpv oslobađa ekran (DRM) i procesor
+        await self.arc_fb(g['name'], 'Pokrećem igru…')
         # oslobodi procesor za emulator: CCTV strim, YouTube Node pomoćnik; procesor na punu brzinu dok se igra
         self.cctv_stop()
         w = getattr(self, 'jsc_worker', None)
@@ -1557,13 +1686,14 @@ class Teco:
     def arc_restore(self, a):
         """mpv nazad posle igre — jednom po igri; arc_stop i arc_wait čekaju isti zadatak."""
         if not a.get('rt'):
-            a['rt'] = asyncio.get_running_loop().create_task(self._arc_restore())
+            a['rt'] = asyncio.get_running_loop().create_task(self._arc_restore(a))
         return a['rt']
 
-    async def _arc_restore(self):
+    async def _arc_restore(self, a):
         if getattr(self, 'arc_starting', False):   # odmah sledeća igra: mpv ostaje ugašen
             return
         await self._run('sudo', '-n', 'sh', '-c', 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo ondemand > $f; done', timeout=5)
+        await self.arc_fb('PlayStation 1', 'Kraj igre')   # dok se plejer podiže: Arcade slika, ne Teco.Pi logo
         self.mpv_back = True   # na povezivanje mpv-a NE sklanjaj sliku (novi izvor je upravo postavlja)
         await self._run('systemctl', '--user', 'start', 'teco-player', timeout=15)
         for _ in range(150):   # čekaj da se mpv poveže pre komandi novog izvora (inače ostane Teco.Pi slika)
@@ -1571,6 +1701,10 @@ class Teco:
                 break
             await asyncio.sleep(0.1)
         self.mpv_back = False
+        if self.mpv.connected and not self.amp_active():   # novi mpv kreće sa 100%: vrati jačinu iz igre (i utišano)
+            await self.mpv.cmd('set_property', 'volume', a.get('vol', 70))
+            await self.mpv.cmd('set_property', 'mute', bool(a.get('mute')))
+        await self.arc_fb_reset()   # framebuffer opet Teco.Pi logo (za pokretanje i ispade plejera)
 
     async def arc_stop(self):
         a = getattr(self, 'arc', None)
@@ -2228,7 +2362,11 @@ class Teco:
                 g = next((g for g in al.get('pgms', []) if g.get('id') == int(dr.get('pgm') or 0)), None)
                 st = {'ok': al.get('run') == 'run', 'open': z.get('open') if z else None, 'zone_label': z.get('label') if z else None,
                       'pgm_on': bool(g and g.get('on')) or time.time() < getattr(self, 'door_until', {}).get(d['id'], 0)}
-            if d.get('type') == 'intercom':   # interfon: zvoni (zona otvorena sada) i poslednji poziv
+            if d.get('proto') == 'applpgm':   # uređaj na PGM releju: uključen = PGM uključen
+                al = getattr(self, 'alarm', None) or {}
+                g = next((g for g in al.get('pgms', []) if g.get('id') == int((d.get('appl') or {}).get('pgm') or 0)), None)
+                st = {'ok': al.get('run') == 'run', 'on': bool(g and g.get('on'))}
+            if d.get('type') in RING_TYPES:   # interfon / zvono: zvoni (zona otvorena sada) i poslednji poziv
                 al = getattr(self, 'alarm', None) or {}
                 zid = int((d.get('intercom') or {}).get('zone') or 0)
                 z = next((z for z in al.get('zones', []) if z.get('id') == zid), None)
@@ -2278,6 +2416,13 @@ class Teco:
         st = await drv.poll(d) if drv and drv.ready else {'ok': False}
         if not hasattr(self, 'dev_state'):
             self.dev_state = {}
+        fails = self.__dict__.setdefault('dev_fails', {})
+        if st.get('ok'):
+            fails.pop(d['id'], None)
+        elif (self.dev_state.get(d['id']) or {}).get('ok'):   # „ne odgovara“ tek posle 3 neuspele provere zaredom (~15 s)
+            fails[d['id']] = fails.get(d['id'], 0) + 1
+            if fails[d['id']] < 3:
+                return
         if self.dev_state.get(d['id']) != st:
             self.dev_state[d['id']] = st
             self.mark()
@@ -2319,16 +2464,29 @@ class Teco:
             drv = DEV_DRIVERS.get(a.get('proto') or 'wiz')
             if not drv or not drv.ready:
                 return {'err': (drv.label if drv else 'Ovaj proizvođač') + ' još nije podržan.'}
-            if drv.dtype == 'intercom':   # interfon: zona alarma kao okidač, obaveštenje koje se pokreće
+            if drv.dtype in RING_TYPES:   # interfon / zvono: zona alarma kao okidač, obaveštenje koje se pokreće
                 try:
                     zone = int(a.get('ic_zone') or 0)
                 except (TypeError, ValueError):
                     zone = 0
                 if not zone:
                     return {'err': 'Izaberi zonu alarma koja se okida kad neko zvoni.'}
-                d = {'id': secrets.token_hex(4), 'type': 'intercom', 'proto': drv.key, 'ip': '',
-                     'intercom': {'zone': zone, 'event': a.get('ic_event') if a.get('ic_event') in self.st.get('events', {}) else 'interfon'},
-                     'name': str(a.get('name') or '').strip()[:40] or 'Interfon', 'room': str(a.get('room') or '').strip()[:30]}
+                ev0 = 'zvono' if drv.dtype == 'bell' else 'interfon'
+                d = {'id': secrets.token_hex(4), 'type': drv.dtype, 'proto': drv.key, 'ip': '',
+                     'intercom': {'zone': zone, 'event': a.get('ic_event') if a.get('ic_event') in self.st.get('events', {}) else ev0},
+                     'name': str(a.get('name') or '').strip()[:40] or DEV_TYPES[drv.dtype], 'room': str(a.get('room') or '').strip()[:30]}
+                devs.append(d)
+                save_state(self.st)
+                self.mark()
+                return {'ok': 'Dodato: ' + d['name']}
+            kind = a.get('appl_kind') if a.get('appl_kind') in APPL_KINDS else 'other'
+            if drv.key == 'applpgm':   # uređaj na PGM releju alarma: bez IP adrese
+                try:
+                    pgm = max(1, min(32, int(a.get('appl_pgm') or 0)))
+                except (TypeError, ValueError):
+                    return {'err': 'Izaberi PGM izlaz.'}
+                d = {'id': secrets.token_hex(4), 'type': 'appliance', 'proto': drv.key, 'ip': '', 'appl': {'kind': kind, 'pgm': pgm},
+                     'name': str(a.get('name') or '').strip()[:40] or APPL_KINDS[kind], 'room': str(a.get('room') or '').strip()[:30]}
                 devs.append(d)
                 save_state(self.st)
                 self.mark()
@@ -2360,9 +2518,11 @@ class Teco:
             if info is None:
                 return {'err': '%s na %s ne odgovara.' % (drv.label, f['ip'])}
             d = dict(f, id=secrets.token_hex(4), type=drv.dtype, proto=drv.key, mac=info.get('mac'),
-                     name=f['name'] or DEV_TYPES.get(drv.dtype, 'Uređaj'))
+                     name=f['name'] or (APPL_KINDS[kind] if drv.dtype == 'appliance' else DEV_TYPES.get(drv.dtype, 'Uređaj')))
             if cam is not None:
                 d['cam'] = cam
+            if drv.dtype == 'appliance':
+                d['appl'] = {'kind': kind}
             devs.append(d)
             save_state(self.st)
             await self.dev_poll(d)
@@ -2371,7 +2531,26 @@ class Teco:
         d = next((x for x in devs if x['id'] == a.get('id')), None)
         if not d:
             return {'err': 'Uređaj nije pronađen.'}
-        if c == 'dev_edit' and d.get('type') == 'intercom':
+        if c == 'dev_edit' and d.get('type') == 'appliance':   # vrsta (klima, bojler…) i PGM; IP ide dalje kao kod ostalih
+            ap = dict(d.get('appl') or {})
+            if a.get('appl_kind') in APPL_KINDS:
+                ap['kind'] = a['appl_kind']
+            if d.get('proto') == 'applpgm':
+                try:
+                    if a.get('appl_pgm') not in (None, ''):
+                        ap['pgm'] = max(1, min(32, int(a['appl_pgm'])))
+                except (TypeError, ValueError):
+                    return {'err': 'PGM je broj.'}
+                d.update(appl=ap, name=str(a.get('name') or d['name']).strip()[:40], room=str(a.get('room') if a.get('room') is not None else d.get('room', '')).strip()[:30])
+                save_state(self.st)
+                self.mark()
+                return {'ok': 'Sačuvano: ' + d['name']}
+            d['appl'] = ap
+        if c == 'dev_set' and d.get('proto') == 'applpgm':   # relej uređaja: PGM uključi / isključi
+            r = await self.alarm_do({'pgm': str((d.get('appl') or {}).get('pgm')), 'cmd': 'on' if a.get('on') else 'off'})
+            self.mark()
+            return {'err': r['err']} if r.get('err') else {'ok': d['name'] + (': uključeno' if a.get('on') else ': isključeno')}
+        if c == 'dev_edit' and d.get('type') in RING_TYPES:
             ic = dict(d.get('intercom') or {})
             try:
                 if a.get('ic_zone') not in (None, ''):
@@ -2933,6 +3112,12 @@ class Teco:
         if c == 'alarm_mem_clear':
             r = await self.alarm_post('/zone', {'p': 'all', 'cmd': 'clear_alarm_memory'})
             return {'ok': 'Memorija alarma je obrisana'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
+        if c == 'alarm_time':   # sat centrale = sat Teco.Pi-ja
+            r = await self.alarm_post('/time', {})
+            if not r.get('ok'):
+                return {'err': r.get('err') or 'Nije uspelo.'}
+            d = r.get('drift')
+            return {'ok': 'Sat centrale podešen: ' + r['time'] + ('' if d is None or abs(d) < 60 else ' (kasnio je %d min)' % (d // 60) if d > 0 else ' (žurio je %d min)' % (-d // 60))}
         if c == 'alarm_ev_clear':
             r = await self.alarm_post('/events/clear', {})
             return {'ok': 'Dnevnik događaja je obrisan'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
@@ -3016,7 +3201,7 @@ class Teco:
         self._zone_prev = zc
         if zp is not None:
             for dv in self.st.get('devices', []):
-                if dv.get('type') != 'intercom':
+                if dv.get('type') not in RING_TYPES:
                     continue
                 ic = dv.get('intercom') or {}
                 zid = int(ic.get('zone') or 0)
@@ -3024,8 +3209,8 @@ class Teco:
                     if not hasattr(self, 'ring_last'):
                         self.ring_last = {}
                     self.ring_last[dv['id']] = int(time.time())
-                    log.info('interfon %s zvoni (zona %s)', dv.get('name'), zid)
-                    ev = ic.get('event') or 'interfon'
+                    log.info('%s %s zvoni (zona %s)', DEV_TYPES[dv['type']].lower(), dv.get('name'), zid)
+                    ev = ic.get('event') or ('zvono' if dv['type'] == 'bell' else 'interfon')
                     if self.st.get('events', {}).get(ev, {}).get('on', True):
                         asyncio.get_running_loop().create_task(self.fire_event(ev))
         cur = {g.get('id'): bool(g.get('on')) for g in st.get('pgms', [])}
@@ -3596,7 +3781,7 @@ class Teco:
             await mpv_oneshot(sock, 'set_property', 'mute', m)
 
     # ---------- nasumično: stanica, kanal ili ceo izvor
-    RAND_MEMORY = {'st': 12, 'tv': 25, 'yt': 10, 'av': 1, 'src': 2, 'all': 2, 'fm': 3}   # koliko poslednjih izbora se ne ponavlja
+    RAND_MEMORY = {'st': 12, 'tv': 25, 'yt': 10, 'av': 1, 'src': 2, 'all': 2, 'fm': 3, 'arc': 4}   # koliko poslednjih izbora se ne ponavlja
 
     def _rand(self, kind, items, key=lambda x: x, exclude=()):
         """Nasumičan izbor bez skorašnjih ponavljanja: pamti poslednje izbore po kategoriji
@@ -3613,7 +3798,15 @@ class Teco:
         return pick
 
     async def random_pick(self, what=None):
-        what = what or {'st': 'st', 'tv': 'tv', 'av1': 'yt'}.get(self.source, 'av' if self.source in AVS else 'src')
+        what = what or {'st': 'st', 'tv': 'tv', 'av1': 'yt', 'arc': 'arc'}.get(self.source, 'av' if self.source in AVS else 'src')
+        if what == 'arc':   # nasumična igra sa flasha (ne ista koja se upravo igra)
+            games = self.arc_games()
+            if not games:
+                return {'err': 'Nema igara na flashu (folder CD).'}
+            a = getattr(self, 'arc', None)
+            x = self._rand('arc', games, key=lambda v: v['id'], exclude=(a['game']['id'],) if a and self.arc_running() else ())
+            r = await self.arc_start(x['id'])
+            return {'ok': 'Nasumično: ' + x['name']} if r.get('ok') else r
         if what == 'all':   # RND na daljinskom: nasumičan izvor I nasumičan sadržaj u njemu (bez AV ulaza)
             kinds = ['st', 'tv'] + (['yt'] if any(x.get('url') for x in self.st.get('history', [])) else []) \
                 + (['fm'] if self.st['fm'].get('list') else [])
@@ -3626,7 +3819,7 @@ class Teco:
                     await self.set_source('fm')
                 return {'ok': 'Nasumično: FM · ' + p['n']}
         if what == 'src':
-            what = self._rand('src', [s for s in SOURCES if s not in AVS], exclude=(self.source,))   # bez AV ulaza
+            what = self._rand('src', [s for s in SOURCES if s not in AVS and s != 'arc'], exclude=(self.source,))   # bez AV ulaza i Arcade
         elif what == 'av':   # nasumičan AV ulaz (AV1-AV3)
             what = self._rand('av', list(AVS), exclude=(self.source,))
         if what == 'yt':   # nasumičan video iz istorije gledanja
@@ -3824,6 +4017,33 @@ class Teco:
             return await self.dns_set(a)
         elif c == 'net_mode':
             return await self.net_mode(a.get('v'))
+        elif c in ('fav_add', 'fav_del', 'fav_move'):   # Dashboard: omiljene prečice (zajedničke za sve telefone)
+            favs = self.st.setdefault('favs', [])
+            if c == 'fav_add':
+                t, v = str(a.get('t') or ''), str(a.get('v') or '')[:40]
+                if t not in ('dev', 'page', 'src') or not v:
+                    return {'err': 'Nepoznata prečica.'}
+                if any(f['t'] == t and f['v'] == v for f in favs):
+                    return {'err': 'Već je na Dashboard-u.'}
+                if len(favs) >= 40:
+                    return {'err': 'Najviše 40 prečica.'}
+                favs.append({'t': t, 'v': v})
+            else:
+                try:
+                    i = int(a.get('i'))
+                    if not 0 <= i < len(favs):
+                        raise ValueError
+                except (TypeError, ValueError):
+                    return {'err': 'Prečica nije pronađena.'}
+                if c == 'fav_del':
+                    favs.pop(i)
+                else:
+                    j = i + (1 if int(a.get('d') or 0) > 0 else -1)
+                    if 0 <= j < len(favs):
+                        favs[i], favs[j] = favs[j], favs[i]
+            save_state(self.st)
+            self.mark()
+            return {}
         elif c == 'arc_start':
             return await self.arc_start(str(a.get('id') or ''))
         elif c == 'arc_stop':
@@ -3842,7 +4062,7 @@ class Teco:
             return await self.alarm_cfg_set(a)
         elif c == 'alarm':   # uključi/isključi: dozvoljeno svima u mreži (izbor korisnika)
             return await self.alarm_do(a)
-        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events'):
+        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events', 'alarm_time'):
             return await self.alarm_extra(c, a)
         elif c == 'ntp_set':
             return await self.ntp_set(a)
@@ -4275,6 +4495,7 @@ class Teco:
             'smb': self.smb_snapshot(),
             'devices': self.dev_snapshot(),
             'arcade': self.arc_snapshot(),
+            'favs': self.st.get('favs', []),
             'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
             'sys': self.sys,
         }

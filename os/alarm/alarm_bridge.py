@@ -484,6 +484,30 @@ async def h_zone(request):
     return web.json_response({'ok': bool(ok)} if ok else {'err': 'Centrala nije prihvatila komandu.'})
 
 
+async def h_time(request):
+    """Sat centrale = sat Teco.Pi-ja (lokalno vreme, NTP). Kao PAI sync_time, ali uvek (bez praga odstupanja)."""
+    if alarm is None or state['run'] != 'run':
+        return web.json_response({'err': 'Alarm nije povezan.'}, status=503)
+    from datetime import datetime
+    now = datetime.now()
+    try:
+        before = alarm.storage.get_container('system')['date']['time']
+        drift = int((now - before).total_seconds())
+    except Exception:
+        drift = None
+    args = dict(century=now.year // 100, year=now.year % 100, month=now.month, day=now.day, hour=now.hour, minute=now.minute)
+    try:
+        reply = await alarm.send_wait(alarm.panel.get_message('SetTimeDate'), args, reply_expected=0x3, timeout=10)
+    except Exception as e:
+        log.warning('sat centrale: %s', e)
+        reply = None
+    log.info('sat centrale -> %s (odstupanje bilo %s s): %s', now.strftime('%d.%m.%Y %H:%M'), drift, 'ok' if reply is not None else 'bez odgovora')
+    full_status_now()
+    if reply is None:
+        return web.json_response({'err': 'Centrala nije potvrdila novo vreme.'})
+    return web.json_response({'ok': True, 'time': now.strftime('%d.%m.%Y %H:%M'), 'drift': drift})
+
+
 async def h_events_range(request):
     """Događaji između from i to (unix vreme, to=0: do sada), najnoviji poslednji, najviše 500."""
     a = await request.json()
@@ -533,6 +557,7 @@ async def main():
     app.router.add_post('/partition', h_partition)
     app.router.add_post('/pgm', h_pgm)
     app.router.add_post('/zone', h_zone)
+    app.router.add_post('/time', h_time)
     app.router.add_post('/events/clear', h_events_clear)
     app.router.add_post('/events/range', h_events_range)
     runner = web.AppRunner(app, access_log=None)   # server pita na 1,5 s: bez zapisa svakog upita (/tmp je u RAM-u)
