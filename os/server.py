@@ -627,6 +627,36 @@ class Mpv:
         return m.get('data', True) if m.get('error') == 'success' else None
 
 
+async def loop_watchdog(limit=0.3):
+    """Stranica treba da odgovara odmah: ako je glavna petlja zauzeta > limit s (nešto sinhrono je blokira),
+    poseban thread zapiše gde je stala (stek), najviše jednom u 30 s po istom mestu."""
+    import threading
+    import traceback
+    import sys
+    main_id = threading.get_ident()
+    beat = [time.monotonic()]
+    seen = {}
+
+    def watch():
+        while True:
+            time.sleep(0.1)
+            lag = time.monotonic() - beat[0]
+            if lag > limit:
+                fr = sys._current_frames().get(main_id)
+                st = traceback.extract_stack(fr)[-6:] if fr else []
+                where = ' <- '.join('%s:%d %s' % (os.path.basename(f.filename), f.lineno, f.name) for f in reversed(st))
+                key = st[-1][:3] if st else None
+                if time.monotonic() - seen.get(key, 0) > 30:
+                    seen[key] = time.monotonic()
+                    log.warning('petlja zauzeta %.1f s: %s', lag, where)
+                while time.monotonic() - beat[0] > limit:   # isti zastoj ne prijavljuj ponovo
+                    time.sleep(0.05)
+    threading.Thread(target=watch, daemon=True, name='loop-watchdog').start()
+    while True:
+        beat[0] = time.monotonic()
+        await asyncio.sleep(0.05)
+
+
 async def mpv_oneshot(sock, *args):
     """Jedna komanda za pomoćni mpv (FM), bez trajne veze."""
     try:
@@ -1529,10 +1559,24 @@ class Teco:
 
     # ---------- Arcade: PS1 emulator (RetroArch + PCSX ReARMed), radi SAMO dok se igra
     def arc_games(self):
-        """Igre sa USB diskova: <disk>/CD/<igra>/*.cue|chd|pbp|iso (ili fajl direktno u CD). Keš 30 s."""
+        """Igre sa USB diskova (keš). Pretraga flasha ide u pozadinskoj niti na 30 s — inače blokira server
+        (spor USB); stranica do tada vidi poslednju listu. Samo prvi put (prazan keš) traži odmah."""
         c = getattr(self, '_arc_cache', None)
-        if c and time.time() - c[0] < 30:
-            return c[1]
+        if c is None:
+            return self._arc_scan()
+        if time.time() - c[0] >= 30 and not getattr(self, '_arc_scanning', False):
+            self._arc_scanning = True
+            loop = asyncio.get_running_loop()
+
+            def done(f):
+                self._arc_scanning = False
+                if not f.exception() and [g['id'] for g in f.result()] != [g['id'] for g in c[1]]:
+                    self.mark()   # lista igara se promenila (flash izvađen/ubačen)
+            loop.run_in_executor(None, self._arc_scan).add_done_callback(done)
+        return c[1]
+
+    def _arc_scan(self):
+        """<disk>/CD/<igra>/*.cue|chd|pbp|iso (ili fajl direktno u CD); i da li postoji BIOS."""
         games = []
         for cd in sorted(glob.glob(str(USB_MNT / '*' / 'CD'))):
             for e in sorted(os.scandir(cd), key=lambda x: x.name.lower()):
@@ -1552,6 +1596,7 @@ class Teco:
                     games.append({'id': hashlib.md5(pick.encode()).hexdigest()[:10], 'name': re.sub(r'\s*\([^)]*\)', '', name).strip() or name,
                                   'region': reg, 'path': pick, 'sys': 'PS1', 'art': art,
                                   'artv': int(os.stat(art).st_mtime) if art else 0})
+        self._arc_bios = any((ARC_DIR / 'bios').glob('scph*')) if ARC_DIR.exists() else False
         self._arc_cache = (time.time(), games)
         return games
 
@@ -1723,7 +1768,7 @@ class Teco:
         return {'games': [dict({k: v for k, v in g.items() if k not in ('path', 'art')}, art=bool(g['art'])) for g in self.arc_games()],
                 'run': {'id': a['game']['id'], 'name': a['game']['name'], 't0': a['t0'], 'art': bool(a['game']['art']),
                         'artv': a['game']['artv']} if a and a['proc'].returncode is None else None,
-                'bios': any((ARC_DIR / 'bios').glob('scph*')) if ARC_DIR.exists() else False}
+                'bios': getattr(self, '_arc_bios', False)}
 
     # ---------- YouTube lista: pamćenje i vraćanje (TV, ponovno pokretanje)
     def yt_snapshot(self):
@@ -4359,29 +4404,35 @@ class Teco:
     async def sys_loop(self):
         while True:
             s = {}
-            try:
-                s['cpu'] = round(int(Path('/sys/class/thermal/thermal_zone0/temp').read_text()) / 1000, 1)
-            except (OSError, ValueError):
-                s['cpu'] = None
-            # unutra: DHT22 (sa vlažnošću) ili DS18B20 na 1-Wire; napolju: vrednost poslata preko /api/outside
-            temps = []
-            devs = [d for fam in ('10', '22', '28', '3b', '42') for d in glob.glob('/sys/bus/w1/devices/%s-*/temperature' % fam)]
-            for dev in sorted(devs):
+
+            def sensors():
+                """Senzori se čitaju u posebnoj niti: DHT22 i DS18B20 (1-Wire) čitanje traje 0,3-0,8 s
+                i inače blokira server (stranica tada ne odgovara)."""
                 try:
-                    temps.append(round(int(Path(dev).read_text()) / 1000, 1))
+                    cpu = round(int(Path('/sys/class/thermal/thermal_zone0/temp').read_text()) / 1000, 1)
                 except (OSError, ValueError):
-                    temps.append(None)
-            # DHT22 preko kernel drajvera (dtoverlay=dht11): temperatura + vlažnost; čitanje ponekad ne uspe,
-            # pa se zadnja dobra vrednost drži do 60 s
-            dht_t = dht_h = None
-            for dev in glob.glob('/sys/bus/iio/devices/iio:device*'):
-                try:
-                    if Path(dev, 'name').read_text().strip().startswith('dht'):
-                        dht_t = round(int(Path(dev, 'in_temp_input').read_text()) / 1000, 1)
-                        dht_h = round(int(Path(dev, 'in_humidityrelative_input').read_text()) / 1000)
-                        self.dht_last = (dht_t, dht_h, time.monotonic())
-                except (OSError, ValueError):
-                    pass
+                    cpu = None
+                # unutra: DHT22 (sa vlažnošću) ili DS18B20 na 1-Wire; napolju: vrednost poslata preko /api/outside
+                temps = []
+                devs = [d for fam in ('10', '22', '28', '3b', '42') for d in glob.glob('/sys/bus/w1/devices/%s-*/temperature' % fam)]
+                for dev in sorted(devs):
+                    try:
+                        temps.append(round(int(Path(dev).read_text()) / 1000, 1))
+                    except (OSError, ValueError):
+                        temps.append(None)
+                # DHT22 preko kernel drajvera (dtoverlay=dht11): temperatura + vlažnost; čitanje ponekad ne uspe
+                dt = dh = None
+                for dev in glob.glob('/sys/bus/iio/devices/iio:device*'):
+                    try:
+                        if Path(dev, 'name').read_text().strip().startswith('dht'):
+                            dt = round(int(Path(dev, 'in_temp_input').read_text()) / 1000, 1)
+                            dh = round(int(Path(dev, 'in_humidityrelative_input').read_text()) / 1000)
+                    except (OSError, ValueError):
+                        pass
+                return cpu, temps, dt, dh
+            s['cpu'], temps, dht_t, dht_h = await asyncio.get_running_loop().run_in_executor(None, sensors)
+            if dht_t is not None:   # zadnja dobra vrednost se drži do 60 s
+                self.dht_last = (dht_t, dht_h, time.monotonic())
             if dht_t is None and self.dht_last and time.monotonic() - self.dht_last[2] < 60:
                 dht_t, dht_h = self.dht_last[0], self.dht_last[1]
             s['room'] = dht_t if dht_t is not None else (temps[0] if temps else None)
@@ -4764,7 +4815,7 @@ def make_app():
         await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
         if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
             await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
+        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
 
     async def on_stop(app):
         await teco.fm_stop()
