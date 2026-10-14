@@ -466,11 +466,25 @@ def load_state():
     return st
 
 
+_state_lock = __import__('threading').Lock()
+
+
+def _write_state(data):
+    with _state_lock:   # upisi idu redom (poslednji pobeđuje)
+        DATA.mkdir(parents=True, exist_ok=True)
+        tmp = STATE_FILE.with_suffix('.tmp')
+        tmp.write_text(data)
+        os.replace(tmp, STATE_FILE)
+
+
 def save_state(st):
-    DATA.mkdir(parents=True, exist_ok=True)
-    tmp = STATE_FILE.with_suffix('.tmp')
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1))
-    os.replace(tmp, STATE_FILE)
+    """Stanje se pretvori u tekst odmah (brzo), a upis na SD karticu ide u pozadinskoj niti:
+    upis ume da traje 0,3-0,4 s i tada server (stranica, daljinski) ne bi odgovarao."""
+    data = json.dumps(st, ensure_ascii=False, indent=1)
+    try:
+        asyncio.get_running_loop().run_in_executor(None, _write_state, data)
+    except RuntimeError:   # van petlje (pokretanje): odmah
+        _write_state(data)
 
 
 SLIDE_W, SLIDE_H = 720, 576      # rezolucija izlaza (PAL)
@@ -1020,6 +1034,17 @@ class Teco:
         urls = [f['url'] for f in rf] if rf else [info['url']]
         return info.get('title') or url, float(info.get('duration') or 0), urls
 
+    @staticmethod
+    def _url_ok(u):
+        """Da li YouTube link još prima zahtev kao plejer (Range od početka do kraja); čita se samo 1 bajt."""
+        import urllib.request
+        try:
+            with urllib.request.urlopen(urllib.request.Request(u, headers={'Range': 'bytes=0-'}), timeout=4) as r:
+                r.read(1)
+                return r.status in (200, 206)
+        except Exception:
+            return False
+
     def _rc_put(self, key, title, dur, urls):
         m = re.search(r'[?&]expire=(\d+)', urls[0])
         self.rcache[key] = {'t': title, 'd': dur, 'urls': urls, 'exp': int(m.group(1)) if m else time.time() + 3600}
@@ -1037,9 +1062,14 @@ class Teco:
         Prvo brza priprema (tv_embedded), a ako YouTube to ne dozvoli za ovaj video — obična (fast se ne koristi više)."""
         key = self._vid(url)
         hit = self.rcache.get(key)
-        if hit and hit['exp'] - time.time() > 900:
-            return hit['t'], hit['d'], hit['urls']
         loop = asyncio.get_running_loop()
+        if hit and hit['exp'] - time.time() > 900:
+            # YouTube posle prvog gledanja ume da „zaključa“ link (plejer tada dobije 403 na Range: bytes=0-),
+            # pa se keširani link kratko proveri; ako ga više ne prima — nova priprema
+            if await loop.run_in_executor(None, self._url_ok, hit['urls'][0]):
+                return hit['t'], hit['d'], hit['urls']
+            log.info('YouTube %s: link iz keša više ne važi, pripremam ponovo', key)
+            self.rcache.pop(key, None)
         t0 = time.monotonic()
         how = 'brzo'
         try:
@@ -1766,7 +1796,7 @@ class Teco:
                   'fps_toggle', 'recording_toggle', 'streaming_toggle', 'ai_service', 'runahead_toggle', 'close_content', 'grab_mouse_toggle'):
             opts['input_' + k] = 'nul'
         try:
-            hdmi = Path('/sys/class/drm/card0-HDMI-A-1/status').read_text().strip() == 'connected'
+            hdmi = Path('/sys/class/drm/card0-HDMI-A-1/enabled').read_text().strip() == 'enabled'   # izlaz stvarno radi (ne samo kabl)
         except OSError:
             hdmi = False
         # format slike (Arcade → Slika): '43' originalni PS1 4:3, 'wide' preko celog (širokog) ekrana
@@ -2625,7 +2655,7 @@ class Teco:
             return
         self._hdmi_try = time.monotonic()
         try:
-            if Path('/sys/class/drm/card0-HDMI-A-1/status').read_text().strip() != 'connected':
+            if Path('/sys/class/drm/card0-HDMI-A-1/enabled').read_text().strip() != 'enabled':
                 return
             card = next(l.split()[0] for l in Path('/proc/asound/cards').read_text().splitlines() if 'vc4hdmi' in l)
         except (OSError, StopIteration):

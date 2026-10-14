@@ -113,16 +113,20 @@ The original STL files are not kept in the repo. To regenerate, download the Min
 Printables into a folder and run:
 
 ```
-python make169.py <folder with the original STLs> .
-python fitcheck.py .
-python preview.py . preview.png
-python interior.py . interior.png
-python pcbdraw.py main-pcb.png main-pcb-outline.dxf
-python auxpcb.py aux-pcb.png aux-pcb-outline.dxf
+python scripts/make169.py <folder with the original STLs> elements
+python scripts/fitcheck.py elements
+python scripts/preview.py elements renders/preview.png
+python scripts/interior.py elements renders/interior.png
+python scripts/assembly.py elements renders/assembly-section.png
+python scripts/pcbdraw.py renders/main-pcb.png main-pcb-outline.dxf
+python scripts/auxpcb.py renders/aux-pcb.png aux-pcb-outline.dxf
 ```
+
+Run from this folder. Layout: `elements/` printable STL parts, `renders/` images, `scripts/` the
+Python scripts (they import each other from their own folder, so they stay together).
 
 `make169.py` calls `frontpanel.py` for the front strip v2 and `buttons.stl`.
 
-`fitcheck.py`, `preview.py`, `interior.py`, `assembly.py` and `pcbdraw.py` work on the files in
-this folder only. Needs `trimesh manifold3d scipy networkx shapely matplotlib pillow`.
-Dimensions are at the top of the sections in `make169.py` and in `layout.py`.
+`fitcheck.py`, `preview.py`, `interior.py` and `assembly.py` read the STL files from the folder
+given as the first argument (`elements`). Needs `trimesh manifold3d scipy networkx shapely matplotlib pillow`.
+Dimensions are at the top of the sections in `scripts/make169.py` and in `scripts/layout.py`.
