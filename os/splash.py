@@ -29,9 +29,16 @@ def svg(w, h):
 </svg>'''
 
 
-def make_fb(out, w=720, h=576, vw=1024):
-    """Slika za /dev/fb0: RGB565 (16 bita), kao što ekran (vc4drmfb) očekuje."""
+def make_fb(out, w=None, h=None, vw=None):
+    """Slika za /dev/fb0: RGB565 (16 bita), kao što ekran (vc4drmfb) očekuje.
+    Veličina iz framebuffer-a: AV 720x576 se crta u 16:9 širini; HDMI (npr. 1024x600) ima kvadratne piksele."""
     from PIL import Image
+    if w is None:
+        try:
+            w, h = (int(x) for x in Path('/sys/class/graphics/fb0/virtual_size').read_text().split(','))
+        except (OSError, ValueError):
+            w, h = 720, 576
+    vw = vw or (round(h * 16 / 9) if w == 720 else w)
     src = Path(out).with_suffix('.svg')
     png = Path(out).with_suffix('.png')
     src.write_text(svg(vw, h))

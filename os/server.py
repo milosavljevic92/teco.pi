@@ -187,7 +187,7 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
                         '<path d="M10 92c7-5 13-5 20 0s13 5 20 0 13-5 20 0 13 5 20 0" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>'),
 }
 
-ADMIN_CMDS = {'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
+ADMIN_CMDS = {'scr_set', 'scr_press', 'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
               # Bluetooth: povezivanje već uparenih (bt_connect/bt_disconnect) je za sve, uparivanje samo Admin
               'bt_scan', 'bt_pair', 'bt_remove', 'pin_req',
               'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct', 'alarm_cfg_get',
@@ -477,6 +477,11 @@ SLIDE_W, SLIDE_H = 720, 576      # rezolucija izlaza (PAL)
 SCREEN_ASPECT = 16 / 9           # oblik ekrana monitora; mpv razvlači 720x576 na ceo ekran (keepaspect=no)
 
 
+def screen_vw(w, h):
+    """Širina za crtanje u kvadratnim pikselima: AV (720x576) se razvlači na 16:9 ekran; HDMI (npr. 1024x600) ima kvadratne piksele."""
+    return round(h * SCREEN_ASPECT) if w == 720 else w
+
+
 def slide_image(im):
     """Cela slika na ekranu, bez sečenja i razvlačenja; prazno polje = zamućena ista slika."""
     from PIL import ImageFilter, ImageEnhance, ImageOps, Image
@@ -712,7 +717,10 @@ class Teco:
         self.ytdlp_ok = False   # postaje True kad se yt_dlp modul učita (vidi warm_ytdlp)
         self.pending = []       # linkovi koji se pripremaju: {'id', 'url', 't', 'err'}
         self.pid = 0
-        self.rcache = {}        # ID videa -> pripremljeni linkovi (važe dok ne istekne 'expire')
+        try:   # ID videa -> pripremljeni linkovi (važe dok ne istekne 'expire', ~6 h); čuva se i posle restarta
+            self.rcache = {k: v for k, v in json.loads((DATA / 'rcache.json').read_text()).items() if v.get('exp', 0) > time.time() + 900}
+        except (OSError, ValueError):
+            self.rcache = {}
         self.sys = {}
         self.cpu_hist, self.room_hist, self.out_hist = [], [], []
         self.cpu_prev = None
@@ -775,6 +783,105 @@ class Teco:
                 except Exception as e:  # pin zauzet ili nema GPIO-a
                     log.warning('rele na GPIO%s nije dostupan: %s', r['pin'], e)
             self.gpio.append(dev)
+
+    # ---------- dugme SOURCE na ekranu: GPIO preko tranzistora/optokaplera „pritisne“ dugme ekrana.
+    # Ekran ne javlja koji je ulaz izabran, pa Teco pamti (cur) i računa koliko puta da pritisne
+    # po redosledu ulaza na ekranu (order: 7" 1024x600 ekran ide HDMI → AV → VGA → HDMI…).
+    SCR_DEF = {'on': False, 'pin': 6, 'order': ['HDMI', 'AV', 'VGA'], 'cur': 'HDMI', 'press_ms': 200, 'gap_ms': 700}
+
+    def scr_cfg(self):
+        c = dict(self.SCR_DEF, **(self.st.get('scrbtn') or {}))
+        return c
+
+    def scr_dev(self, pin):
+        d = getattr(self, '_scr_dev', None)
+        if d and d[0] == pin:
+            return d[1]
+        if d and d[1]:
+            d[1].close()
+        dev = None
+        try:
+            from gpiozero import OutputDevice
+            dev = OutputDevice(pin, initial_value=False)
+        except Exception as e:
+            log.warning('dugme ekrana na GPIO%s nije dostupno: %s', pin, e)
+        self._scr_dev = (pin, dev)
+        return dev
+
+    async def scr_press(self, n=1):
+        """Pritisni dugme ekrana n puta (jedan po jedan, sa razmakom da ekran stigne da promeni ulaz)."""
+        c = self.scr_cfg()
+        dev = self.scr_dev(int(c['pin']))
+        if not dev:
+            return False
+        lock = self.__dict__.setdefault('_scr_lock', asyncio.Lock())
+        async with lock:
+            for i in range(n):
+                dev.on()
+                await asyncio.sleep(c['press_ms'] / 1000)
+                dev.off()
+                if i < n - 1:
+                    await asyncio.sleep(c['gap_ms'] / 1000)
+        return True
+
+    async def scr_input(self, want):
+        """Prebaci ekran na ulaz want (HDMI / AV …) brojem pritisaka od trenutnog ulaza."""
+        c = self.scr_cfg()
+        if not c['on'] or want not in c['order'] or c['cur'] not in c['order']:
+            return
+        o = c['order']
+        n = (o.index(want) - o.index(c['cur'])) % len(o)
+        if not n:
+            return
+        self.st['scrbtn'] = dict(self.st.get('scrbtn') or {}, cur=want)
+        save_state(self.st)
+        log.info('ekran: %s -> %s (%d pritiska)', c['cur'], want, n)
+        await self.scr_press(n)
+        self.mark()
+
+    async def scr_cmd(self, c, a):
+        cfg = dict(self.st.get('scrbtn') or {})
+        if c == 'scr_set':   # podešavanje (Admin)
+            if 'on' in a:
+                cfg['on'] = bool(a['on'])
+            if a.get('pin') not in (None, ''):
+                try:
+                    pin = int(a['pin'])
+                except (TypeError, ValueError):
+                    return {'err': 'GPIO je broj.'}
+                if pin in [r['pin'] for r in self.st['relays']] + [2, 3, 4, 17] or not 2 <= pin <= 27:
+                    return {'err': 'GPIO%s je zauzet ili ne postoji.' % pin}
+                cfg['pin'] = pin
+            if a.get('order'):
+                order = [x.strip().upper() for x in re.split(r'[,>→\s]+', str(a['order'])) if x.strip()][:6]
+                if 'HDMI' not in order or 'AV' not in order or len(set(order)) != len(order):
+                    return {'err': 'Redosled mora da sadrži HDMI i AV (npr. HDMI, AV, VGA).'}
+                cfg['order'] = order
+            for k in ('press_ms', 'gap_ms'):
+                if a.get(k) not in (None, ''):
+                    try:
+                        cfg[k] = max(50, min(3000, int(a[k])))
+                    except (TypeError, ValueError):
+                        return {'err': 'Vreme je u milisekundama.'}
+            if a.get('cur'):
+                cfg['cur'] = str(a['cur']).upper()
+            self.st['scrbtn'] = cfg
+            save_state(self.st)
+            self.mark()
+            if cfg.get('on'):   # odmah na ulaz koji odgovara izvoru
+                await self.scr_input('AV' if self.source in AVS else 'HDMI')
+            return {'ok': 'Sačuvano'}
+        if c == 'scr_press':   # proba: jedan pritisak (ulaz koji Teco pamti ide jedan dalje)
+            ok = await self.scr_press(1)
+            if not ok:
+                return {'err': 'GPIO nije dostupan.'}
+            k = self.scr_cfg()
+            if k['cur'] in k['order']:
+                cfg['cur'] = k['order'][(k['order'].index(k['cur']) + 1) % len(k['order'])]
+                self.st['scrbtn'] = cfg
+                save_state(self.st)
+                self.mark()
+            return {'ok': 'Pritisnuto · ekran sada: ' + self.scr_cfg()['cur']}
 
     SRC_ROLES = ('av2', 'av3', 'av4', 'tuner')   # releji ulaza: uvek najviše jedan uključen
 
@@ -868,6 +975,20 @@ class Teco:
         return st
 
     @staticmethod
+    def _extract_fast(url):
+        """Brza priprema (~2-4 s umesto 6-7 s): YouTube „tv_embedded“ klijent daje isti 480p H.264 + zvuk,
+        bez rešavanja JS zadatka u Node-u. Ne radi za videe koji ne dozvoljavaju ugrađivanje i za one sa
+        ograničenjem uzrasta — tada se koristi obična priprema (_extract, sa kolačićima)."""
+        import yt_dlp
+        opts = {'quiet': True, 'no_warnings': True, 'noplaylist': True, 'format': YT_FMT,
+                'extractor_args': {'youtube': {'player_client': ['tv_embedded'], 'skip': ['hls']}}}
+        with yt_dlp.YoutubeDL(opts) as y:
+            info = y.extract_info(url, download=False)
+        if info.get('entries'):
+            info = info['entries'][0]
+        rf = info.get('requested_formats')
+        return info.get('title') or url, float(info.get('duration') or 0), [f['url'] for f in rf] if rf else [info['url']]
+    @staticmethod
     def _extract(url):
         """yt-dlp u samom procesu servera (bez pokretanja novog programa): ~2 s umesto ~5 s."""
         import yt_dlp
@@ -899,24 +1020,42 @@ class Teco:
         urls = [f['url'] for f in rf] if rf else [info['url']]
         return info.get('title') or url, float(info.get('duration') or 0), urls
 
-    async def resolve(self, url):
-        """Pripremljeni linkovi važe ~6 h (parametar expire), pa se pamte: ponovno puštanje kreće odmah."""
-        key = self._vid(url)
-        hit = self.rcache.get(key)
-        if hit and hit['exp'] - time.time() > 900:
-            return hit['t'], hit['d'], hit['urls']
-        t0 = time.monotonic()
-        if self.ytdlp_ok:
-            title, dur, urls = await asyncio.get_running_loop().run_in_executor(self.ytpool, self._extract, url)
-        else:
-            title, dur, urls = await self._resolve_cli(url)
-        log.info('YouTube %s pripremljen za %.1f s', key, time.monotonic() - t0)
+    def _rc_put(self, key, title, dur, urls):
         m = re.search(r'[?&]expire=(\d+)', urls[0])
         self.rcache[key] = {'t': title, 'd': dur, 'urls': urls, 'exp': int(m.group(1)) if m else time.time() + 3600}
         for k in [k for k, v in self.rcache.items() if v['exp'] < time.time()]:
             del self.rcache[k]
-        return title, dur, urls
+        try:
+            tmp = DATA / 'rcache.tmp'
+            tmp.write_text(json.dumps(self.rcache))
+            os.replace(tmp, DATA / 'rcache.json')
+        except OSError:
+            pass
 
+    async def resolve(self, url, fast=False):
+        """Pripremljeni linkovi važe ~6 h (parametar expire), pa se pamte (i na disku): ponovno puštanje kreće odmah.
+        Prvo brza priprema (tv_embedded), a ako YouTube to ne dozvoli za ovaj video — obična (fast se ne koristi više)."""
+        key = self._vid(url)
+        hit = self.rcache.get(key)
+        if hit and hit['exp'] - time.time() > 900:
+            return hit['t'], hit['d'], hit['urls']
+        loop = asyncio.get_running_loop()
+        t0 = time.monotonic()
+        how = 'brzo'
+        try:
+            if not self.ytdlp_ok:
+                raise RuntimeError('yt_dlp nije učitan')
+            title, dur, urls = await loop.run_in_executor(self.ytpool, self._extract_fast, url)
+        except Exception as e:
+            how = 'obično'
+            log.info('YouTube %s: brza priprema ne ide (%s)', key, str(e).replace('ERROR: ', '')[:100])
+            if self.ytdlp_ok:
+                title, dur, urls = await loop.run_in_executor(self.ytpool, self._extract, url)
+            else:
+                title, dur, urls = await self._resolve_cli(url)
+        log.info('YouTube %s pripremljen za %.1f s (%s)', key, time.monotonic() - t0, how)
+        self._rc_put(key, title, dur, urls)
+        return title, dur, urls
     @staticmethod
     def _vid(url):
         """ID videa iz različitih oblika YouTube linka, da isti video ima isti ključ."""
@@ -1048,7 +1187,7 @@ class Teco:
         self.mark()
         asyncio.get_running_loop().create_task(self._oembed_title(entry))
         try:
-            title, dur, urls = await self.resolve(url)
+            title, dur, urls = await self.resolve(url, fast=now)
         except RuntimeError as e:
             entry['err'] = str(e)
             self.mark()
@@ -1147,7 +1286,7 @@ class Teco:
         rsvg to stisne u stvarnu rezoluciju izlaza; ekran ga vrati u pravi oblik."""
         w = int(await self.mpv.cmd('get_property', 'osd-width') or 720)
         h = int(await self.mpv.cmd('get_property', 'osd-height') or 576)
-        vw = round(h * SCREEN_ASPECT)
+        vw = screen_vw(w, h)
         key = hashlib.md5(json.dumps(parts + [w, h, 7], ensure_ascii=False).encode()).hexdigest()[:12]
         if keep:
             (DATA / 'ovl').mkdir(exist_ok=True)
@@ -1412,12 +1551,12 @@ class Teco:
     async def arc_fb(self, title, line):
         """Arcade slika u framebuffer (/dev/fb0): vidi se u prelazu plejer <-> emulator umesto Teco.Pi logoa.
         Kešira se (data/ovl/arcfb-*.fb); posle igre arc_fb_reset vraća Teco.Pi logo."""
-        f = DATA / 'ovl' / ('arcfb-%s.fb' % hashlib.md5(json.dumps([title, line, 1], ensure_ascii=False).encode()).hexdigest()[:12])
         try:
+            w, h = (int(x) for x in Path('/sys/class/graphics/fb0/virtual_size').read_text().split(','))
+            f = DATA / 'ovl' / ('arcfb-%s.fb' % hashlib.md5(json.dumps([title, line, w, h, 1], ensure_ascii=False).encode()).hexdigest()[:12])
             if not f.exists():
                 f.parent.mkdir(exist_ok=True)
-                w, h = (int(x) for x in Path('/sys/class/graphics/fb0/virtual_size').read_text().split(','))
-                vw = round(h * SCREEN_ASPECT)
+                vw = screen_vw(w, h)
                 svg = f.with_suffix('.svg')
                 svg.write_text(self.arc_svg(vw, h, title, line))
                 png = f.with_suffix('.png')
@@ -1526,6 +1665,7 @@ class Teco:
             self.relay_role(k, s == k)
         save_state(self.st)
         self.mark()   # stranica odmah vidi novi izvor (slika za ekran se ume crtati i par sekundi)
+        asyncio.get_running_loop().create_task(self.scr_input('AV' if s in AVS else 'HDMI'))   # ulaz na ekranu (dugme SOURCE)
         if s == 'av1':
             if self.yt_snap and self.mode != 'yt':   # povratak sa TV-a: vrati YouTube listu gde je stala
                 snap, self.yt_snap = self.yt_snap, None
@@ -1629,12 +1769,23 @@ class Teco:
             hdmi = Path('/sys/class/drm/card0-HDMI-A-1/status').read_text().strip() == 'connected'
         except OSError:
             hdmi = False
-        if not hdmi:   # kompozit 576i DRM vodi kao 25 Hz -> igra bi išla 25 fps; 288p je progresivnih 50 Hz (kao prava konzola)
-            # pikseli 288p nisu kvadratni: ceo ekran 720x288 je 4:3 na TV-u (aspect_ratio_index 20 = vrednost iz video_aspect_ratio)
-            opts.update({'video_fullscreen_x': '720', 'video_fullscreen_y': '288', 'video_refresh_rate': '50.080128',
-                         'aspect_ratio_index': '20', 'video_aspect_ratio': '2.5', 'video_vsync': 'true',
+        # format slike (Arcade → Slika): '43' originalni PS1 4:3, 'wide' preko celog (širokog) ekrana
+        wide = self.st.get('arc_aspect', 'wide') == 'wide'
+        if not hdmi:   # kompozitni (AV) izlaz: ceo ekran 720x576 je 4:3 (aspect_ratio_index 20 = vrednost iz video_aspect_ratio)
+            # 576i (standardni PAL): 288p „pravi konzola“ signal mnogi LCD ekrani sa AV ulazom ne hvataju (slika igra);
+            # brzo jezgro (NEON) u 576i stiže punih 50 fps (provereno 14.10.2026)
+            opts.update({'video_fullscreen_x': '720', 'video_fullscreen_y': '576', 'video_refresh_rate': '50.000000',
+                         # 720x576 ekran razvlači na svoj (širok) oblik: 1.25 = preko celog; 4:3 = 1.25 * (4/3) / SCREEN_ASPECT
+                         'aspect_ratio_index': '20', 'video_aspect_ratio': '1.25' if wide else '%.4f' % (1.25 * 4 / 3 / SCREEN_ASPECT), 'video_vsync': 'true',
                          # Bluetooth uzima zvuk u blokovima ~43 ms: veći bafer da se ni slika ni zvuk ne trzaju
                          'audio_latency': '256'})
+        else:   # HDMI (npr. 1024x600 @ 60 Hz): kvadratni pikseli; 4:3 sa trakama sa strane ili preko celog ekrana; NTSC punih 60 fps
+            try:
+                fw, fh = (int(x) for x in Path('/sys/class/graphics/fb0/virtual_size').read_text().split(','))
+            except (OSError, ValueError):
+                fw, fh = 16, 9
+            opts.update({'video_refresh_rate': '60.000000', 'aspect_ratio_index': '20', 'video_aspect_ratio': '%.4f' % (fw / fh) if wide else '1.333333',
+                         'video_vsync': 'true', 'audio_latency': '256'})
         opts['global_core_options'] = 'true'   # inače RetroArch ignoriše core_options_path
         (ARC_DIR / 'retroarch.cfg').write_text('# Teco.Pi Arcade (pravi server.py)\n' + ''.join('%s = "%s"\n' % kv for kv in opts.items()))
         core = {'pcsx_rearmed_drc': 'enabled', 'pcsx_rearmed_spu_interpolation': 'simple', 'pcsx_rearmed_frameskip_type': 'disabled', 'pcsx_rearmed_async_cd': 'async',
@@ -1765,7 +1916,7 @@ class Teco:
 
     def arc_snapshot(self):
         a = getattr(self, 'arc', None)
-        return {'games': [dict({k: v for k, v in g.items() if k not in ('path', 'art')}, art=bool(g['art'])) for g in self.arc_games()],
+        return {'aspect': self.st.get('arc_aspect', 'wide'), 'games': [dict({k: v for k, v in g.items() if k not in ('path', 'art')}, art=bool(g['art'])) for g in self.arc_games()],
                 'run': {'id': a['game']['id'], 'name': a['game']['name'], 't0': a['t0'], 'art': bool(a['game']['art']),
                         'artv': a['game']['artv']} if a and a['proc'].returncode is None else None,
                 'bios': getattr(self, '_arc_bios', False)}
@@ -2003,7 +2154,7 @@ class Teco:
         if not self.amp:
             return False
         d = next((s for s in self.audio if s['def']), None)
-        return bool(d and not d['bt'])
+        return bool(d and not d['bt'] and not d.get('hdmi'))   # pojačalo je samo na analognom izlazu (Speaker)
 
     def cur_vol(self):
         if self.amp_active():
@@ -2287,19 +2438,231 @@ class Teco:
             m = re.match(r'(\*?)\s*(\d+)\.\s+(.+?)(?:\s+\[vol:\s*([\d.]+).*\])?$', body) if in_sinks else None
             if m:
                 name = m.group(3).strip()
-                pretty = 'Speaker' if name.startswith('Built-in Audio') else name
-                sinks.append({'id': int(m.group(2)), 'n': pretty, 'def': m.group(1) == '*', 'bt': not name.startswith('Built-in')})
+                if name.startswith('Built-in') and 'HDMI' in name:   # ACP HDMI (ekran bez zvuka u EDID-u): ne koristi se, Teco ima svoj
+                    continue
+                hd = name.startswith('HDMI')   # zvučnici ekrana preko HDMI kabla (teco_hdmi)
+                pretty = 'HDMI' if hd else 'Speaker' if name.startswith('Built-in Audio') else name
+                sinks.append({'id': int(m.group(2)), 'n': pretty, 'def': m.group(1) == '*', 'bt': not name.startswith('Built-in') and not hd, 'hdmi': hd})
                 # jačinu menja samo plejer: izlaz (npr. nove BT slušalice, WirePlumber im da 60%) ide na 100%,
                 # jednom po uređaju, da pun zvuk sa stranice ili telefona (Cast) bude zaista pun
                 if name not in self.sink_full and m.group(4) and float(m.group(4)) < 1.0:
                     await self._run('wpctl', 'set-volume', m.group(2), '1.0', timeout=5)
                 self.sink_full.add(name)
         self.audio = sinks
+        streams = out[out.find('Streams:'):out.find('Video')]
+        if ('[paused]' in streams or '[init]' in streams) and '[active]' in streams:
+            await self.audio_relink()
+        if not any(x['hdmi'] for x in sinks):
+            await self.hdmi_audio_on()
         await self.amp_sync()
         self.mark()
 
+    async def audio_relink(self):
+        """Bluetooth slušalice sa dva uređaja (Jabra multipoint): kad drugi uređaj preuzme pa vrati zvuk, PipeWire
+        ume da ostavi jednu vezu (npr. desni kanal) zaglavljenu u „paused“ — čuje se samo jedno uvo.
+        Takva veza (a druga od istog toka radi) se obriše i napravi ponovo."""
+        try:
+            dump = json.loads(await self._run('pw-dump', timeout=8) or '[]')
+        except ValueError:
+            return
+        links = [o for o in dump if o.get('type', '').endswith(':Link')]
+        active = {(o['info'].get('output-node-id'), o['info'].get('input-node-id')) for o in links if o['info'].get('state') == 'active'}
+        for o in links:
+            i = o['info']
+            if i.get('state') in ('paused', 'init') and (i.get('output-node-id'), i.get('input-node-id')) in active:
+                log.info('zvuk: zaglavljena veza %s (kanal) — pravim ponovo', o['id'])
+                await self._run('pw-link', '-d', str(o['id']), timeout=5)
+                await self._run('pw-link', str(i.get('output-port-id')), str(i.get('input-port-id')), timeout=5)
+
+    # ---------- Bluetooth slušalice sa dva uređaja (multipoint): drugi uređaj preuzme zvuk -> YouTube pauza,
+    # oslobodi ga -> nastavak. Stanje se čita iz BlueZ prenosa (MediaTransport1.State: active / idle / pending).
+    async def bt_transport_state(self, mac):
+        """Stanje prenosa ka slušalicama (active / idle / pending). Putanja (…/sepN/fdN) se pamti — menja se samo
+        kad se veza obnovi, pa se tada potraži ponovo (proverava se na 0,4 s dok svira)."""
+        for retry in (False, True):
+            path = getattr(self, '_bt_tpath', None)
+            if retry or not path or mac.replace(':', '_') not in path:
+                tree = await self._run('busctl', 'tree', 'org.bluez', '--list', timeout=5)
+                path = self._bt_tpath = next((l.strip() for l in tree.splitlines() if re.search(r'/dev_%s/sep\d+/fd\d+$' % mac.replace(':', '_'), l)), None)
+                if not path:
+                    return None
+            out = await self._run('busctl', 'get-property', 'org.bluez', path, 'org.bluez.MediaTransport1', 'State', timeout=5)
+            m = re.search(r'"(\w+)"', out)
+            if m:
+                return m.group(1)
+        return None
+
+    async def bt_profile_cycle(self, mac):
+        """Najpouzdaniji oporavak BT zvuka (zaglavljen kanal, uspavan izlaz): profil off pa a2dp-sink; mpv se sam ponovo poveže."""
+        try:
+            dump = json.loads(await self._run('pw-dump', timeout=8) or '[]')
+        except ValueError:
+            return
+        name = 'bluez_card.' + mac.replace(':', '_')
+        for o in dump:
+            p = (o.get('info') or {}).get('props') or {}
+            if p.get('device.name') == name:
+                prof = {x.get('name'): x.get('index') for x in (o['info'].get('params') or {}).get('EnumProfile', [])}
+                if 'off' in prof and 'a2dp-sink' in prof:
+                    log.info('Bluetooth: obnavljam zvuk na slušalicama (profil)')
+                    await self._run('wpctl', 'set-profile', str(o['id']), str(prof['off']), timeout=5)
+                    await asyncio.sleep(0.8)
+                    await self._run('wpctl', 'set-profile', str(o['id']), str(prof['a2dp-sink']), timeout=5)
+                    for _ in range(16):   # sačekaj da se izlaz slušalica vrati i bude glavni (inače zvuk ode na HDMI)
+                        await asyncio.sleep(0.5)
+                        await self.audio_refresh()
+                        if any(x['bt'] and x['def'] for x in self.audio):
+                            break
+
+    async def bt_channels_ok(self, mac):
+        """Posle vraćanja zvuka: oba kanala moraju da rade. Prvo brzo ponovno povezivanje veze, a ako i to ne pomogne — obnova profila."""
+        for attempt in range(4):
+            await asyncio.sleep(0.5)
+            out = await self._run('wpctl', 'status', timeout=5)
+            streams = out[out.find('Streams:'):out.find('Video')]
+            if not (('[paused]' in streams or '[init]' in streams) and '[active]' in streams):
+                return
+            if attempt < 3:
+                await self.audio_relink()
+            else:
+                await self.bt_profile_cycle(mac)
+
+    async def bt_guard_loop(self):
+        """Slušalice sa dva uređaja (Jabra multipoint): drugi uređaj preuzme zvuk (poruka, poziv, muzika) ->
+        YouTube pauza + par sekundi unazad. Zatim pokušaji povratka (posle 2, 4, 6, 10, 15, 30 s, uz obnovu veze
+        (kao ručno prebacivanje izlaza pa nazad na Bluetooth) i puštanje; ako slušalice prihvate Pi i zvuk ostane
+        >= 2,5 s — nastavlja, inače opet pauza + unazad i kasniji pokušaj. Kratki zvuci (Teams) tako ne prekidaju dugo.
+        (Jabra dok telefon svira ume da prihvati Pi na 1-4 s pa ga odbaci, zato se traži 2,5 s bez prekida.)"""
+        WAITS = (2, 4, 6, 10, 15, 30)
+        silence = Path('/tmp/teco-silence.wav')   # 5 s tišine za probu
+        if not silence.exists():
+            import wave
+            with wave.open(str(silence), 'wb') as w:
+                w.setnchannels(2); w.setsampwidth(2); w.setframerate(48000); w.writeframes(b'\0' * 48000 * 4 * 5)
+        idle_for, hold, seen_active, tick, tries, next_try = 0, False, False, 1, 0, 0
+
+        async def pause_back(sec):
+            await self.mpv.cmd('set_property', 'pause', True)
+            await self.mpv.cmd('seek', -max(2, int(sec)), 'relative')   # ništa se ne propusti
+            self.mark()
+
+        while True:
+            await asyncio.sleep(tick)
+            tick = 1
+            try:
+                bt_def = next((x for x in self.audio if x['def'] and x['bt']), None)
+                dev = next((d for d in self.bt.get('devs', []) if d.get('conn') and d.get('audio')), None)
+                if not bt_def or not dev or self.mode != 'yt' or self.source != 'av1':
+                    idle_for, hold, seen_active = 0, False, False
+                    continue
+                playing = not self.mpv.props.get('pause')
+                if hold:
+                    if playing:   # korisnik je sam pritisnuo play: obnovi vezu pa nastavi
+                        hold = False
+                        await self.mpv.cmd('set_property', 'pause', True)
+                        await self.bt_profile_cycle(dev['mac'])
+                        await self.mpv.cmd('set_property', 'pause', False)
+                        await self.bt_channels_ok(dev['mac'])
+                        continue
+                    if tries >= len(WAITS) or time.monotonic() < next_try:
+                        continue
+                    tries += 1
+                    await self.bt_profile_cycle(dev['mac'])   # bez obnove veze Jabra posle preuzimanja ne prihvata Pi
+                    # proba tišinom (video ostaje pauziran, bez skakanja play/pauza): slobodne su tek ako
+                    # prihvate Pi bez prekida >= 2,5 s
+                    probe = await asyncio.create_subprocess_exec('pw-play', '--target', str(next((x['id'] for x in self.audio if x['def'] and x['bt']), bt_def['id'])), str(silence),
+                                                                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                                                                 env=dict(os.environ, XDG_RUNTIME_DIR='/run/user/%d' % os.getuid()))
+                    t0, ok, run = time.monotonic(), 0, 0
+                    while time.monotonic() - t0 < 5:
+                        await asyncio.sleep(0.25)
+                        run = run + 0.25 if await self.bt_transport_state(dev['mac']) == 'active' else 0
+                        if run >= 2.5:
+                            ok = 1
+                            break
+                    try:
+                        probe.kill()
+                    except ProcessLookupError:   # pw-play je već završio
+                        pass
+                    await probe.wait()
+                    if ok:
+                        hold, seen_active, idle_for = False, False, 0
+                        await self.mpv.cmd('set_property', 'pause', False)
+                        self.mark()
+                        log.info('Bluetooth: %s ponovo slobodan — YouTube nastavlja (pokušaj %d)', dev['n'], tries)
+                        await self.bt_channels_ok(dev['mac'])
+                    else:
+                        next_try = time.monotonic() + (WAITS[tries] if tries < len(WAITS) else 0)
+                        log.info('Bluetooth: %s još zauzet (pokušaj %d)', dev['n'], tries)
+                    continue
+                if not playing:
+                    idle_for, seen_active = 0, False
+                    continue
+                tick = 0.4
+                st = await self.bt_transport_state(dev['mac'])
+                if st == 'active':
+                    seen_active, idle_for = True, 0
+                    continue
+                if not seen_active:   # tek pušteno: slušalicama treba 1-2 s da prihvate zvuk
+                    continue
+                idle_for += 1
+                if idle_for >= 3:   # ~1,2 s bez prenosa (a pre toga je radio): slušalice je preuzeo drugi uređaj
+                    await pause_back(3)
+                    hold, idle_for, seen_active, tries = True, 0, False, 0
+                    next_try = time.monotonic() + WAITS[0]
+                    log.info('Bluetooth: %s preuzeo drugi uređaj — YouTube pauziran', dev['n'])
+            except Exception as e:
+                log.warning('Bluetooth nadzor: %r', e)
+                await asyncio.sleep(5)
+    HDMI_SINK = 'teco_hdmi'
+
+    async def hdmi_audio_on(self):
+        """Zvučnici ekrana preko HDMI-ja. Ekran u EDID-u ne javlja zvuk, pa ga WirePlumber (ACP) vodi kao „nedostupan“
+        i nikad ga ne koristi. Zato Teco pravi svoj PipeWire izlaz direktno na hdmi: ALSA uređaj (radi i IEC958 pakovanje),
+        a ACP profil kartice drži ugašen (isti uređaj ne mogu oba). Najviše jednom u minuti, samo kad je HDMI priključen.
+        (Ne u pipewire.conf: greška tamo obori ceo zvuk.)"""
+        if time.monotonic() - getattr(self, '_hdmi_try', -999) < 60:
+            return
+        self._hdmi_try = time.monotonic()
+        try:
+            if Path('/sys/class/drm/card0-HDMI-A-1/status').read_text().strip() != 'connected':
+                return
+            card = next(l.split()[0] for l in Path('/proc/asound/cards').read_text().splitlines() if 'vc4hdmi' in l)
+        except (OSError, StopIteration):
+            return
+        try:
+            dump = json.loads(await self._run('pw-dump', timeout=8) or '[]')
+        except ValueError:
+            return
+        for o in dump:   # ACP profil kartice ugasi (oslobađa uređaj)
+            p = (o.get('info') or {}).get('props') or {}
+            if p.get('media.class') == 'Audio/Device' and p.get('api.alsa.card.name') == 'vc4-hdmi':
+                if any(x.get('name') != 'off' for x in (o['info'].get('params') or {}).get('Profile', [])):
+                    await self._run('wpctl', 'set-profile', str(o['id']), '0', timeout=5)
+        props = ('{ factory.name=api.alsa.pcm.sink node.name=%s node.description="HDMI (ekran)" node.nick=HDMI media.class=Audio/Sink '
+                 'api.alsa.path="hdmi:CARD=vc4hdmi,DEV=0" api.alsa.pcm.card=%s audio.channels=2 audio.position=[FL FR] object.linger=true }') % (self.HDMI_SINK, card)
+        await self._run('pw-cli', 'create-node', 'adapter', props, timeout=8)
+        log.info('HDMI zvuk: izlaz napravljen')
+        if (self.st.get('audio_out') == 'hdmi'):   # bio je izabran pre restarta zvuka / Pi-ja
+            await asyncio.sleep(1)
+            await self._run('pw-metadata', '0', 'default.configured.audio.sink', '{ "name": "%s" }' % self.HDMI_SINK, 'Spa:String:JSON', timeout=5)
     async def set_output(self, sid):
-        await self._run('wpctl', 'set-default', str(int(sid)), timeout=5)
+        """Glavni izlaz zvuka preko „default“ metapodataka (po imenu čvora). wpctl set-default pada
+        kad postoji izlaz koji je napravio Teco (HDMI), pa se ne koristi."""
+        s = next((x for x in self.audio if x['id'] == int(sid)), None)
+        self.st['audio_out'] = 'hdmi' if s and s.get('hdmi') else 'other'
+        save_state(self.st)
+        name = self.HDMI_SINK if s and s.get('hdmi') else None
+        if not name:
+            try:
+                o = next((x for x in json.loads(await self._run('pw-dump', str(int(sid)), timeout=5) or '[]') if x.get('id') == int(sid)), {})
+                name = ((o.get('info') or {}).get('props') or {}).get('node.name')
+            except ValueError:
+                name = None
+        if name:
+            await self._run('pw-metadata', '0', 'default.configured.audio.sink', '{ "name": "%s" }' % name, 'Spa:String:JSON', timeout=5)
+        else:
+            await self._run('wpctl', 'set-default', str(int(sid)), timeout=5)
         await asyncio.sleep(0.5)
         await self.audio_refresh()
 
@@ -2341,18 +2704,39 @@ class Teco:
             await self._run('bluetoothctl', 'trust', mac, timeout=8)
             c = 'bt_connect'
         if c == 'bt_connect':
+            name = next((d['n'] for d in self.bt.get('devs', []) if d['mac'] == mac), mac)
             for d in self.bt.get('devs', []):   # povezan može biti samo jedan uređaj
                 if d['conn'] and d['mac'] != mac:
                     await self._run('bluetoothctl', 'disconnect', d['mac'], timeout=10)
-            out = await self._run('bluetoothctl', '--agent', 'NoInputNoOutput', '--timeout', '15', 'connect', mac, timeout=25)
-            await asyncio.sleep(2)
+            sink = None
+            # Pi 3B: Wi-Fi i Bluetooth dele radio, pa prvo povezivanje ume da ne uspe (page timeout), a slušalice
+            # (Jabra) ponude zvuk tek par sekundi posle povezivanja: 2 pokušaja i čekanje izlaza do ~12 s
+            for attempt in range(2):
+                info = await self._run('bluetoothctl', 'info', mac, timeout=5)
+                if 'Connected: yes' not in info:
+                    await self._run('bluetoothctl', '--agent', 'NoInputNoOutput', '--timeout', '12', 'connect', mac, timeout=20)
+                    if 'Connected: yes' not in await self._run('bluetoothctl', 'info', mac, timeout=5):
+                        await asyncio.sleep(2)   # nije se povezao: odmah sledeći pokušaj, bez čekanja zvuka
+                        continue
+                for _ in range(12):
+                    await self.audio_refresh()
+                    sink = next((s for s in self.audio if s['bt'] and s['n'] == name), None) \
+                        or next((s for s in self.audio if s['bt']), None)   # izlaz nosi ime uređaja (npr. „Jabra Damir“)
+                    if sink:
+                        break
+                    await asyncio.sleep(1)
+                if sink:
+                    break
+                log.info('Bluetooth %s: bez izlaza za zvuk, ponovo povezujem', name)
+                await self._run('bluetoothctl', 'disconnect', mac, timeout=10)
+                await asyncio.sleep(2)
             await self.bt_refresh()
-            await self.audio_refresh()
-            bt_sink = next((s for s in self.audio if s['bt']), None)
-            if bt_sink:
-                await self.set_output(bt_sink['id'])   # zvuk odmah prebaci na slušalice
-                return {'ok': 'Zvuk ide na ' + bt_sink['n']}
-            return {'err': 'Povezano, ali slušalice nisu ponudile zvuk.'} if 'successful' in out else {'err': 'Povezivanje nije uspelo.'}
+            if sink:
+                await self.set_output(sink['id'])   # zvuk odmah prebaci na slušalice
+                return {'ok': 'Zvuk ide na ' + sink['n']}
+            connected = 'Connected: yes' in await self._run('bluetoothctl', 'info', mac, timeout=5)
+            return {'err': name + ': povezano, ali ne nudi zvuk (probaj ponovo ili ugasi/upali slušalice).' if connected
+                    else name + ': povezivanje nije uspelo (uključene? u dometu?).'}
         if c == 'bt_disconnect':
             await self._run('bluetoothctl', 'disconnect', mac, timeout=10)
         if c == 'bt_remove':
@@ -3325,7 +3709,7 @@ class Teco:
             self.cast_hold = (vid, time.time() + 25)
             url = 'https://www.youtube.com/watch?v=' + vid
             try:
-                title = (await self.resolve(url))[0]   # priprema (keš); ako za to vreme stigne novi zahtev, ovaj je zastareo
+                title = (await self.resolve(url, fast=True))[0]   # priprema (keš); ako za to vreme stigne novi zahtev, ovaj je zastareo
             except RuntimeError:
                 if seq == self.cast_seq:
                     self.cast_hold = None
@@ -3355,7 +3739,10 @@ class Teco:
             if a.get('muted'):
                 await self.mpv.cmd('set_property', 'mute', True)
         elif c == 'sender':
-            self.cast_sender = str(a.get('name') or 'Telefon')[:40] if a.get('on') else None
+            new = str(a.get('name') or 'Telefon')[:40] if a.get('on') else None
+            if new != getattr(self, 'cast_sender', None):
+                log.info('cast: %s', ('povezan ' + new) if new else 'telefon odvojen')
+            self.cast_sender = new
         self.mark()
         return {'ok': True}
 
@@ -4062,6 +4449,8 @@ class Teco:
             return await self.dns_set(a)
         elif c == 'net_mode':
             return await self.net_mode(a.get('v'))
+        elif c in ('scr_set', 'scr_press'):   # dugme SOURCE na ekranu (Admin)
+            return await self.scr_cmd(c, a)
         elif c in ('fav_add', 'fav_del', 'fav_move'):   # Dashboard: omiljene prečice (zajedničke za sve telefone)
             favs = self.st.setdefault('favs', [])
             if c == 'fav_add':
@@ -4089,6 +4478,13 @@ class Teco:
             save_state(self.st)
             self.mark()
             return {}
+        elif c == 'arc_aspect':   # format slike za igre (važi od sledećeg pokretanja igre)
+            if a.get('v') not in ('43', 'wide'):
+                return {'err': 'Nepoznat format.'}
+            self.st['arc_aspect'] = a['v']
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Slika: ' + ('preko celog ekrana' if a['v'] == 'wide' else '4:3') + (' · važi od sledećeg pokretanja igre' if self.arc_running() else '')}
         elif c == 'arc_start':
             return await self.arc_start(str(a.get('id') or ''))
         elif c == 'arc_stop':
@@ -4547,6 +4943,7 @@ class Teco:
             'devices': self.dev_snapshot(),
             'arcade': self.arc_snapshot(),
             'favs': self.st.get('favs', []),
+            'scrbtn': self.scr_cfg(),
             'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
             'sys': self.sys,
         }
@@ -4815,7 +5212,7 @@ def make_app():
         await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
         if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
             await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
+        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
 
     async def on_stop(app):
         await teco.fm_stop()

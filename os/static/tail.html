@@ -219,6 +219,7 @@ body[data-view="appl"] main.wrap>*:not(#applCard):not(#offline):not(#connBar):no
 body[data-view="appl"] .grid{display:none!important}
 .dr .dri .em{font-size:22px;line-height:1}.dr.on .dri{background:color-mix(in srgb,var(--ok) 20%,transparent)}.dr.on{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
 .dr.off{opacity:.6}
+  .arcfmt{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--muted)}
 html.admin .arcg{opacity:.45;cursor:not-allowed}
 body:not([data-view="lights"]) #lightsCard,body:not([data-view="water"]) #waterCard,body:not([data-view="power"]) #powerCard,body:not([data-view="weather"]) #weatherCard,body:not([data-view="doors"]) #doorsCard{display:none!important}
 body[data-view="doors"] main.wrap>*:not(#doorsCard):not(#offline):not(#connBar):not(.admbar):not(.rsheet):not(.pwag):not(script){display:none!important}
@@ -1589,6 +1590,7 @@ html.admin .rfab{display:none}
   function arcRender(a) {
     if (!changed('arc', a)) return;
     const g = a.games || [], run = a.run;
+    $$('#arcAsp button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === (a.aspect || 'wide')));
     $('#arcEmpty').hidden = !!g.length;
     $('#arcRun').hidden = !run; if (run) $('#arcRunName').textContent = run.name;
     const ri = run ? (run.art ? `<img src="/arc/art/${esc(run.id)}?v=${run.artv}" alt="">` : `<svg class="i"><use href="#i-arcade"/></svg>`) : '';
@@ -1605,6 +1607,21 @@ html.admin .rfab{display:none}
   const arcAdm = () => { if (isAdmin()) { toast('U admin režimu se igre ne pokreću.'); return true; } return false; };   // admin = podešavanja, ne igra
   $('#arcGrid').addEventListener('click', e => { const b = e.target.closest('[data-game]'); if (b && !arcAdm()) { b.disabled = true; act('arc_start', { id: b.dataset.game }).finally(() => { b.disabled = false; }); } });
   $('#arcStop').onclick = () => act('arc_stop');
+  $$('#arcAsp button').forEach(b => b.onclick = () => { $$('#arcAsp button').forEach(x => x.setAttribute('aria-pressed', x === b)); act('arc_aspect', { v: b.dataset.v }); });
+  // dugme ulaza na ekranu (Admin → I/O)
+  function scrRender(c) {
+    if (!c || !changed('scr', c)) return;
+    $('#scrSum').textContent = c.on ? 'uključeno · ekran: ' + c.cur : 'isključeno';
+    $('#scrOn').setAttribute('aria-checked', !!c.on);
+    if ($('#relCard').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+    $('#scrPin').value = c.pin; $('#scrOrder').value = (c.order || []).join(', '); $('#scrPress').value = c.press_ms; $('#scrGap').value = c.gap_ms;
+    $('#scrCur').innerHTML = (c.order || []).map(o => `<option${o === c.cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  }
+  const scrVals = () => ({ pin: $('#scrPin').value, order: $('#scrOrder').value, cur: $('#scrCur').value, press_ms: $('#scrPress').value, gap_ms: $('#scrGap').value });
+  $('#scrOn').onclick = () => act('scr_set', { ...scrVals(), on: $('#scrOn').getAttribute('aria-checked') !== 'true' });
+  $('#scrSave').onclick = () => act('scr_set', scrVals());
+  $('#scrCur').onchange = () => act('scr_set', { cur: $('#scrCur').value });
+  $('#scrTest').onclick = () => act('scr_press');
   function devRender(devs) {
     if (!changed('devs', devs)) return;
     $('#devCount').textContent = devs.length ? devs.length + (devs.length === 1 ? ' uređaj' : ' uređaja') : '';
@@ -1972,7 +1989,7 @@ html.admin .rfab{display:none}
   $$('#smbProto button').forEach(b => b.onclick = () => act('smb_opt', { proto: b.dataset.v }));
   $$('#smbGuest button').forEach(b => b.onclick = () => act('smb_opt', { guest: b.dataset.v === '1' }));
   // Bluetooth kod plejera (Multimedija): povezivanje traje i do 20 s, dugme za to vreme piše šta radi
-  let btBusy = null, btPick = store.get('teco-btpick') === '1';   // izabran „Bluetooth“ (i dok nijedan uređaj nije povezan)
+  let btBusy = null;   // BT uređaj koji se upravo povezuje / odvaja
   const btDo = async (c, d) => { btBusy = d.mac; render(); await act(c, { mac: d.mac }); btBusy = null; render(); };
   const fmtBytes = b => b >= 1e12 ? (b / 1e12).toFixed(1) + ' TB' : b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round((b || 0) / 1e6) + ' MB';
   // izbor foldera na USB disku koji se deli (npr. ps2share)
@@ -2336,6 +2353,7 @@ html.admin .rfab{display:none}
     $('.transport').hidden = isFm || isSt || isTv || isCon || isArc;
     arcRender(s.arcade || {});
     dashRender();
+    scrRender(s.scrbtn);
     if (document.activeElement !== $('#bootSel')) $('#bootSel').value = s.boot || 'last';
 
     /* TV */
@@ -2635,48 +2653,37 @@ html.admin .rfab{display:none}
       });
     }
 
-    /* izlaz zvuka: fiksno „Speaker“ i „Bluetooth“; uz Bluetooth ispod su poznati (upareni) uređaji, povezan može biti samo jedan */
-    const outs = s.audio || [], btKnown = ((s.bt || {}).devs || []).filter(d => d.paired);
-    const spk = outs.find(o => !o.bt), btOut = outs.find(o => o.bt), btOn = !!(btOut && btOut.def);
-    if (btOn) btPick = true;
+    /* izlaz zvuka: jedan red — Speaker, HDMI i svaki upareni Bluetooth uređaj (zvučnik / slušalice) kao ravnopravan izlaz.
+       Dodir na BT uređaj ga poveže (ako nije) i prebaci zvuk na njega; povezan uređaj ima × za prekid veze. */
+    const outs = s.audio || [], btKnown = ((s.bt || {}).devs || []).filter(d => d.paired && d.audio);
+    const spk = outs.find(o => !o.bt && !o.hdmi), hdOut = outs.find(o => o.hdmi), btOut = outs.find(o => o.bt);
+    const curOut = outs.find(o => o.def);
     $('#outs').hidden = !outs.length && !btKnown.length;
-    if (changed('outs', [outs, btKnown, btBusy, btPick])) {
+    if (changed('outs', [outs, btKnown, btBusy])) {
       const box = $('#outs'); box.innerHTML = '';
-      const row = label => { const r = document.createElement('div'); r.className = 'orow'; r.innerHTML = `<span class="ol">${label}</span>`; box.appendChild(r); return r; };
+      const r1 = document.createElement('div'); r1.className = 'orow'; r1.innerHTML = '<span class="ol">Zvuk</span>'; box.appendChild(r1);
       const chip = (to, ico, label, pressed, cls) => {
         const b = document.createElement('button'); b.className = 'och' + (cls || ''); b.type = 'button'; b.setAttribute('aria-pressed', pressed);
         b.innerHTML = `<svg class="i"><use href="#${ico}"/></svg><span>${esc(label)}</span>`; to.appendChild(b); return b;
       };
-      const r1 = row('Zvuk');
-      chip(r1, 'i-vol', 'Speaker', !btPick).onclick = () => {
-        btPick = false; store.set('teco-btpick', null); render();
-        if (spk && !spk.def) act('audio_out', { id: spk.id }).then(r => { if (!r.err) toast('Zvuk: Speaker'); });
-      };
-      chip(r1, 'i-bt', 'Bluetooth', btPick).onclick = () => {
-        btPick = true; store.set('teco-btpick', '1'); render();
-        if (btOut && !btOut.def) act('audio_out', { id: btOut.id }).then(r => { if (!r.err) toast('Zvuk: ' + btOut.n); });
-      };
-      if (btPick) {
-        const r2 = row('Uređaj');
-        if (!btKnown.length) r2.insertAdjacentHTML('beforeend', '<span class="muted" style="font-size:12.5px">Nema uparenih uređaja (Admin → Bluetooth).</span>');
-        btKnown.forEach(d => {
-          const busy = btBusy === d.mac;
-          if (d.conn) {   // povezan: × za prekid, zalepljen uz uređaj
-            const g = Object.assign(document.createElement('span'), { className: 'ogrp' }); r2.appendChild(g);
-            chip(g, 'i-headph', busy ? 'Prekidam…' : d.n, true).disabled = busy;
-            const x = document.createElement('button'); x.className = 'och-x'; x.type = 'button'; x.title = 'Prekini vezu sa ' + d.n; x.setAttribute('aria-label', x.title);
-            x.innerHTML = '<svg class="i"><use href="#i-x"/></svg>'; x.disabled = busy;
-            x.onclick = () => btDo('bt_disconnect', d); g.appendChild(x);
-          } else {
-            const b = chip(r2, 'i-headph', busy ? 'Povezujem ' + d.n + '…' : d.n, false, ' och-bt');
-            if (!busy) b.insertAdjacentHTML('beforeend', '<span class="plus">+</span>');
-            b.title = 'Poveži ' + d.n + (btKnown.some(x => x.conn) ? ' (prethodni se odvaja)' : ''); b.disabled = !!btBusy;
-            b.onclick = () => btDo('bt_connect', d);
-          }
-        });
-      }
+      const pick = (o, label) => { if (o && !o.def) act('audio_out', { id: o.id }).then(r => { if (!r.err) toast('Zvuk: ' + label); }); };
+      if (spk) chip(r1, 'i-vol', 'Speaker', spk === curOut).onclick = () => pick(spk, 'Speaker');
+      if (hdOut) chip(r1, 'i-tv', 'HDMI', hdOut === curOut).onclick = () => pick(hdOut, 'HDMI (ekran)');
+      btKnown.forEach(d => {
+        const busy = btBusy === d.mac, on = !!(d.conn && btOut && btOut.def);
+        const g = Object.assign(document.createElement('span'), { className: 'ogrp' }); r1.appendChild(g);
+        const b = chip(g, 'i-bt', busy ? 'Povezujem…' : d.n, on, d.conn ? '' : ' och-bt');
+        b.title = d.conn ? 'Zvuk na ' + d.n : 'Poveži ' + d.n + ' i pusti zvuk na njega' + (btKnown.some(x => x.conn) ? ' (prethodni se odvaja)' : '');
+        b.disabled = !!btBusy;
+        b.onclick = () => { if (!d.conn || !btOut) btDo('bt_connect', d); else pick(btOut, d.n); };
+        if (d.conn) {   // povezan: × za prekid veze
+          const x = document.createElement('button'); x.className = 'och-x'; x.type = 'button'; x.title = 'Prekini vezu sa ' + d.n; x.setAttribute('aria-label', x.title);
+          x.innerHTML = '<svg class="i"><use href="#i-x"/></svg>'; x.disabled = !!btBusy;
+          x.onclick = () => btDo('bt_disconnect', d); g.appendChild(x);
+        }
+      });
+      if (!btKnown.length && isAdmin()) r1.insertAdjacentHTML('beforeend', '<span class="muted" style="font-size:12.5px">Bluetooth uređaji se uparuju u Adminu → Bluetooth.</span>');
     }
-
     /* Bluetooth (admin) */
     const bt = s.bt || {};
     $('#btScan').disabled = !!bt.scan; $('#btScanTxt').textContent = bt.scan ? 'Tražim...' : 'Traži uređaje';

@@ -887,6 +887,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         </div>
         <div class="fm arcp" id="arcPanel" hidden>
           <div class="arcrun" id="arcRun" hidden><span class="arci"><svg class="i"><use href="#i-arcade"/></svg></span><span class="t"><small>Igra se</small><b id="arcRunName">—</b></span><button class="btn" id="arcStop" type="button"><svg class="i"><use href="#i-x"/></svg><span>Izađi iz igre</span></button></div>
+          <div class="arcfmt"><span>Slika</span><div class="segc" id="arcAsp" role="group" aria-label="Format slike igre"><button type="button" data-v="43" aria-pressed="false">4:3 original</button><button type="button" data-v="wide" aria-pressed="true">Preko celog ekrana</button></div></div>
           <div class="arcgrid" id="arcGrid"></div>
           <p class="muted" id="arcEmpty" style="font-size:13px;margin:0">Nema igara. Stavi PS1 igre na flash u folder <b>CD</b> (podfolder sa .cue + .bin, ili .chd / .pbp / .iso).</p>
           <details class="arckeys"><summary>Tastatura</summary><div>Strelice = pravci · <b>X</b> = ✕ · <b>Z</b> = ○ · <b>S</b> = △ · <b>A</b> = □ · <b>Enter</b> = Start · <b>desni Shift</b> = Select · <b>Q/W</b> = L1/R1 · <b>1/2</b> (num) = L2/R2 · <b>F2</b> snimi · <b>F4</b> učitaj · <b>F1</b> meni · <b>Esc</b> izlaz</div></details>
@@ -1303,6 +1304,19 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
           <div class="relays" id="relays"></div></details>
         <details class="ioexp"><summary><span class="iohead">Uređaji</span><small class="muted" id="ioSum"></small><svg class="i chev"><use href="#i-down"/></svg></summary>
           <div class="iolist" id="ioList"></div></details>
+        <details class="ioexp adm"><summary><span class="iohead">Dugme ulaza na ekranu</span><small class="muted" id="scrSum"></small><svg class="i chev"><use href="#i-down"/></svg></summary>
+          <div class="netcfg">
+            <p class="muted" style="font-size:13px;margin:0">Teco.Pi „pritiska“ dugme SOURCE na ekranu (tranzistor ili optokapler na GPIO-u): AV1–AV3 → ulaz <b>AV</b>, sve ostalo → <b>HDMI</b>. Ekran ne javlja koji ulaz prikazuje, pa ako se raziđu, izaberi stvarni ulaz u polju „Ekran je sada na“.</p>
+            <button class="acc-row" type="button" role="switch" aria-checked="false" id="scrOn"><span class="t"><b>Automatski menjaj ulaz ekrana</b><span>pri izboru izvora</span></span><span class="sw"></span></button>
+            <div class="netst devadd">
+              <label>GPIO<input class="field" id="scrPin" inputmode="numeric" placeholder="6"></label>
+              <label>Redosled pri pritisku<input class="field" id="scrOrder" placeholder="HDMI, AV, VGA" autocomplete="off"></label>
+              <label>Ekran je sada na<select class="field" id="scrCur"></select></label>
+              <label>Pritisak (ms)<input class="field" id="scrPress" inputmode="numeric"></label>
+              <label>Razmak između pritisaka (ms)<input class="field" id="scrGap" inputmode="numeric"></label>
+            </div>
+            <div class="smbrow"><button class="btn" id="scrTest" type="button"><span>Pritisni jednom</span></button><button class="btn gel" id="scrSave" type="button"><span>Sačuvaj</span></button></div>
+          </div></details>
       </section>
   </div></div>
   <div class="mbar viewer" id="mbar" hidden role="region" aria-label="Mini plejer">
