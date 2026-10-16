@@ -7,14 +7,18 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 OUT, PNG = sys.argv[1], sys.argv[2]
 D, DZ = 38.31, 34.5
 def T(r): return np.array(r, float)
+H_ADD, Z_ADD, FRONT_ADD = 5.0, 13.2, 14.2              # v2 (make_v2.py): case taller, bezel + strip further forward
+SLOT_XC = (-13.0, -30.7)
+BC = T([[1, 0, 0, 0], [0, -1, 0, 682.90 - D], [0, 0, -1, 110.04 - DZ], [0, 0, 0, 1]])   # back-cover frame -> shell
 SHELL = (0.235, 0.24, 0.255); BEZEL = (0.17, 0.175, 0.185); TRAY = (0.13, 0.135, 0.145); PLATE = (0.2, 0.205, 0.22)
 PARTS = [
     ('top', np.eye(4), SHELL),
     ('screen-bezel', T([[1, 0, 0, 0], [0, 1, 0, 436.05], [0, 0, 1, -16.0], [0, 0, 0, 1]]), BEZEL),
-    ('back-cover', T([[1, 0, 0, 0], [0, -1, 0, 682.90 - D], [0, 0, -1, 110.04 - DZ], [0, 0, 0, 1]]), SHELL),
-    ('bottom', T([[1, 0, 0, 0], [0, 0, -1, 238.22 - 5.08], [0, 1, 0, 38.51], [0, 0, 0, 1]]), TRAY),
-    ('front-plate', T([[1, 0, 0, 0], [0, 1, 0, 362.94], [0, 0, 1, 8.32], [0, 0, 0, 1]]), PLATE),
-]
+    ('back-cover', BC, SHELL),
+    ('bottom', T([[1, 0, 0, 0], [0, 0, -1, 238.22 - 5.08 + H_ADD], [0, 1, 0, 38.51], [0, 0, 0, 1]]), TRAY),
+    ('front-plate', T([[1, 0, 0, 0], [0, 1, 0, 362.94 + H_ADD], [0, 0, 1, 8.32 - FRONT_ADD], [0, 0, 0, 1]]), PLATE),
+    ('io-shield', BC @ T([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, -17.08], [0, 0, 0, 1]]), PLATE),
+] + [('card-bracket', BC @ T([[1, 0, 0, xc], [0, 1, 0, 0], [0, 0, 1, -17.08], [0, 0, 0, 1]]), PLATE) for xc in SLOT_XC]
 # world frame: x right, y up, z towards the viewer of the front (shell: y down, z back)
 W = T([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
@@ -33,9 +37,9 @@ for m, is_pwr in caps_assembled():
 tris = np.concatenate(tris); cols = np.concatenate(cols); ids = np.concatenate(ids)
 
 # screen quad (in the bezel window, just behind the chamfer), world coords
-wx0, wx1 = -34.62, 118.99
-wy0, wy1 = -(-292.10 + 436.05), -(-206.78 + 436.05)
-wz = -(-16.0 + 1.3)
+wx0, wx1 = 42.135 - 77.6, 42.135 + 77.6
+wy0, wy1 = -(186.43 - 43.1), -(186.43 + 43.1)
+wz = -(-16.0 + 1.3 - Z_ADD)
 SCREEN = np.array([[wx0, wy0, wz], [wx1, wy0, wz], [wx1, wy1, wz], [wx0, wy1, wz]])
 
 def screen_texture(w=1024, h=600):
@@ -173,7 +177,7 @@ sheet.paste(front, (0, 0)); sheet.paste(back, (front.width, 0))
 sheet.save(PNG)
 front.save(PNG.replace('.png', '-front.png')); back.save(PNG.replace('.png', '-back.png'))
 # close-up of the button strip
-strip_c = np.array([42.0, -248.8, 18.0])
+strip_c = np.array([42.0, -248.8 - H_ADD, 18.0 + FRONT_ADD])
 strip = render(eye=strip_c + np.array([-35, 55, 230]), target=strip_c + np.array([0, 4, 0]), light=(-0.4, 0.8, 0.9),
                size=(1800, 700), fov=17)
 strip.save(PNG.replace('.png', '-strip.png'))

@@ -1,12 +1,13 @@
-﻿"""Interior layout of the 16:9 remix in the shell frame (x right seen from the front, y down,
+"""Interior layout of the 16:9 remix in the shell frame (x right seen from the front, y down,
 z towards the back) + the main PCB outline. Shared by interior.py (3D) and pcbdraw.py (2D)."""
 import numpy as np
 
 D, DZ = 38.31, 34.5
+H_ADD, Z_ADD, FRONT_ADD = 5.0, 13.2, 14.2          # v2 (make_v2.py): 5 mm taller below y 185, bezel window 13.2 forward, bezel front + strip 14.2
 BC_Y = 682.90 - D
-LIP_TOP = BC_Y - 410.65                     # 233.94: top of the back-cover bottom lip
-TRAY_FLOOR = 257.62                         # top of the tray floor
-SHELL_BOTTOM = 238.22
+LIP_TOP = BC_Y - 410.65 + H_ADD             # 238.94: top of the back-cover bottom lip
+TRAY_FLOOR = 257.62 + H_ADD                 # top of the tray floor
+SHELL_BOTTOM = 238.22 + H_ADD
 WALL_L, WALL_R = -46.13, 130.40             # inner faces of the side walls
 BACK_IN = 124.12 - DZ                       # inner face of the back-cover plate (89.62)
 
@@ -27,7 +28,7 @@ PORTS = [('Ethernet', 2.25, 18.25, 13.5, 21.3, 2.5), ('USB', 22.4, 35.6, 16.0, 1
 # main board: standard 2x20 female header (8.5 mm) + Pi header plastic 2.5 mm
 STACK = 11.0
 PCB_T = 1.6
-PCB_TOP = PI_COMP + STACK                   # 227.59
+PCB_TOP = PI_COMP + STACK                   # 226.59
 PCB_BOT = PCB_TOP + PCB_T
 CLR = 0.5
 PCB_X0, PCB_X1 = WALL_L + CLR, WALL_R - CLR  # -45.63 .. 129.90
@@ -42,11 +43,23 @@ NOTCH_PORTS = (port_x0, port_x1, port_z0)
 NOTCH_CORNER = 14.0                          # x from each side wall
 NOTCH_CORNER_Z = 74.0
 
-PSU = dict(x0=2.0, x1=80.0, term=94.0, y0=134.06, y1=162.06, z0=19.5, z1=70.5)
-FAN = dict(x0=42.13 - 25, x1=42.13 + 25, y0=PI_BACK - 55, y1=PI_BACK - 5, z0=PI_EDGE - 15, z1=PI_EDGE)
-SPK = dict(y=180.0, z=45.0, r=20.5, depth=22.0)   # 40 mm driver
-PANEL = dict(x0=42.18 - 82.45, x1=42.18 + 82.45, y0=-301.82 + 436.05, y1=-201.82 + 436.05, z0=-14.98, z1=-11.48)
-C8 = dict(x0=-37.8, x1=-17.2, y0=233.14 + 8.6, y1=233.14 + 21.4, z0=70.0, z1=85.04)
+# Mean Well 5 V 3 A, 80 x 52 incl. terminals (height 28 assumed) in psu-cage.stl under the roof
+# PSU lengthwise front-to-back, terminals to the back (z 74..79), slid in from the back between 2 rails
+PSU = dict(x0=4.0, x1=56.0, y0=134.05, y1=162.05, z0=-1.0, z1=74.0, term=79.0)
+CAGE_YB = 164.45                             # psu-rail-* print frame -> shell: y = CAGE_YB - z, z = y
+PSU_RAIL = np.array([[1, 0, 0, 0], [0, 0, -1, CAGE_YB], [0, 1, 0, 0], [0, 0, 0, 1]], float)
+FAN = dict(x0=PI_XC - 25, x1=PI_XC + 25, y0=PI_BACK - 55, y1=PI_BACK - 5, z0=PI_EDGE - 15, z1=PI_EDGE)  # over the Pi
+SPK = dict(y=157.0, z=45.0, r=20.0, depth=20.0)   # 40 mm driver (18 deep) on a 2 mm spacer in a tube on the wall
+# screen module 170 x 105 x 17 in the bezel; HDMI + USB-C plugs on its back ~25 mm above the bottom edge
+MODULE = dict(x0=42.135 - 85, x1=42.135 + 85, y0=133.93, y1=238.93, z0=-28.18, z1=-11.18)
+PLUG_Y = (MODULE['y1'] - 25 - 6, MODULE['y1'] - 25 + 6)   # plug body height band behind the module
+PLUG_X = (-34.0, 59.0)                       # plugs clear the brace side bar and the Pi only inside this x range
+C8 = dict(x0=-37.8, x1=-17.2, y0=233.14 + H_ADD + 8.6, y1=233.14 + H_ADD + 21.4, z0=70.0, z1=85.04)
+# back panel (make_v2.py): RCA 3x3 + 1x3 on the main board's back edge, 2 card slots, I/O shield
+RCA3 = dict(x0=33.6 - 19.5, x1=33.6 + 19.5, h=39.0, depth=30.0)
+RCA1 = dict(x0=5.6 - 6.5, x1=5.6 + 6.5, h=39.0, depth=30.0)
+CARD_XC = (-13.0, -30.7)                    # slot centres; card PCB left face at xc - 6.7, parts towards +x
+CARD = dict(h=40.0, length=58.0, above_board=8.0)   # 2.54 right-angle male on the card into a 8.5 mm female header
 
 def board_xy(x, z):
     """shell (x, z) -> board drawing coords (X from the left wall seen from the front, Y from the front edge)"""

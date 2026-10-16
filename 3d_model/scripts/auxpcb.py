@@ -34,8 +34,12 @@ for name, x, y, side, note in AUX_PARTS:
         bw, bh = JACK['body']
         ax.add_patch(Rectangle((px - bw / 2, py - bh / 2), bw, bh, fc='#444', ec='#000'))
         ax.add_patch(Circle((px, py), 3.1, fc='#888'))
+    elif name.startswith('U2'):                       # DHT22 lying flat, 4 pins to the right
+        ax.add_patch(Rectangle((px - 10.0, py - 7.55), 20.0, 15.1, fc='#f2f2f2', ec='#666'))
+        for k in range(4):
+            ax.add_patch(Circle((px + 11.5, py - 3.81 + 2.54 * k), 0.45, fc='#d4af37'))
     elif name in ('J2', 'J3'):
-        n = 11 if name == 'J2' else 3
+        n = 12 if name == 'J2' else 3
         L = 2.5 * (n - 1) + 4.9
         ax.add_patch(Rectangle((px - L / 2, py - 2.9), L, 5.75, fc='#f5f0e0', ec='#998', ls='--'))
         for k in range(n):
