@@ -8,7 +8,7 @@ from layout import *
 
 OUT, PNG = sys.argv[1], sys.argv[2]
 def T(r): return np.array(r, float)
-FP_Y, FP_Z = 362.94 + H_ADD, 8.32 - FRONT_ADD    # front-plate frame -> shell
+FP_Y, FP_Z = 362.94 + H_ADD, 8.32 - STRIP_ADD    # front-plate frame -> shell
 W = T([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])   # shell -> world (y up, front towards +z)
 SHELL = (0.235, 0.24, 0.255); BEZEL = (0.17, 0.175, 0.185); TRAY = (0.13, 0.135, 0.145); PLATE = (0.2, 0.205, 0.22)
 GREEN = (0.08, 0.36, 0.2); PIGREEN = (0.1, 0.45, 0.22); SILVER = (0.72, 0.73, 0.75); BLACK = (0.08, 0.08, 0.09)
@@ -95,7 +95,6 @@ def scene(clip_roof, with_fan):
     S = [part('top', np.eye(4), SHELL, clip_y=clip_roof),
          part('screen-bezel', T([[1, 0, 0, 0], [0, 1, 0, 436.05], [0, 0, 1, -16.0], [0, 0, 0, 1]]), BEZEL),
          part('bottom', T([[1, 0, 0, 0], [0, 0, -1, 238.22 - 5.08 + H_ADD], [0, 1, 0, 38.51], [0, 0, 0, 1]]), TRAY),
-         part('front-plate', T([[1, 0, 0, 0], [0, 1, 0, FP_Y], [0, 0, 1, FP_Z], [0, 0, 0, 1]]), PLATE),
          part('x-brace', T([[1, 0, 0, 0], [0, 1, 0, 604.84], [0, 0, 1, -8.5], [0, 0, 0, 1]]), PLATE)]
     S += components()
     if clip_roof is not None:

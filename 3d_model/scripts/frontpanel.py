@@ -1,4 +1,4 @@
-﻿"""Front button strip v2 + button caps + auxiliary (button) PCB.
+"""Front button strip v2 + button caps + auxiliary (button) PCB.
 
 Plate frame (front-plate.stl): x as seen from the front (right = +x), y down (top edge -124.72,
 bottom edge -103.57), z towards the back (front face -26.38, front wall -26.38..-24.09, back -13.28).
@@ -30,7 +30,7 @@ IR = dict(x=91.0, y=ROW_Y, d=6.0, win=8.0, filter=11.0)   # 8 x 8 window, 11 x 1
 JACK = dict(x=2.0, y=-118.0, d=6.2, body=(11.0, 11.0))     # PJ-392 style, M6 thread
 # DHT22 (15.1 x 20 x 7.7) lying on the aux PCB front, vents to the front, behind a slot grille
 DHT = dict(x0=-26.0, x1=-6.0, y0=-124.2, y1=-109.1, t=7.7)
-BRAND = dict(x0=-43.0, y=-107.8, h=4.0)    # TECOMATIC wordmark (assets/tecomatic.png), bottom-left corner
+BRAND = dict(x0=-43.0, y=ROW_Y, h=5.0)     # TECOMATIC wordmark (assets/tecomatic.png), in line with the buttons
 GRILLE = dict(xs=[-21.25 + 3.5 * i for i in range(4)], w=1.8, y0=-122.3, y1=-113.9)
 SW_H = 7.0                              # tact switch 6x6, height incl. plunger
 PLUNGER = PCB_FRONT - SW_H              # -19.82
@@ -139,10 +139,7 @@ def plate(m):
     m = union([m, box(-40.0, 96.0, -122.5, -113.3, FRONT, WALL_IN),
                   box(97.6, 101.1, -120.2, -116.7, FRONT, WALL_IN)])
     cut = []
-    # slot grille + pocket for the DHT22 (through the lower block behind the front wall)
-    for gx in GRILLE['xs']:
-        cut.append(box(gx - GRILLE['w'] / 2, gx + GRILLE['w'] / 2, GRILLE['y0'], GRILLE['y1'], FRONT - 1, WALL_IN + 0.01))
-    cut.append(box(DHT['x0'] - 0.5, DHT['x1'] + 0.5, DHT['y0'] - 0.3, DHT['y1'] + 0.5, WALL_IN, PLATE_BACK + 1.5))
+    # (DHT22 grille removed - the sensor goes elsewhere later)
     for x in BTN_X:                      # button holes + pockets for the cap wings and the switch
         cut.append(box(x - BTN_HOLE / 2, x + BTN_HOLE / 2, ROW_Y - BTN_HOLE / 2, ROW_Y + BTN_HOLE / 2, FRONT - 1, WALL_IN + 0.01))
         cut.append(box(x - 5.4, x + 5.4, ROW_Y - BTN_HOLE / 2, ROW_Y + BTN_HOLE / 2, WALL_IN, PLATE_BACK + 1.5))
@@ -189,8 +186,6 @@ def caps_assembled():
 
 AUX_PARTS = [  # name, x, y (plate frame), side, note
     *[(f'SW{i + 1} {t}', x, ROW_Y, 'F', 'tact switch 6x6x7 THT') for i, (x, t) in enumerate(zip(BTN_X, BTN_LABELS))],
-    ('U2 DHT22', (DHT['x0'] + DHT['x1']) / 2, (DHT['y0'] + DHT['y1']) / 2, 'F',
-     'DHT22 / AM2302 lying flat, vents to the front (grille), 20 wide x 15.1 high, pins to the right'),
     ('SW7 PWR', PWR['x'], PWR['y'], 'F', 'tact switch 6x6x7 THT'),
     ('D1', LED['x'], LED['y'], 'F', 'LED 3 mm, body ~6 mm off the board (dome in the D3.2 hole)'),
     ('U1', IR['x'], IR['y'], 'F', 'IR receiver VS1838B/TSOP, leads bent 90 deg, dome behind the 8 x 8 window'),

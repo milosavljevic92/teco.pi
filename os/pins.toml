@@ -1,0 +1,63 @@
+# Teco.Pi — raspored GPIO pinova (BCM brojevi, Raspberry Pi 3B).
+# OVO JE JEDINO MESTO gde se pinovi definišu: server ih čita odavde, a stranica ih samo prikazuje (Admin → GPIO).
+# Posle izmene: sudo systemctl restart teco-web
+# IR i DHT22 pinove čita kernel iz /boot/firmware/config.txt — ako ih menjaš ovde, promeni i tamo (+ restart Pi-ja);
+# Admin → GPIO pokazuje ako se ne slažu.
+
+[i2c]                 # FM tjuner, pojačalo, prednji tasteri i LED (I2C ekspander) — fiksni pinovi Pi-ja
+sda = 2
+scl = 3
+
+[senzori]
+dht22 = 4             # temperatura i vlaga   (config.txt: dtoverlay=dht11,gpiopin=4)
+ir = 17               # TSOP prijemnik         (config.txt: dtoverlay=gpio-ir,gpio_pin=17)
+
+[izvori]              # AV ulazi: svaki ima 2 releja (uključuju se zajedno)
+av1 = [22, 25]
+av2 = [23, 26]
+av3 = [24, 16]
+
+[fm]                  # FM radio: 2 releja (uključuju se zajedno)
+releji = [27, 21]
+
+[releji]
+aktivno_nisko = false # true ako se pločica releja pali na 0 (LOW)
+
+[monitor]             # 4 kanala ka LCD monitoru
+napajanje = 5         # rele gašenja monitora (monitor je na NC kontaktu)
+source = 6            # "pritiska" dugme SOURCE (tranzistor / optokapler)
+levo = 12             # dugme levo  (npr. osvetljenje -)
+desno = 13            # dugme desno (npr. osvetljenje +)
+
+[ulazi]
+koristi = false       # true kad su ulazi povezani (inače nepovezan pin daje lažnu uzbunu)
+struja = 20           # ima mrežnog napajanja
+baterija = 19         # radi na bateriji (UPS)
+aktivno_nisko = false # true ako ulaz javlja stanje sa 0 (LOW)
+
+# Proširenja EXP1 i EXP2: na stranici se bira samo koji modul je na kom proširenju (Telefonska linija, Osciloskop).
+# Pi 3B ima JEDAN UART (TX 14 / RX 15): oba proširenja ga dele — modem može biti samo na jednom.
+# Za ostale pinove ostalo je 6 slobodnih GPIO (7, 8, 9, 10, 11, 18): po 3 za svako proširenje.
+[exp1]
+tx = 14               # UART TX -> RX modema
+rx = 15               # UART RX <- TX modema
+p3 = 18
+p4 = 7
+p5 = 8
+
+[exp2]
+tx = 14               # isti UART kao EXP1
+rx = 15
+p3 = 9
+p4 = 10
+p5 = 11
+
+[slic]                # SLIC KS0835F (Telefonska linija) — pinovi izabranog proširenja
+rm = "p3"             # ring mode (zvono)
+fr = "p4"             # forward/reverse (polaritet, takt zvona)
+shk = "p5"            # slušalica (switch hook)
+shk_aktivno_nisko = true   # SHK = 0 kad je slušalica podignuta
+
+[modem]               # SIMCom A7672E / SIM800 na TX/RX izabranog proširenja
+pwrkey = ""           # "p6" ako proširenje dobije 6. pin; "" = ne koristi se
+brzina = 115200       # brzina UART-a (baud)

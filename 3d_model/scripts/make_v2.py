@@ -31,7 +31,8 @@ Z_ADD = 13.2         # bezel window + bottom strip further forward (module 17 in
 PLATE_CUT = 2.0      # bezel window plate 6 -> 4 mm (compact)
 RIM = 3.0            # raised bezel rim with a deep sloped surround (retro monitor look); strip follows it
 FUNNEL_GROW = (10.0, 8.0)   # surround: window -> front opening grows this much per side (x, y)
-FRONT_ADD = Z_ADD - PLATE_CUT + RIM                 # bezel front / bottom strip further forward than v1 (14.2)
+FRONT_ADD = Z_ADD - PLATE_CUT + RIM                 # bezel front further forward than v1 (14.2)
+STRIP_ADD = FRONT_ADD + 2.92                        # strip front flush with the bezel front (one printed part)
 XC = (-51.13 + 135.40) / 2                          # shell centre x (42.135)
 
 def load(name):
@@ -146,7 +147,7 @@ for y0 in (wcy - 35, wcy + 15):
 m = union([m] + guides)
 print(f'  bezel: window {WIN_W:.1f} x {WIN_H:.1f} at ({wcx:.2f}, {wcy + 436.05:.2f}); pocket '
       f'{PK_X[1] - PK_X[0]:.2f} x {PK_Y[1] - PK_Y[0]:.2f} x {5.2 - PLATE_BACK:.2f} deep (module {MOD_W} x {MOD_H} x {MOD_T})')
-report('screen-bezel', m)
+BEZEL = m                                           # merged with the button strip at the end
 
 # ======================================================================= x-brace -> screen brace
 # x-brace frame: y_x = y_s - 604.84, z_s = z_x - 8.5. Keep the corners (posts + bezel lugs), replace
@@ -232,6 +233,31 @@ for wall_in, s in ((WALL_L[1], 1), (WALL_R[0], -1)):
 m = union([m] + spk)
 m = diff(m, [cyl(0, (SPK_Y + dy, SPK_Z + dz), SPK_HOLE / 2, x0 - 1, x1 + 1, 16)
              for dy, dz in ring_points() for x0, x1 in (WALL_L, WALL_R)])      # re-open the grille holes
+# lower back-cover screws: bosses in the shell corners (instead of the separate back-clips), M3 insert
+# D4.0 x 8 from the back; 45 deg underside onto the bottom lip (prints front face down without supports).
+# Above the main board edge (y 228.19) and in front of the cover's bottom fold (y 236.6).
+BC_LOW = [(-41.5, 233.4, WALL_L[1], -36.0), (125.8, 233.4, WALL_R[0], 120.6)]
+BOSS_TOP = 86.4                                     # the cover's bottom inner rib reaches in to z 86.6
+bosses, holes = [], []
+for x, y, xa, xb in BC_LOW:
+    pts = [(xx, yy, z) for xx in (xa, xb) for yy, z in ((228.6, BOSS_TOP), (236.0, BOSS_TOP), (228.6, 72.0), (236.0, 67.0), (233.0, 67.0))]
+    bosses.append(trimesh.convex.convex_hull(np.array(pts)))
+    holes.append(cyl(2, (x, y), 2.0, BOSS_TOP - 8.0, BOSS_TOP + 1.0))
+m = diff(union([m] + bosses), holes)
+# main board slider: a 1.9 mm slot (1.6 mm PCB + 0.3) in each side wall at the board height, two 2 mm
+# lips reaching 2.5 mm in (the board edges are 0.5 mm from the walls -> 2 mm grip each side). The board
+# slides in from the back (cover off) to the front corner blocks; rails stop at z 64 (screw bosses,
+# port cut-out). Rails run front-to-back, so they grow straight up when printed front face down.
+PCB_T, PCB_CLR, LIP_T, LIP_IN = 1.6, 0.15, 2.0, 2.5
+BOARD_TOP_S = (682.90 - 38.31 - 410.65 + H_ADD) - 0.6 - 0.75 - 6.0 - 16.0 + 11.0     # 226.59 (see back cover / layout.py)
+SLIDE_Z = (1.5, 64.0)
+rails = []
+for wall_in, s in ((WALL_L[1], 1), (WALL_R[0], -1)):
+    xa, xb = wall_in - s * 0.5, wall_in + s * LIP_IN
+    rails += [box(xa, xb, BOARD_TOP_S - PCB_CLR - LIP_T, BOARD_TOP_S - PCB_CLR, *SLIDE_Z),
+              box(xa, xb, BOARD_TOP_S + PCB_T + PCB_CLR, BOARD_TOP_S + PCB_T + PCB_CLR + LIP_T, *SLIDE_Z)]
+m = union([m] + rails)
+print(f'  top: main board slider y {BOARD_TOP_S - PCB_CLR:.2f}..{BOARD_TOP_S + PCB_T + PCB_CLR:.2f}, z {SLIDE_Z}')
 # company logo engraved 0.5 mm on the left side wall, lower front corner (lower right seen from the left:
 # viewer's right = -z, up = -y), 20 mm
 from logo import logo_polygon
@@ -327,8 +353,8 @@ for yc in (150.5, 161.5):
 LABEL = (63.6, 111.6, 142.0, 160.0)
 cut.append(bc(LABEL[0], LABEL[1], LABEL[2], LABEL[3], OUT_Z - 0.4, OUT_Z + 1))
 # FM antenna: D9 hole for the glued fm-bracket (its D6.5 ring sits in the hole, SMA nut outside)
-FM = (-32.0, 154.0)
-cut.append(bc_cyl(FM[0], FM[1], 4.5, IN_Z - 1, OUT_Z + 1))
+FM = (-32.0, 154.0)                                 # SMA bulkhead straight in the cover: D6.5, 5.9 flat
+cut.append(diff(bc_cyl(FM[0], FM[1], 3.25, IN_Z - 1, OUT_Z + 1), [bc(FM[0] - 5, FM[0] + 5, FM[1] - 5, FM[1] - 2.95, IN_Z - 2, OUT_Z + 2)]))
 
 # I/O shield window: RCA 3x3 + RCA 1x3; shield pushed in from the inside like a PC I/O shield
 IO_X = (-2.0, 53.5)
@@ -419,14 +445,6 @@ s = io_shield()
 s.apply_translation([0, 0, 17.08])                 # outside face on z=0
 report('io-shield', s)
 
-# ---- FM antenna bracket (glue it on the inside of the back cover): D-hole for an SMA bulkhead
-# (D6.5, flat 5.9) + ring that centres it in the D9 cover hole; SMA nut on the outside
-def fm_bracket():
-    b = union([box(-7, 7, -7, 7, 0, 2.5), cyl(2, (0, 0), 4.35, 2.49, 4.5)])
-    hole = diff(cyl(2, (0, 0), 3.25, -1, 6), [box(-5, 5, 2.95, 5, -2, 7)])
-    return diff(b, [hole])
-report('fm-bracket', fm_bracket())
-
 # ---- card bracket (blank; drill/cut your connectors): plug + flange + L-tab with 2x M3 into the card,
 # snap latches top + bottom; glue the flange
 CARD_BOTTOM = BOARD_TOP - 8.0                      # card edge above the main board (2.54 right-angle header into 8.5 mm female)
@@ -443,20 +461,26 @@ def card_bracket(xc):
     return diff(b, [cyl(0, (BCY - y, BCZ - (IN_Z - FL_T - 5.0)), M3_CLR / 2, pcb_x - 3, pcb_x + 1) for y in (SLOT_Y[0] + 8, SLOT_Y[1] - 8)])
 b = card_bracket(SLOT_XC[0])
 b.apply_translation([-SLOT_XC[0], 0, 17.08])
-report('card-bracket', b)
+os.makedirs(os.path.join(DST, 'later'), exist_ok=True)
+report(os.path.join('later', 'card-bracket'), b)          # not printed yet
 print(f'  cards: PCB {CARD_BOTTOM - CARD_TOP:.0f} high (y {CARD_TOP:.2f}..{CARD_BOTTOM:.2f}), {CARD_LEN:.0f} long (z {IN_Z - FL_T - CARD_LEN:.2f}..{IN_Z - FL_T:.2f}), '
       f'PCB left face at x {[round(x - 6.7, 2) for x in SLOT_XC]}')
 
 # ======================================================================= bottom tray
 # tray frame: shell z = y_t + 38.51; its front (y_t < -40, posts for the strip) moves Z_ADD forward
 m = load('bottom')
-m = stretch(m, 1, -40.0, -FRONT_ADD)
+m = stretch(m, 1, -40.0, -STRIP_ADD)
 # "AC250V" engraved on the recessed back face (y_t 46.53) next to the C8 inlet; seen from the back:
 # right = -x, up = +z_t
 t = trimesh.util.concatenate([trimesh.creation.extrude_polygon(g, 1.6) for g in
                               getattr(text_poly('AC250V', 3.5), 'geoms', [text_poly('AC250V', 3.5)])])
 t.apply_transform(np.array([[-1, 0, 0, 12.0], [0, 0, 1, 46.53 - 0.6], [0, 1, 0, -13.0], [0, 0, 0, 1]], float))
 m = diff(m, [t])
+# clear the floor on the right for the power board (battery charger + 5 V boost + terminals): the old
+# bosses / ribs of the original (USB-C brace etc.) at x 98..122, shell z 8..79 go; floor, side wall and
+# the corner screw posts (x ~126) stay. Tray coords: y_t = z_s - 38.51, z_t = 238.14 - y_s.
+FLOOR_T = -24.48                                    # top of the tray floor (tray z)
+m = diff(m, [box(98.0, 121.8, 8.0 - 38.51, 79.0 - 38.51, FLOOR_T + 0.01, -1.0)])
 report('bottom', m)
 
 # ======================================================================= front strip v3
@@ -465,8 +489,18 @@ report('bottom', m)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import frontpanel
 m = frontpanel.plate(load('front-plate'))
-report('front-plate', m)
 frontpanel.caps().export(os.path.join(DST, 'buttons.stl'))
-
-for name in ('back-clips',):                        # usb-c-brace not used (power: C8 inlet + internal PSU)
-    load(name).export(os.path.join(DST, name + '.stl'))
+# close the 3 mm slot under the strip (strip block back z_fp -16.4 .. tray front): 2 mm floor lip,
+# 0.3 mm short of the tray front (tray front at shell z -4.96 - STRIP_ADD -> plate z -4.96 - 8.32)
+m = union([m, box(-46.13, 130.4, -105.57, -103.57, -16.45, -4.96 - 8.32 - 0.3),
+              # and the same gap seen from the sides: 2 mm end walls over the full strip height
+              box(-46.13, -44.13, -124.72, -103.57, -16.45, -4.96 - 8.32 - 0.3),
+              box(128.4, 130.4, -124.72, -103.57, -16.45, -4.96 - 8.32 - 0.3)])
+# one front part: bezel + button strip (strip frame -> bezel frame: y - 68.11, z + 8.32 - STRIP_ADD + 16);
+# both fronts are in one plane, print it front face down
+m.apply_translation([0, 362.94 + H_ADD - 436.05, 8.32 - STRIP_ADD + 16.0])
+fz = (BEZEL.bounds[0][2], m.bounds[0][2])
+assert abs(fz[0] - fz[1]) < 0.05, f'fronts not flush: {fz}'
+m.apply_translation([0, -0.15, 0])                  # 0.1 mm overlap into the bezel bottom
+report('screen-bezel', union([BEZEL, m]))
+# back-clips / usb-c-brace not used any more (lower back-cover screws go into shell bosses; power: C8 + PSU)

@@ -8,6 +8,7 @@ Stranica dobija stanje preko WebSocket-a (/ws), a slike se otpremaju na /api/upl
 """
 import asyncio
 import glob
+import ipaddress
 import hashlib
 import json
 import logging
@@ -130,11 +131,11 @@ DEFAULT_STATE = {
     'devices': [],                     # Smart Home uređaji: [{'id', 'name', 'type': 'light', 'proto': 'wiz', 'ip'}]
     'idle': 'slides',                 # šta je na ekranu kad nema videa: 'slides' ili 'clock'
     'relays': [
-        {'n': 'AV1', 'pin': 22, 'on': False, 'role': 'av2'},
-        {'n': 'AV2', 'pin': 23, 'on': False, 'role': 'av3'},
-        {'n': 'AV3', 'pin': 24, 'on': False, 'role': 'av4'},
-        {'n': 'Tuner', 'pin': 27, 'on': False, 'role': 'tuner'},
-        {'n': 'Gašenje monitora', 'pin': 5, 'on': False, 'role': 'monitor'},   # monitor je na NC kontaktu
+        {'n': 'AV1', 'on': False, 'role': 'av2'},   # pinovi releja su u pins.toml (po ulozi)
+        {'n': 'AV2', 'on': False, 'role': 'av3'},
+        {'n': 'AV3', 'on': False, 'role': 'av4'},
+        {'n': 'FM radio', 'on': False, 'role': 'tuner'},
+        {'n': 'Gašenje monitora', 'on': False, 'role': 'monitor'},   # monitor je na NC kontaktu
     ],
     'ir': [
         {'key': 'OK', 'code': 'NEC 0x20DF22DD', 'cmd': 'play'},
@@ -189,7 +190,7 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
 
 ADMIN_CMDS = {'scr_set', 'scr_press', 'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
               # Bluetooth: povezivanje već uparenih (bt_connect/bt_disconnect) je za sve, uparivanje samo Admin
-              'bt_scan', 'bt_pair', 'bt_remove', 'pin_req',
+              'bt_scan', 'bt_pair', 'bt_remove', 'pin_req', 'pbx_secret',
               'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct', 'alarm_cfg_get',
               'dev_add', 'dev_edit', 'dev_del', 'dev_scan',   # uređaji se dodaju u Adminu; dev_set (upravljanje) je za sve   # uređaji (dev_*): svi u mreži (za sada samo svetla)
               'net_mode', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
@@ -342,6 +343,31 @@ class CameraDriver(DevDriver):
         return {'ok': ok}
 
 
+class UsbCamDriver(DevDriver):
+    """USB kamera direktno na Pi-ju (npr. Sony EyeToy, V4L2, JPEG 640x480 ~7,5 fps). Za CCTV: ffmpeg čita kameru
+    i pravi H.264 hardverskim enkoderom Pi-ja (h264_v4l2m2m) -> HLS, samo dok neko gleda. Jedan strim (nema sporednog)."""
+    key, label, ready, dtype = 'usbcam', 'USB kamera (na Pi-ju)', True, 'camera'
+
+    @staticmethod
+    def list_devices():
+        """[{'dev': stalna putanja (by-id), 'n': naziv}] — samo prave kamere (ne enkoderi/ISP Pi-ja)."""
+        out = []
+        for p in sorted(glob.glob('/dev/v4l/by-id/*-video-index0')):
+            name = re.sub(r'^usb-|-video-index0$', '', os.path.basename(p)).replace('_', ' ')
+            out.append({'dev': p, 'n': name})
+        return out
+
+    async def probe(self, ip, d=None):
+        return {} if os.path.exists(((d or {}).get('cam') or {}).get('dev') or '') else None
+
+    async def poll(self, d):
+        return {'ok': os.path.exists((d.get('cam') or {}).get('dev') or '')}
+
+    @staticmethod
+    def ffmpeg_input(d):
+        return ['-f', 'v4l2', '-input_format', 'mjpeg', '-video_size', '640x480', '-framerate', '15', '-i', (d.get('cam') or {}).get('dev', '')]
+
+
 class PgmDoorDriver(DevDriver):
     """Vrata/kapija/garaža preko PGM izlaza alarma (Paradox most). Nema mreže: stanje (otvoreno) iz zone alarma,
     a komanda ide kroz Teco.alarm_do (pgm pulse / on / off). Vidi Teco.dev_cmd i dev_snapshot."""
@@ -450,7 +476,7 @@ class TasmotaDriver(HttpRelayDriver):
 
 
 DEV_DRIVERS = {d.key: d for d in (WizDriver(), WizPlugDriver(), ShellyDriver(), TasmotaDriver(), PgmApplDriver(),
-                                   CameraDriver('hikvision', 'Hikvision'), CameraDriver('dahua', 'Dahua'), CameraDriver('camurl', 'Drugi (RTSP/HTTP adresa)'),
+                                   CameraDriver('hikvision', 'Hikvision'), CameraDriver('dahua', 'Dahua'), CameraDriver('camurl', 'Drugi (RTSP/HTTP adresa)'), UsbCamDriver(),
                                    PgmDoorDriver(), ZoneIntercomDriver(), ZoneBellDriver())}
 CCTV_DIR = Path('/tmp/cctv')   # HLS segmenti kamera (tmpfs, RAM)
 CCTV_IDLE = 20                 # s bez gledanja -> ffmpeg se gasi
@@ -785,26 +811,74 @@ class Teco:
 
     # ---------- releji
     def _init_relays(self):
+        """Releji po ulozi; pinovi su u pins.toml (izvor = 2 releja, FM = 2 releja, monitor = 1) i pale se zajedno."""
+        from pins import PINS
         try:
             from gpiozero import OutputDevice
         except ImportError:
             OutputDevice = None
         for r in self.st['relays']:
-            dev = None
-            if OutputDevice:
-                try:
-                    dev = OutputDevice(r['pin'], initial_value=bool(r['on']))
-                except Exception as e:  # pin zauzet ili nema GPIO-a
-                    log.warning('rele na GPIO%s nije dostupan: %s', r['pin'], e)
-            self.gpio.append(dev)
+            devs = []
+            for pin in PINS.relay_pins(r.get('role')):
+                if OutputDevice:
+                    try:
+                        devs.append(OutputDevice(pin, active_high=PINS.relay_active_high, initial_value=bool(r['on'])))
+                    except Exception as e:  # pin zauzet ili nema GPIO-a
+                        log.warning('rele %s na GPIO%s nije dostupan: %s', r['n'], pin, e)
+            self.gpio.append(devs)
+        for w in PINS.table()[1]:   # dupli pin, config.txt se ne slaže… (samo u zapisu servera)
+            log.warning('pins.toml: %s', w)
+        self._init_inputs()
+
+    def _init_inputs(self):
+        """Ulazi iz pins.toml: ima struje / na bateriji (ako su povezani) -> stanje + SMS obaveštenje."""
+        from pins import PINS
+        self.inputs = {}
+        if not PINS.get('ulazi', 'koristi', False):
+            return
+        try:
+            from gpiozero import DigitalInputDevice
+        except ImportError:
+            return
+        low = bool(PINS.get('ulazi', 'aktivno_nisko', False))
+        for k in ('struja', 'baterija'):
+            pin = PINS.get('ulazi', k)
+            if pin is None:
+                continue
+            try:
+                dev = DigitalInputDevice(int(pin), pull_up=low, bounce_time=0.2)
+            except Exception as e:
+                log.warning('ulaz %s nije dostupan: %s', k, e)
+                continue
+            self.inputs[k] = dev
+            dev.when_activated = dev.when_deactivated = lambda k=k: self._input_changed(k)
+
+    def _input_changed(self, k):   # iz niti gpiozero
+        loop = getattr(self, 'loop', None)
+        if loop:
+            loop.call_soon_threadsafe(self._input_event, k)
+
+    def _input_event(self, k):
+        v = self.input_state().get(k)
+        log.info('ulaz %s: %s', k, v)
+        if k == 'struja':
+            self.notify('power', 'Struja se vratila.' if v else 'Nestalo je struje!', key='in:struja:%s' % v)
+        elif k == 'baterija':
+            self.notify('power', 'Teco.Pi radi na bateriji.' if v else 'Teco.Pi je ponovo na mrežnom napajanju.', key='in:bat:%s' % v)
+        self.mark()
+
+    def input_state(self):
+        return {k: bool(d.value) for k, d in (getattr(self, 'inputs', None) or {}).items()}
 
     # ---------- dugme SOURCE na ekranu: GPIO preko tranzistora/optokaplera „pritisne“ dugme ekrana.
     # Ekran ne javlja koji je ulaz izabran, pa Teco pamti (cur) i računa koliko puta da pritisne
     # po redosledu ulaza na ekranu (order: 7" 1024x600 ekran ide HDMI → AV → VGA → HDMI…).
-    SCR_DEF = {'on': False, 'pin': 6, 'order': ['HDMI', 'AV', 'VGA'], 'cur': 'HDMI', 'press_ms': 200, 'gap_ms': 700}
+    SCR_DEF = {'on': False, 'order': ['HDMI', 'AV', 'VGA'], 'cur': 'HDMI', 'press_ms': 200, 'gap_ms': 700}
 
     def scr_cfg(self):
+        from pins import PINS
         c = dict(self.SCR_DEF, **(self.st.get('scrbtn') or {}))
+        c['pin'] = int(PINS.get('monitor', 'source', 6))   # pin dugmeta je u pins.toml
         return c
 
     def scr_dev(self, pin):
@@ -858,14 +932,6 @@ class Teco:
         if c == 'scr_set':   # podešavanje (Admin)
             if 'on' in a:
                 cfg['on'] = bool(a['on'])
-            if a.get('pin') not in (None, ''):
-                try:
-                    pin = int(a['pin'])
-                except (TypeError, ValueError):
-                    return {'err': 'GPIO je broj.'}
-                if pin in [r['pin'] for r in self.st['relays']] + [2, 3, 4, 17] or not 2 <= pin <= 27:
-                    return {'err': 'GPIO%s je zauzet ili ne postoji.' % pin}
-                cfg['pin'] = pin
             if a.get('order'):
                 order = [x.strip().upper() for x in re.split(r'[,>→\s]+', str(a['order'])) if x.strip()][:6]
                 if 'HDMI' not in order or 'AV' not in order or len(set(order)) != len(order):
@@ -888,7 +954,7 @@ class Teco:
         if c == 'scr_press':   # proba: jedan pritisak (ulaz koji Teco pamti ide jedan dalje)
             ok = await self.scr_press(1)
             if not ok:
-                return {'err': 'GPIO nije dostupan.'}
+                return {'err': 'Dugme ekrana nije dostupno.'}
             k = self.scr_cfg()
             if k['cur'] in k['order']:
                 cfg['cur'] = k['order'][(k['order'].index(k['cur']) + 1) % len(k['order'])]
@@ -897,12 +963,2112 @@ class Teco:
                 self.mark()
             return {'ok': 'Pritisnuto · ekran sada: ' + self.scr_cfg()['cur']}
 
+    # ---------- Alati na ekranu (Osciloskop, Otpornici…): poseban program crta sloj PREKO plejera (mpv overlay),
+    # pa YouTube/radio/TV rade ispod; gasi se samo Arcade. Podešavanje: data/tool-<ime>.json (program ga prati).
+    TOOL_SCRIPTS = {'scope': 'scope.py', 'resistor': 'resistor.py', 'logic': 'logic.py', 'capacitor': 'capacitor.py', 'net': 'net.py', 'scan': 'scan.py', 'guest': 'guest.py'}
+    TOOL_DEFAULTS = {
+        'scope': {'run': True, 'exp': 'exp2', 'tdiv': 0.005, 'trig': {'src': 'ch1', 'level': 0.0, 'edge': 'rise'},
+                  'ch1': {'on': True, 'wave': 'sine', 'freq': 50.0, 'amp': 2.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.03},
+                  'ch2': {'on': True, 'wave': 'square', 'freq': 100.0, 'amp': 1.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.02}},
+        'net': {}, 'scan': {}, 'guest': {'ssid': '', 'pw': '', 'sec': 'WPA', 'hidden': False},
+        'capacitor': {'mode': 'code', 'code': '2A104J', 'smd': 'S5'},
+        'resistor': {'mode': 'bands', 'bands': 4, 'colors': ['brown', 'black', 'red', 'gold', 'brown', 'brown'], 'smd': '103'},
+        'logic': {'run': True, 'tdiv': 0.0002, 'trig': {'src': 'ch0', 'edge': 'rise'},
+                  'ch0': {'on': True, 'src': 'clock', 'freq': 10000.0, 'duty': 50.0, 'text': 'Teco', 'baud': 9600, 'bits': '10110010', 'rate': 10000.0},
+                  'ch1': {'on': True, 'src': 'uart', 'freq': 1000.0, 'duty': 50.0, 'text': 'Teco.Pi', 'baud': 9600, 'bits': '1100', 'rate': 5000.0}},
+    }
+
+    def tool_cfg(self, name):
+        c = json.loads(json.dumps(self.TOOL_DEFAULTS[name]))
+        for k, v in ((self.st.get('tools') or {}).get(name) or {}).items():
+            if isinstance(v, dict) and isinstance(c.get(k), dict):
+                c[k].update(v)
+            else:
+                c[k] = v
+        return c
+
+    def tool_write(self, name):
+        f = DATA / ('tool-%s.json' % name)
+        tmp = f.with_suffix('.tmp')
+        tmp.write_text(json.dumps(self.nt_view() if name == 'net' else self.scan_view() if name == 'scan' else self.tool_cfg(name), ensure_ascii=False))
+        os.replace(tmp, f)   # program na ekranu vidi novu verziju (mtime) i odmah je primeni
+
+    def tool_running(self):
+        t = getattr(self, 'tool', None)
+        return t['name'] if t and t['proc'].returncode is None else None
+
+    async def tool_show(self, name):
+        if name not in self.TOOL_SCRIPTS:
+            return {'err': 'Nepoznat alat.'}
+        if self.arc_running():
+            await self.arc_stop()
+        if self.tool_running():
+            await self.tool_hide(restore=False)
+        self.tool_write(name)
+        if self.source in AVS:   # ekran je na AV ulazu (konzola): alat je na HDMI-ju
+            asyncio.get_running_loop().create_task(self.scr_input('HDMI'))
+        proc = await asyncio.create_subprocess_exec('python3', str(BASE / 'tools' / self.TOOL_SCRIPTS[name]), str(DATA / ('tool-%s.json' % name)),
+                                                    stdout=asyncio.subprocess.DEVNULL, stderr=open('/tmp/teco-tool.log', 'w'))
+        self.tool = {'name': name, 'proc': proc}
+        log.info('alat na ekranu: %s', name)
+
+        async def watch():
+            await proc.wait()
+            if getattr(self, 'tool', None) and self.tool['proc'] is proc and not self.tool.get('closing'):
+                log.warning('alat %s se ugasio sam (vidi /tmp/teco-tool.log)', name)
+                await self.tool_hide()
+        asyncio.get_running_loop().create_task(watch())
+        if name == 'net' and not self.nt_view()['t']:   # prvi ulazak: test odmah
+            await self.net_test()
+        if name == 'scan' and not self.scan_db()['last']:
+            await self.scan_run()
+        self.mark()
+        return {'ok': 'Na ekranu: ' + {'scope': 'Osciloskop', 'resistor': 'Otpornici', 'logic': 'Logički analizator', 'capacitor': 'Kondenzatori', 'net': 'Mrežni tester', 'scan': 'Skeniranje mreže', 'guest': 'Wi-Fi za goste'}[name]}
+
+    async def tool_hide(self, restore=True):
+        t = getattr(self, 'tool', None)
+        if not t:
+            return {}
+        t['closing'] = True
+        if t['proc'].returncode is None:
+            t['proc'].terminate()
+            try:
+                await asyncio.wait_for(t['proc'].wait(), 5)
+            except asyncio.TimeoutError:
+                t['proc'].kill()
+        self.tool = None
+        await self.mpv.cmd('overlay-remove', 63)   # sloj alata (ako ga program nije stigao da skloni)
+        if restore and self.source in AVS:   # ekran nazad na AV ulaz konzole
+            await self.scr_input('AV')
+        log.info('alat sklonjen sa ekrana')
+        self.mark()
+        return {'ok': 'Alat sklonjen sa ekrana'}
+
+    # ---------- Mrežni tester (Alati): sve provere redom (veza, Wi-Fi/kabl, port na sviču, ruter, DNS, internet, brzina).
+    # Rezultat ide na stranicu (snapshot 'nettest') i na ekran (tools/net.py čita data/tool-net.json).
+    NT_STEPS = [('link', 'Aktivna veza'), ('wifi', 'Wi-Fi'), ('eth', 'Kabl (eth0)'), ('port', 'Port na ruteru / sviču'),
+                ('dhcp', 'Adresa (DHCP)'), ('gw', 'Ruter (gateway)'), ('lan', 'Lokalna mreža'), ('dns', 'DNS'),
+                ('ping', 'Internet (ping)'), ('mtu', 'MTU'), ('http', 'HTTPS'), ('pub', 'Javna adresa'),
+                ('trace', 'Putanja do interneta'), ('vpn', 'VPN (tun0)'), ('down', 'Brzina preuzimanja'), ('up', 'Brzina slanja')]
+
+    def nt_view(self):
+        nt = getattr(self, 'nettest', None)
+        if not nt:
+            nt = {'running': False, 't': 0, 'step': None, 'items': [{'k': k, 'n': n, 's': 'wait', 'v': '', 'd': ''} for k, n in self.NT_STEPS]}
+            self.nettest = nt
+        return nt
+
+    def nt_set(self, k, s, v='', d=''):
+        for it in self.nt_view()['items']:
+            if it['k'] == k:
+                it.update(s=s, v=str(v)[:80], d=str(d)[:160])
+        if self.tool_running() == 'net':
+            self.tool_write('net')
+        self.mark()
+
+    @staticmethod
+    async def _ping(host, n=10, extra=()):
+        out = await Teco._run('ping', '-n', '-q', '-c', str(n), '-i', '0.2', '-W', '1', *extra, host, timeout=n * 1.5 + 5)
+        m = re.search(r'(\d+) packets transmitted, (\d+) received', out)
+        rtt = re.search(r'= ([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+) ms', out)
+        sent, recv = (int(m.group(1)), int(m.group(2))) if m else (n, 0)
+        return {'loss': round(100 * (sent - recv) / max(1, sent)), 'avg': float(rtt.group(2)) if rtt else None,
+                'max': float(rtt.group(3)) if rtt else None, 'jit': float(rtt.group(4)) if rtt else None}
+
+    async def net_test(self):
+        if self.nt_view()['running']:
+            return {'err': 'Test je već u toku.'}
+        self.nettest = None
+        nt = self.nt_view()
+        nt.update(running=True, t=time.time())
+        asyncio.get_running_loop().create_task(self._net_test())
+        self.mark()
+        return {'ok': 'Mrežni test pokrenut'}
+
+    async def _net_test(self):
+        import aiohttp
+        import socket
+        nt = self.nettest
+        ok_net = True
+        try:
+            await self.net_refresh()
+            net = self.net
+            gw = net.get('gw')
+            # --- aktivna veza (preko čega ide internet)
+            nt['step'] = 'link'
+            r = json.loads(await self._run('ip', '-j', 'route', 'get', '1.1.1.1', timeout=5) or '[]')
+            dev = r[0].get('dev') if r else None
+            src = r[0].get('prefsrc') if r else None
+            ifs = {i['n']: i for i in net.get('ifs', [])}
+            if dev:
+                self.nt_set('link', 'ok', '%s · %s' % ({'wlan0': 'Wi-Fi', 'eth0': 'kabl'}.get(dev, dev), src or ''),
+                            'MAC %s · ime %s' % (ifs.get(dev, {}).get('mac', '?'), net.get('host')))
+            else:
+                self.nt_set('link', 'fail', 'nema rute ka internetu', 'Ni Wi-Fi ni kabl nemaju gateway')
+                ok_net = False
+            # --- Wi-Fi: pristupna tačka (BSSID), kanal, signal, brzina veze, susedne mreže na istom kanalu
+            nt['step'] = 'wifi'
+            out = await self._run('nmcli', '-t', '-f', 'IN-USE,SSID,BSSID,CHAN,FREQ,RATE,SIGNAL,SECURITY', 'dev', 'wifi', 'list', '--rescan', 'no', timeout=8)
+            rows = [re.split(r'(?<!\\):', l) for l in out.splitlines()]
+            cur = next((x for x in rows if x and x[0] == '*' and len(x) >= 8), None)
+            if cur:
+                ch = cur[3]
+                same = sum(1 for x in rows if len(x) >= 8 and x[3] == ch and x[0] != '*')
+                dbm = None
+                try:
+                    m = re.search(r'wlan0:\s+\d+\s+[\d.]+\s+(-?\d+)', Path('/proc/net/wireless').read_text())
+                    dbm = int(m.group(1)) if m else None
+                except OSError:
+                    pass
+                sig = int(cur[6] or 0)
+                self.nt_set('wifi', 'ok' if sig >= 60 else 'warn' if sig >= 35 else 'fail',
+                            '%s · signal %d%%%s' % (cur[1].replace('\\:', ':'), sig, (' (%d dBm)' % dbm) if dbm else ''),
+                            'pristupna tačka %s · kanal %s (%s) · %s · %s · %d mreža na istom kanalu'
+                            % (cur[2].replace('\\:', ':'), ch, cur[4], cur[5], cur[7] or 'otvorena', same))
+            else:
+                self.nt_set('wifi', 'info', 'nije povezan', 'Wi-Fi radio: ' + ('uključen' if net.get('radio') else 'isključen'))
+            # --- kabl: link, brzina, duplex
+            nt['step'] = 'eth'
+            sysd = Path('/sys/class/net/eth0')
+
+            def rd(f):
+                try:
+                    return (sysd / f).read_text().strip()
+                except OSError:
+                    return ''
+            carrier = rd('carrier') == '1'
+            direct = False
+            if carrier:
+                spd, dup = rd('speed'), rd('duplex')
+                ip4 = ', '.join(ifs.get('eth0', {}).get('ip') or []) or 'bez adrese'
+                direct = '192.168.50.1/24' in ip4
+                self.nt_set('eth', 'ok' if spd == '100' and dup == 'full' else 'warn', '%s Mbit/s · %s duplex' % (spd or '?', dup or '?'),
+                            ('PS2 direktno · ' if direct else '') + ip4 + ' · greške RX/TX %s/%s' % (rd('statistics/rx_errors'), rd('statistics/tx_errors')))
+            else:
+                self.nt_set('eth', 'info', 'kabl nije uključen', 'nema signala na portu (carrier 0)')
+            # --- port na sviču / ruteru: LLDP / CDP (do 35 s, samo ako je kabl uključen)
+            nt['step'] = 'port'
+            if carrier and direct:
+                self.nt_set('port', 'info', 'kabl je na PS2 (direktno)', ('Internet ide preko Wi-Fi-ja: pristupna tačka %s, kanal %s' % (cur[2].replace('\\:', ':'), cur[3])) if cur else '')
+            elif carrier:
+                self.nt_set('port', 'run', 'slušam LLDP / CDP do 35 s…')
+                out = await self._run('sudo', '-n', 'python3', str(BASE / 'tools' / 'lldp.py'), 'eth0', '35', timeout=45)
+                try:
+                    p = json.loads(out.strip().splitlines()[-1]) if out.strip() else {}
+                except ValueError:
+                    p = {}
+                if p.get('port'):
+                    self.nt_set('port', 'ok', 'port %s%s' % (p['port'], (' (' + p['pdesc'] + ')') if p.get('pdesc') and p['pdesc'] != p['port'] else ''),
+                                '%s: %s%s%s' % (p['proto'], p.get('sys') or p.get('chassis') or p.get('src'),
+                                                (' · VLAN %s' % p['vlan']) if p.get('vlan') else '', (' · ' + p['mgmt']) if p.get('mgmt') else ''))
+                else:
+                    self.nt_set('port', 'info', 'ruter ne javlja port', 'Nema LLDP/CDP okvira za 35 s — obični kućni ruteri ih ne šalju (upravljivi svičevi da)')
+            elif cur:
+                self.nt_set('port', 'info', 'Wi-Fi: kanal %s' % cur[3], 'Preko Wi-Fi-ja nema porta; Pi je na pristupnoj tački ' + cur[2].replace('\\:', ':'))
+            else:
+                self.nt_set('port', 'info', 'nema kabla', '')
+            # --- DHCP zakup
+            nt['step'] = 'dhcp'
+            if dev:
+                out = await self._run('nmcli', '-t', '-f', 'DHCP4', 'dev', 'show', dev, timeout=5)
+                o = dict(re.findall(r'option\[\d+\]:(\w+) = (.*)', out) or re.findall(r'DHCP4\.OPTION\[\d+\]:(\w+) = (.*)', out))
+                if o:
+                    lt = int(o.get('dhcp_lease_time', 0) or 0)
+                    self.nt_set('dhcp', 'ok', '%s / %s' % (o.get('ip_address', src), o.get('subnet_mask', '?')),
+                                'DHCP server %s · zakup %s' % (o.get('dhcp_server_identifier', '?'), ('%d h' % (lt // 3600)) if lt >= 3600 else ('%d min' % (lt // 60))))
+                else:
+                    self.nt_set('dhcp', 'info', 'statička adresa', src or '')
+            else:
+                self.nt_set('dhcp', 'fail', 'nema adrese')
+            # --- ruter: ping, MAC
+            nt['step'] = 'gw'
+            if gw:
+                self.nt_set('gw', 'run', gw + ' · ping…')
+                pg = await self._ping(gw, 20)
+                nb = await self._run('ip', 'neigh', 'show', gw, timeout=5)
+                gmac = (re.search(r'lladdr (\S+)', nb) or [None, '?'])[1]
+                st = 'fail' if pg['avg'] is None else 'warn' if pg['loss'] > 0 or pg['avg'] > 30 else 'ok'
+                self.nt_set('gw', st, '%s · %s' % (gw, ('%.1f ms' % pg['avg']) if pg['avg'] is not None else 'ne odgovara'),
+                            'gubitak %d%% · jitter %s ms · max %s ms · MAC %s' % (pg['loss'], pg['jit'], pg['max'], gmac))
+                if pg['avg'] is None:
+                    ok_net = False
+            else:
+                self.nt_set('gw', 'fail', 'nema gateway-a')
+                ok_net = False
+            # --- lokalna mreža: uređaji koje Pi vidi (ARP)
+            nt['step'] = 'lan'
+            nb = await self._run('ip', 'neigh', timeout=5)
+            alive = [l for l in nb.splitlines() if 'lladdr' in l and ('REACHABLE' in l or 'STALE' in l or 'DELAY' in l)]
+            self.nt_set('lan', 'info', '%d uređaja viđeno' % len(alive), '%d trenutno odgovara' % sum('REACHABLE' in l for l in alive))
+            # --- DNS
+            nt['step'] = 'dns'
+            servers = (net.get('dns') or {}).get('active') or []
+            loop = asyncio.get_running_loop()
+            t0 = time.time()
+            try:
+                ai = await asyncio.wait_for(loop.getaddrinfo('www.google.com', 443, type=socket.SOCK_STREAM), 6)
+                ms = (time.time() - t0) * 1000
+                self.nt_set('dns', 'ok' if ms < 150 else 'warn', '%.0f ms · %s' % (ms, ai[0][4][0]), 'server: ' + (', '.join(servers) or '?'))
+            except (OSError, asyncio.TimeoutError):
+                self.nt_set('dns', 'fail', 'ne razrešava imena', 'server: ' + (', '.join(servers) or '?'))
+            # --- internet ping
+            nt['step'] = 'ping'
+            self.nt_set('ping', 'run', '1.1.1.1 i 8.8.8.8…')
+            a, b = await asyncio.gather(self._ping('1.1.1.1', 15), self._ping('8.8.8.8', 15))
+            best = min((x for x in (a, b) if x['avg'] is not None), key=lambda x: x['avg'], default=None)
+            if best:
+                st = 'warn' if max(a['loss'], b['loss']) > 2 or best['avg'] > 80 else 'ok'
+                self.nt_set('ping', st, '%.0f ms' % best['avg'], '1.1.1.1: %s ms, gubitak %d%% · 8.8.8.8: %s ms, gubitak %d%%'
+                            % (a['avg'], a['loss'], b['avg'], b['loss']))
+            else:
+                self.nt_set('ping', 'fail', 'nema odgovora', 'Internet nije dostupan (ili je ping blokiran)')
+            # --- MTU (1500 bez fragmentacije)
+            nt['step'] = 'mtu'
+            m1 = await self._run('ping', '-n', '-c', '1', '-W', '2', '-M', 'do', '-s', '1472', '8.8.8.8', timeout=6)
+            if ' 0% packet loss' in m1:
+                self.nt_set('mtu', 'ok', '1500 prolazi', 'paketi pune veličine bez fragmentacije')
+            else:
+                for size in (1464, 1452, 1432, 1400, 1300):
+                    if ' 0% packet loss' in await self._run('ping', '-n', '-c', '1', '-W', '2', '-M', 'do', '-s', str(size), '8.8.8.8', timeout=6):
+                        self.nt_set('mtu', 'info' if size + 28 == 1492 else 'warn', 'MTU ~%d' % (size + 28),
+                                    'PPPoE veza provajdera (uobičajeno)' if size + 28 == 1492 else 'manji MTU (VPN / tunel?) — veliki paketi se dele')
+                        break
+                else:
+                    self.nt_set('mtu', 'info', 'nije izmereno', '')
+            # --- HTTPS + javna adresa
+            to = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=to) as ses:
+                nt['step'] = 'http'
+                try:
+                    t0 = time.time()
+                    async with ses.get('https://www.google.com/generate_204') as rq:
+                        ms = (time.time() - t0) * 1000
+                        self.nt_set('http', 'ok' if rq.status == 204 else 'warn', '%.0f ms' % ms,
+                                    'HTTP %d%s' % (rq.status, '' if rq.status == 204 else ' — možda portal za prijavu (hotel/javni Wi-Fi)'))
+                except Exception as e:
+                    self.nt_set('http', 'fail', 'ne radi', type(e).__name__)
+                nt['step'] = 'pub'
+                try:
+                    async with ses.get('https://ipinfo.io/json') as rq:
+                        j = await rq.json(content_type=None)
+                    self.nt_set('pub', 'info', j.get('ip', '?'), ' · '.join(x for x in (j.get('org'), j.get('city'), j.get('country')) if x))
+                except Exception as e:
+                    self.nt_set('pub', 'warn', 'nepoznata', type(e).__name__)
+                # --- putanja (traceroute)
+                nt['step'] = 'trace'
+                self.nt_set('trace', 'run', 'traceroute…')
+                out = await self._run('traceroute', '-n', '-q', '1', '-w', '1', '-m', '15', '8.8.8.8', timeout=40)
+                hops = re.findall(r'^\s*(\d+)\s+(\S+)(?:\s+([\d.]+) ms)?', out, re.M)
+                if hops:
+                    shown = ' → '.join(h[1] for h in hops[:6]) + (' → …' if len(hops) > 6 else '')
+                    self.nt_set('trace', 'info', '%d skokova' % len(hops), shown)
+                else:
+                    self.nt_set('trace', 'info', 'nije izmereno', '')
+                # --- VPN
+                nt['step'] = 'vpn'
+                if 'tun0' in ifs:
+                    pg = await self._ping('10.10.255.1', 5)
+                    self.nt_set('vpn', 'ok' if pg['avg'] is not None else 'warn', ', '.join(ifs['tun0'].get('ip') or []) or 'tun0',
+                                ('server 10.10.255.1: %.0f ms' % pg['avg']) if pg['avg'] is not None else 'VPN server ne odgovara')
+                else:
+                    self.nt_set('vpn', 'info', 'nije aktivan', '')
+                # --- brzina: preuzimanje (do 25 MB / 10 s), slanje (5 MB)
+                nt['step'] = 'down'
+                if ok_net:
+                    self.nt_set('down', 'run', 'merim…')
+                    try:
+                        got, t0 = 0, time.time()
+                        async with ses.get('https://speed.cloudflare.com/__down?bytes=25000000', timeout=aiohttp.ClientTimeout(total=20)) as rq:
+                            async for chunk in rq.content.iter_chunked(65536):
+                                got += len(chunk)
+                                el = time.time() - t0
+                                if el > 0.5:
+                                    next(it for it in nt['items'] if it['k'] == 'down')['v'] = '%.1f Mbit/s…' % (got * 8 / el / 1e6)
+                                    self.mark()
+                                if el > 10:
+                                    break
+                        mb = got * 8 / (time.time() - t0) / 1e6
+                        self.nt_set('down', 'ok' if mb >= 10 else 'warn', '%.1f Mbit/s' % mb, '%.1f MB za %.1f s (Cloudflare)' % (got / 1e6, time.time() - t0))
+                    except Exception as e:
+                        self.nt_set('down', 'fail', 'nije uspelo', type(e).__name__)
+                    nt['step'] = 'up'
+                    self.nt_set('up', 'run', 'merim…')
+                    try:
+                        data = os.urandom(5_000_000)
+                        t0 = time.time()
+                        async with ses.post('https://speed.cloudflare.com/__up', data=data, timeout=aiohttp.ClientTimeout(total=30)) as rq:
+                            await rq.read()
+                        el = time.time() - t0
+                        mb = len(data) * 8 / el / 1e6
+                        self.nt_set('up', 'ok' if mb >= 5 else 'warn', '%.1f Mbit/s' % mb, '5 MB za %.1f s' % el)
+                    except Exception as e:
+                        self.nt_set('up', 'fail', 'nije uspelo', type(e).__name__)
+                else:
+                    self.nt_set('down', 'info', 'preskočeno (nema interneta)')
+                    self.nt_set('up', 'info', 'preskočeno (nema interneta)')
+        except Exception:
+            log.exception('mrežni test')
+        finally:
+            for it in nt['items']:
+                if it['s'] in ('wait', 'run'):
+                    it['s'], it['v'] = 'info', it['v'] or 'nije provereno'
+            nt.update(running=False, step=None, done=time.time())
+            if self.tool_running() == 'net':
+                self.tool_write('net')
+            self.mark()
+
+    # ---------- Skeniranje mreže (Alati): uređaji na mrežama Pi-ja + poznati portovi; spisak se čuva (data/netscan.json)
+    SCAN_FILE = DATA / 'netscan.json'
+
+    def scan_db(self):
+        if getattr(self, '_scan_db', None) is None:
+            try:
+                self._scan_db = json.loads(self.SCAN_FILE.read_text())
+            except (OSError, ValueError):
+                self._scan_db = {'devices': {}, 'last': 0, 'ifs': ['wlan0', 'eth0']}
+        return self._scan_db
+
+    def scan_save(self):
+        tmp = self.SCAN_FILE.with_suffix('.tmp')
+        tmp.write_text(json.dumps(self.scan_db(), ensure_ascii=False))
+        os.replace(tmp, self.SCAN_FILE)
+
+    def scan_view(self):
+        db, st = self.scan_db(), getattr(self, 'scan_st', None) or {}
+        devs = sorted(({'key': k, **d} for k, d in db['devices'].items()),
+                      key=lambda d: (not d.get('online'), tuple(int(x) for x in d['ip'].split('.')) if d.get('ip') else (999,)))
+        ifs = [{'n': i['n'], 'ip': i['ip']} for i in self.net.get('ifs', []) if i.get('ip') and i['n'] != 'lo']
+        return {'running': bool(st.get('running')), 'step': st.get('step', ''), 'prog': st.get('prog', 0), 'last': db['last'],
+                'sel': db.get('ifs', []), 'ifs': ifs, 'devices': devs}
+
+    def scan_touch(self, **kw):
+        self.scan_st.update(kw)
+        if self.tool_running() == 'scan':
+            self.tool_write('scan')
+        self.mark()
+
+    async def wol(self, key):
+        """Wake-on-LAN: 6×FF + 16× MAC, UDP broadcast (port 9 i 7) na svim mrežama Pi-ja; zatim 2 min čeka da se uređaj javi."""
+        import socket
+        db = self.scan_db()
+        d = db['devices'].get(key)
+        if not d or not d.get('mac'):
+            return {'err': 'Uređaj nema MAC adresu.'}
+        mac = bytes.fromhex(d['mac'].replace(':', ''))
+        if mac[0] & 2:
+            return {'err': 'Privatna (nasumična) MAC adresa — buđenje ne radi.'}
+        pkt = b'\xff' * 6 + mac * 16
+        targets = {'255.255.255.255'}
+        for i in self.net.get('ifs', []):
+            if i['n'] in ('lo', 'tun0'):
+                continue
+            for a in i.get('ip') or []:
+                targets.add(str(ipaddress.ip_interface(a).network.broadcast_address))
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            for _ in range(3):
+                for t in targets:
+                    for port in (9, 7):
+                        try:
+                            s.sendto(pkt, (t, port))
+                        except OSError:
+                            pass
+                await asyncio.sleep(0.3)
+        finally:
+            s.close()
+        d['wake'] = {'t': time.time(), 'st': 'wait'}
+        self.mark()
+        log.info('Wake-on-LAN: %s (%s)', d.get('label') or d.get('name') or d['mac'], ', '.join(sorted(targets)))
+
+        async def watch():   # da li se upalio (ping na poslednju poznatu IP, ili ARP po MAC-u)
+            import netscan
+            sem = asyncio.Semaphore(1)
+            for _ in range(24):
+                await asyncio.sleep(5)
+                ip = d.get('ip')
+                if not ip:
+                    for l in (await self._run('ip', 'neigh', timeout=5)).splitlines():
+                        if d['mac'] in l.lower() and 'FAILED' not in l:
+                            ip = d['ip'] = l.split()[0]
+                if ip and await netscan.ping(ip, sem):
+                    d['wake'] = {'t': time.time(), 'st': 'up'}
+                    d['online'], d['last'] = True, time.time()
+                    break
+            else:
+                d['wake'] = {'t': time.time(), 'st': 'none'}
+            self.scan_save()
+            self.mark()
+        asyncio.get_running_loop().create_task(watch())
+        return {'ok': 'Paket za buđenje poslat · čekam da se uređaj javi (do 2 min)'}
+
+    async def scan_run(self, sel=None):
+        if (getattr(self, 'scan_st', None) or {}).get('running'):
+            return {'err': 'Skeniranje je već u toku.'}
+        db = self.scan_db()
+        if isinstance(sel, list):
+            db['ifs'] = [str(x)[:15] for x in sel][:6]
+        self.scan_st = {'running': True, 'step': 'pokrećem…', 'prog': 0}
+        asyncio.get_running_loop().create_task(self._scan())
+        self.mark()
+        return {'ok': 'Skeniranje mreže pokrenuto'}
+
+    async def _scan(self):
+        import socket
+        import netscan
+        db = self.scan_db()
+        try:
+            await self.net_refresh()
+            gw = self.net.get('gw')
+            mf = DATA / 'manuf'   # baza proizvođača (Wireshark): preuzima se ako je nema ili je starija od 90 dana
+            if not mf.exists() or time.time() - mf.stat().st_mtime > 90 * 86400:
+                self.scan_touch(step='preuzimam bazu proizvođača…', prog=2)
+                try:
+                    import aiohttp
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as ses:
+                        async with ses.get(netscan.MANUF_URL) as rq:
+                            body = await rq.read() if rq.status == 200 else b''
+                    if body.count(b'\n') > 10000:
+                        mf.with_suffix('.tmp').write_bytes(body)
+                        os.replace(mf.with_suffix('.tmp'), mf)
+                except Exception as e:
+                    log.warning('baza proizvođača: %s', e)
+            if netscan._manuf is None:
+                await asyncio.get_running_loop().run_in_executor(None, netscan.load_manuf, str(mf))
+            nets = netscan.networks([i for i in self.net.get('ifs', []) if i['n'] in db['ifs']])
+            if not nets:
+                self.scan_touch(step='nema izabranih mreža')
+                return
+            # 1) ko je živ: ping svih adresa + ARP tabela (vidi i uređaje koji ne odgovaraju na ping)
+            sem = asyncio.Semaphore(48)
+            hosts = [(ifc, me, str(h)) for ifc, me, net in nets for h in net.hosts()]
+            self.scan_touch(step='tražim uređaje (%d adresa)…' % len(hosts), prog=5)
+            alive = set()
+            done = 0
+
+            async def one(ifc, me, ip):
+                nonlocal done
+                if await netscan.ping(ip, sem):
+                    alive.add(ip)
+                done += 1
+                if done % 32 == 0:
+                    self.scan_touch(prog=5 + int(40 * done / len(hosts)))
+            await asyncio.gather(*(one(*h) for h in hosts))
+            macs = {}
+            for l in (await self._run('ip', 'neigh', timeout=5)).splitlines():
+                m = re.match(r'(\d+\.\d+\.\d+\.\d+) dev (\S+) lladdr (\S+) (\S+)', l)
+                if m and m.group(4) not in ('FAILED', 'INCOMPLETE'):
+                    ip = m.group(1)
+                    if any(ipaddress.ip_address(ip) in net for _, _, net in nets):
+                        macs[ip] = m.group(3).lower()
+                        alive.add(ip)
+            mine = {me: ifc for ifc, me, _ in nets}
+            alive |= set(mine)
+            ip_if = {h[2]: h[0] for h in hosts}
+            ip_if.update(mine)
+            # 2) portovi i imena
+            alive = sorted(alive, key=lambda x: tuple(int(p) for p in x.split('.')))
+            self.scan_touch(step='proveravam portove na %d uređaja…' % len(alive), prog=50)
+            psem = asyncio.Semaphore(150)
+            ports = {ip: [] for ip in alive}
+
+            async def pchk(ip, port):
+                if await netscan.port_open(ip, port, psem):
+                    ports[ip].append(port)
+            await asyncio.gather(*(pchk(ip, p) for ip in alive for p in netscan.PORTS))
+            self.scan_touch(step='tražim imena uređaja…', prog=80)
+            loop = asyncio.get_running_loop()
+            names = await asyncio.gather(*(loop.run_in_executor(None, netscan.lookup_name, ip, gw) for ip in alive))
+            # 3) spoji sa sačuvanim spiskom (ključ: MAC; uređaj može promeniti IP)
+            now, first_scan = time.time(), not db['devices']
+            for d in db['devices'].values():
+                d['online'] = False
+                d['new'] = False
+            own_mac = {i['n']: i.get('mac') for i in self.net.get('ifs', [])}
+            for ip, name in zip(alive, names):
+                mac = macs.get(ip) or (own_mac.get(mine[ip]) if ip in mine else None)
+                key = mac or 'ip-' + ip
+                d = db['devices'].get(key)
+                if d is None:
+                    d = db['devices'][key] = {'first': now, 'label': ''}
+                    d['new'] = not first_scan
+                d.update(ip=ip, mac=mac, ifc=ip_if.get(ip), last=now, online=True, ports=sorted(ports[ip]),
+                         vendor=netscan.vendor(mac), name=name or d.get('name') or (socket.gethostname() if ip in mine else ''))
+                d['type'], d['kind'] = netscan.guess(d, gw, ip if ip in mine else None)
+                d['link'] = netscan.link_guess(d)
+            for k in [k for k, d in db['devices'].items() if not d.get('online') and not d.get('label') and now - d['last'] > 30 * 86400]:
+                del db['devices'][k]   # neimenovani uređaji koji se ne vide mesec dana
+            db['last'] = now
+            self.scan_save()
+            on = sum(d['online'] for d in db['devices'].values())
+            new = sum(d.get('new', False) for d in db['devices'].values())
+            self.scan_touch(step='%d uređaja na mreži%s' % (on, (' · %d novih' % new) if new else ''), prog=100)
+        except Exception:
+            log.exception('skeniranje mreže')
+            self.scan_touch(step='greška pri skeniranju')
+        finally:
+            self.scan_touch(running=False)
+
+    # ---------- Telefonska linija (Alati): SLIC (linija za obični telefon: zvono, slušalica, biranje) + GSM modul SIM800.
+    # Ovde je podešavanje i provera hardvera; povezivanje (GSM poziv -> zvoni telefon…) koristi ova podešavanja.
+    PHONE_DEF = {
+        'gsm': {'on': False, 'model': 'A7672E', 'port': '/dev/serial0', 'baud': 115200, 'pwrkey': 0, 'pin': '', 'apn': '', 'audio': 'usb'},
+        'slic': {'on': False, 'chip': 'KS0835F', 'rm': 22, 'fr': 23, 'shk': 24, 'shk_low': True, 'ring_hz': 25, 'cadence': 'eu',
+                 'dial': 'both', 'tone_hz': 425, 'audio': 'usb'},
+        'route': {'gsm_ring': True, 'dial_out': True, 'alarm_call': '', 'alarm_sms': '', 'allow': []},
+    }
+    PHONE_PORTS = ['/dev/serial0', '/dev/ttyS0', '/dev/ttyAMA0', '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyUSB2']   # modem je na TX/RX ploče (serial0)
+    MODEMS = {'A7672E': 'SIMCom A7672E (LTE Cat-1)', 'SIM800': 'SIMCom SIM800 (2G)', 'SIM': 'Simulator (bez modema, za test)'}
+    CADENCE = {'eu': [(1.0, 4.0)], 'us': [(2.0, 4.0)], 'uk': [(0.4, 0.2), (0.4, 2.0)], 'short': [(0.4, 0.2), (0.4, 0.2), (0.4, 3.0)]}
+
+    def phone_cfg(self):
+        c = json.loads(json.dumps(self.PHONE_DEF))
+        for k, v in (self.st.get('phone') or {}).items():
+            if isinstance(v, dict) and k in c:
+                c[k].update(v)
+        c['slic']['chip'] = 'KS0835F'   # jedini SLIC koji se koristi
+        # pinovi i port nisu podešavanje sa stranice: proširenje (EXP1/EXP2) se bira, pinovi su u pins.toml
+        from pins import PINS
+        c['exp'] = (self.st.get('phone') or {}).get('exp') or 'exp1'
+        c['slic'].update(PINS.slic(c['exp']))
+        c['gsm'].update(port='/dev/serial0', baud=PINS.baud, pwrkey=PINS.pwrkey(c['exp']) or 0)
+        c['route'].pop('bell_ring', None)
+        return c
+
+    def phone_view(self):
+        c = self.phone_cfg()
+        st = getattr(self, 'phone_st', None) or {}
+        g = {k: v for k, v in c['gsm'].items() if k not in ('port', 'baud', 'pwrkey', 'pin')}   # port i pinovi nisu za stranicu
+        g['pin_set'] = bool(c['gsm']['pin'])   # PIN se ne šalje nazad
+        slic = {k: v for k, v in c['slic'].items() if k not in ('rm', 'fr', 'shk', 'shk_low')}
+        hook = None
+        if c['slic']['on']:
+            dev = self._phone_in(int(c['slic']['shk']))
+            if dev is not None:
+                hook = bool(dev.value) != bool(c['slic']['shk_low'])   # True = slušalica podignuta
+        hook = self.ph()['hook'] if self.ph().get('sim_hook') is not None else hook
+        return {'exp': c['exp'], 'gsm': g, 'slic': slic, 'route': c['route'], 'gsm_st': st.get('gsm'), 'hook': hook,
+                'line': self.phone_line_view(), 'calls': self.calls()[-40:][::-1], 'modem_ok': self.mdm_ready(),
+                'uart_ok': os.path.exists(c['gsm']['port']), 'scope_exp': self.tool_cfg('scope').get('exp')}
+
+    def _phone_in(self, pin):
+        d = getattr(self, '_phone_shk', None)
+        if d and d[0] == pin:
+            return d[1]
+        if d and d[1]:
+            d[1].close()
+        dev = None
+        try:
+            from gpiozero import DigitalInputDevice
+            dev = DigitalInputDevice(pin, pull_up=True)
+            loop = asyncio.get_event_loop()   # slušalica gore/dole: odmah na stranicu
+            # slušalica: ivice idu u logiku linije (podizanje, spuštanje, impulsno biranje)
+            dev.when_activated = lambda: loop.call_soon_threadsafe(self._shk_edge_dev)
+            dev.when_deactivated = lambda: loop.call_soon_threadsafe(self._shk_edge_dev)
+        except Exception as e:
+            log.warning('SLIC SHK na GPIO%s nije dostupan: %s', pin, e)
+        self._phone_shk = (pin, dev)
+        return dev
+
+    def _shk_edge_dev(self):
+        if self.ph().get('sim_hook') is None:
+            self.ph_shk_edge(self._shk_now(), time.monotonic())
+
+    def phone_set(self, a):
+        c = self.phone_cfg()
+        try:
+            if a.get('exp') in ('exp1', 'exp2'):
+                if a['exp'] == self.tool_cfg('scope').get('exp'):
+                    return {'err': 'Na %s je već Osciloskop.' % a['exp'].upper()}
+                c['exp'] = a['exp']
+            g = a.get('gsm') or {}
+            if 'on' in g:
+                c['gsm']['on'] = bool(g['on'])
+            if g.get('model') in self.MODEMS:
+                c['gsm']['model'] = g['model']
+            if g.get('audio') in ('usb', 'spi', 'none'):
+                c['gsm']['audio'] = g['audio']
+            if 'pin' in g:
+                c['gsm']['pin'] = re.sub(r'\D', '', str(g['pin']))[:8]
+            if 'apn' in g:
+                c['gsm']['apn'] = re.sub(r'[^\w.\-]', '', str(g['apn']))[:40]
+            s = a.get('slic') or {}
+            if 'on' in s:
+                c['slic']['on'] = bool(s['on'])
+            if 'ring_hz' in s and int(s['ring_hz']) in (20, 25, 50):
+                c['slic']['ring_hz'] = int(s['ring_hz'])
+            if s.get('cadence') in self.CADENCE:
+                c['slic']['cadence'] = s['cadence']
+            if s.get('dial') in ('dtmf', 'pulse', 'both'):
+                c['slic']['dial'] = s['dial']
+            if 'tone_hz' in s and int(s['tone_hz']) in (350, 400, 425, 440, 450):
+                c['slic']['tone_hz'] = int(s['tone_hz'])
+            if s.get('audio') in ('usb', 'hdmi', 'jack', 'i2s'):
+                c['slic']['audio'] = s['audio']
+            r = a.get('route') or {}
+            for k in ('gsm_ring', 'dial_out'):
+                if k in r:
+                    c['route'][k] = bool(r[k])
+            for k in ('alarm_call', 'alarm_sms'):
+                if k in r:
+                    c['route'][k] = re.sub(r'[^\d+]', '', str(r[k]))[:16]
+            if 'allow' in r:
+                c['route']['allow'] = [x for x in (re.sub(r'[^\d+]', '', str(n))[:16] for n in (r['allow'] or [])[:20]) if x]
+        except (TypeError, ValueError):
+            return {'err': 'Neispravna vrednost.'}
+        for k in ('rm', 'fr', 'shk', 'shk_low'):   # pinovi se ne čuvaju u stanju (pins.toml)
+            c['slic'].pop(k, None)
+        for k in ('port', 'baud', 'pwrkey'):
+            c['gsm'].pop(k, None)
+        self.st['phone'] = c
+        save_state(self.st)
+        self.sms_kick()   # modem: otvori / zatvori / ponovo poveži odmah
+        self.mark()
+        return {}
+
+    # ---------- modem: stalna veza (modem.Link) — odmah hvata pozive (RING/+CLIP/+CLCC) i poruke (+CMTI).
+    # AT komande idu jedna po jedna (gsm_lock + nit). Model 'SIM' = simulator modema (test bez hardvera).
+    def mdm_ready(self):
+        lk = getattr(self, 'mdm', None)
+        return bool(lk and lk.alive and getattr(self, 'mdm_ok', False))
+
+    async def mdm_ensure(self):
+        """Otvori vezu kad je modem uključen (i port postoji), zatvori kad nije; ponovo otvori kad se promeni model/brzina."""
+        import modem
+        g = self.phone_cfg()['gsm']
+        sim = g['model'] == 'SIM'
+        want = g['on'] and (sim or os.path.exists(g['port']))
+        key = (g['model'], g['baud'], g['pin'])
+        lk = getattr(self, 'mdm', None)
+        if lk and (not want or not lk.alive or getattr(self, 'mdm_key', None) != key):
+            lk.close()
+            self.mdm, self.mdm_ok = None, False
+            self.sms_st = dict(getattr(self, 'sms_st', None) or {}, st=None if not want else 'err', err=None if not want else str(lk.err or 'veza prekinuta'))
+            self.mark()
+            lk = None
+        self.ph_slic_ensure()
+        if not want or lk:
+            return
+        loop = asyncio.get_running_loop()
+        self.loop = loop
+        try:
+            lk = await loop.run_in_executor(None, lambda: modem.Link(g['port'], g['baud'], self._mdm_urc, sim=sim))
+            self.mdm, self.mdm_key, self.mdm_ok = lk, key, False
+            self.mdm_since = time.time()
+            async with self.gsm_lock():
+                await loop.run_in_executor(None, modem.setup, lk, g['model'], g['pin'])
+            self.mdm_ok = True
+            log.info('modem %s povezan%s', g['model'], ' (simulator)' if sim else '')
+            self.sms_st = dict(getattr(self, 'sms_st', None) or {}, st='ok', err=None, t=time.time())
+        except Exception as e:
+            log.warning('modem: %s', e)
+            if getattr(self, 'mdm', None):
+                self.mdm.close()
+            self.mdm, self.mdm_ok = None, False
+            self.sms_st = dict(getattr(self, 'sms_st', None) or {}, st='err', err=str(e)[:120], t=time.time())
+        self.mark()
+
+    async def mdm_call(self, fn, *args):
+        """modem.<fn>(link, *args) u niti, jedna po jedna."""
+        if not getattr(self, 'mdm', None):
+            raise OSError('modem nije povezan')
+        async with self.gsm_lock():
+            return await asyncio.get_running_loop().run_in_executor(None, fn, self.mdm, *args)
+
+    async def mdm_at(self, cmd, wait=5):
+        try:
+            return await self.mdm_call(lambda lk: lk.at(cmd, wait))
+        except Exception as e:
+            log.warning('modem %s: %s', cmd, e)
+            return 'ERROR'
+
+    def _mdm_urc(self, line):   # iz niti modema
+        loop = getattr(self, 'loop', None)
+        if loop:
+            loop.call_soon_threadsafe(self._urc, line)
+
+    def _urc(self, line):
+        if line != 'RING' and not line.startswith('+CLIP'):
+            log.info('modem: %s', line[:80])
+        if line == '__closed__':
+            self.mdm_ok = False
+            self.sms_kick()
+        elif line == 'RING':
+            self.ph_incoming(None)
+        elif line.startswith('+CLIP:'):
+            m = re.search(r'\+CLIP: "([^"]*)"', line)
+            self.ph_incoming(m.group(1) if m else '')
+        elif line.startswith('+CLCC:'):
+            m = re.match(r'\+CLCC: \d+,(\d),(\d)(?:,\d+,\d+,"([^"]*)")?', line)
+            if m:
+                d, st, num = m.group(1), m.group(2), m.group(3) or ''
+                if st == '4' and d == '1':
+                    self.ph_incoming(num)
+                elif st == '0':
+                    self.ph_connected()
+                elif st == '6':
+                    self.ph_remote_end()
+        elif line.startswith('VOICE CALL: BEGIN'):
+            self.ph_connected()
+        elif line.startswith(('NO CARRIER', 'BUSY', 'NO ANSWER', 'VOICE CALL: END', 'MISSED_CALL')):
+            self.ph_remote_end(gsm=True)
+        elif line.startswith('+CMTI'):
+            self.sms_kick()
+
+    # ---------- linija: stanje poziva. idle -> ring_in (zvoni) -> talk; idle -> dial (ton, biranje) -> calling -> talk;
+    # druga strana spusti -> ended (zauzeće dok se slušalica ne spusti); alarm -> auto (poziv bez slušalice)
+    CALLS_FILE = DATA / 'calls.json'
+
+    def ph(self):
+        if getattr(self, '_ph', None) is None:
+            self._ph = {'state': 'idle', 'num': '', 'digits': '', 't': time.time(), 'since': None, 'hook': False, 'dir': ''}
+        return self._ph
+
+    def ph_set(self, state, **kw):
+        p = self.ph()
+        if p['state'] != state:
+            log.info('linija: %s -> %s %s', p['state'], state, kw.get('num') or p.get('num') or '')
+        p.update(state=state, t=time.time(), **kw)
+        self.mark()
+
+    def calls(self):
+        if getattr(self, '_calls', None) is None:
+            try:
+                self._calls = json.loads(self.CALLS_FILE.read_text())
+            except (OSError, ValueError):
+                self._calls = []
+        return self._calls
+
+    def call_log(self, kind, num, dur=0):
+        c = self.calls()
+        c.append({'t': time.time(), 'dir': kind, 'num': num or '', 'dur': int(dur)})
+        del c[:-300]
+        tmp = self.CALLS_FILE.with_suffix('.tmp')
+        tmp.write_text(json.dumps(c, ensure_ascii=False))
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.CALLS_FILE)
+
+    def ph_audio(self):
+        import phoneline
+        kind = self.phone_cfg()['slic']['audio']
+        c = getattr(self, '_ph_audio_c', None)
+        if not c or c[0] != kind or time.time() - c[2] > 30:   # /proc/asound/cards se čita najviše na 30 s
+            c = self._ph_audio_c = (kind, phoneline.alsa_device(kind), time.time())
+        return c[1]
+
+    def ph_tone(self, kind):
+        import phoneline
+        if not hasattr(self, '_tones'):
+            self._tones = phoneline.Tones()
+        s = self.phone_cfg()['slic']
+        if kind and s['on']:
+            self._tones.play(kind, self.ph_audio(), s['tone_hz'])
+        else:
+            self._tones.stop()
+
+    def ph_dtmf(self, on):
+        import phoneline
+        if not hasattr(self, '_dtmf'):
+            self._dtmf = phoneline.Dtmf()
+        s = self.phone_cfg()['slic']
+        if on and s['on'] and s['dial'] in ('dtmf', 'both'):
+            loop = asyncio.get_running_loop()
+            self._dtmf.start(self.ph_audio(), lambda k: loop.call_soon_threadsafe(self.ph_digit, k))
+        else:
+            self._dtmf.stop()
+
+    def ph_ring(self, on):
+        import phoneline
+        if not hasattr(self, '_ringer'):
+            self._ringer = phoneline.Ringer()
+        s = self.phone_cfg()['slic']
+        if on and s['on']:
+            try:
+                self._ringer.start(s['rm'], s['fr'], s['ring_hz'], self.CADENCE[s['cadence']])
+            except Exception as e:
+                log.warning('zvono: %s', e)
+        else:
+            self._ringer.stop()
+        self.mark()
+
+    def ph_slic_ensure(self):
+        """Ulaz SHK (slušalica) postoji dok je SLIC uključen."""
+        s = self.phone_cfg()['slic']
+        if s['on']:
+            self._phone_in(int(s['shk']))
+
+    def ph_incoming(self, num, direct=False):
+        if not direct and self.pbx_on():
+            return self.pbx_gsm_ring(num)   # centrala: poziv ide kroz najavu i krugove zvonjenja
+        p, r = self.ph(), self.phone_cfg()['route']
+        if num is not None and num != '':
+            num = self.sms_num(num) or num
+        if p['state'] == 'ring_in':
+            p['last_ring'] = time.time()
+            if num and not p['num']:
+                p['num'] = num
+                self.ph_allowed_check()
+            return
+        if p['state'] != 'idle':
+            return   # zauzeto (u razgovoru / bira): modem sam javlja zauzeće ili poziv na čekanju
+        self.ph_set('ring_in', num=num or '', dir='in', digits='', last_ring=time.time())
+        if num:
+            if not self.ph_allowed_check():
+                return
+        if r['gsm_ring']:
+            self.ph_ring(True)
+        asyncio.get_running_loop().create_task(self.ph_ring_watch())
+
+    def ph_allowed_check(self):
+        p, allow = self.ph(), self.phone_cfg()['route']['allow']
+        if allow and p['num'] and p['num'] not in [self.sms_num(x) for x in allow]:
+            log.info('poziv od %s odbijen (nije na spisku dozvoljenih)', p['num'])
+            self.ph_ring(False)
+            self.call_log('rejected', p['num'])
+            self.ph_set('idle', num='')
+            asyncio.get_running_loop().create_task(self.mdm_at('ATH'))
+            return False
+        return True
+
+    async def ph_ring_watch(self):
+        """Pozivalac odustao: modem ne javi kraj uvek, ali RING prestane (posle ~8 s)."""
+        while self.ph()['state'] == 'ring_in':
+            await asyncio.sleep(1)
+            if time.time() - self.ph().get('last_ring', 0) > 8 and self.ph()['state'] == 'ring_in':
+                self.ph_remote_end()
+
+    def ph_shk_edge(self, lifted, t):
+        """Ivica SHK: pravo podizanje/spuštanje, impulsno biranje (prekidi 30–150 ms) i kratko spuštanje (flash) se razlikuju."""
+        p = self.ph()
+        if not lifted:
+            p['down_t'] = t
+            seq = p['down_seq'] = p.get('down_seq', 0) + 1
+
+            async def later():
+                await asyncio.sleep(0.6)
+                if self.ph().get('down_seq') == seq and not self._shk_now():
+                    self.ph_hook(False)
+            asyncio.get_running_loop().create_task(later())
+            return
+        dur = t - p.get('down_t', 0)
+        if not p['hook']:
+            self.ph_hook(True)
+        elif 0.03 <= dur <= 0.15 and p['state'] == 'dial' and self.phone_cfg()['slic']['dial'] in ('pulse', 'both'):
+            p['pulses'] = p.get('pulses', 0) + 1
+            seq = p['pulse_seq'] = p.get('pulse_seq', 0) + 1
+
+            async def digit():
+                await asyncio.sleep(0.4)
+                if self.ph().get('pulse_seq') == seq and self.ph().get('pulses'):
+                    n = self.ph().pop('pulses')
+                    self.ph_digit('0' if n >= 10 else str(n))
+            asyncio.get_running_loop().create_task(digit())
+
+    def _shk_now(self):
+        if self.ph().get('sim_hook') is not None:
+            return self.ph()['sim_hook']
+        s = self.phone_cfg()['slic']
+        dev = self._phone_in(int(s['shk']))
+        return dev is not None and bool(dev.value) != bool(s['shk_low'])
+
+    def ph_hook(self, up):
+        p, r = self.ph(), self.phone_cfg()['route']
+        if p['hook'] == up:
+            return
+        p['hook'] = up
+        loop = asyncio.get_running_loop()
+        if up:
+            if p['state'] == 'auto':   # alarm poziv u toku: prekini ga, korisnik preuzima liniju
+                loop.create_task(self.mdm_at('ATH'))
+                self.ph_set('idle')
+            if p['state'] == 'ring_in' and p.get('pbx'):   # poziv sa centrale: javi se i uključi zvuk SLIC-a u most
+                self.ph_ring(False)
+                self.ph_set('talk', since=time.time())
+                cid = p['pbx']
+
+                async def answer():
+                    await self.pbx_req('POST', '/channels/%s/answer' % cid)
+                    await self.pbx_bridge(cid, self.ph_audio())
+                loop.create_task(answer())
+            elif p['state'] == 'ring_in':
+                self.ph_ring(False)
+                self.ph_set('talk', since=time.time())
+                loop.create_task(self.ph_answer())
+            elif p['state'] == 'idle':
+                pbx_ok = self.pbx_on() and getattr(self, 'pbx_ari', None) and self.pbx_ari.ok
+                if pbx_ok or (r['dial_out'] and self.mdm_ready()):
+                    self.ph_set('dial', digits='', num='', dir='out')
+                    self.ph_tone('dial')
+                    self.ph_dtmf(True)
+                    loop.create_task(self.ph_dial_timer(p['t']))
+                else:
+                    self.ph_set('ended', note='modem nije spreman' if r['dial_out'] else 'odlazni pozivi isključeni')
+                    self.ph_tone('busy')
+        else:
+            if p.get('pbx'):   # poziv kroz centralu: prekini kanal
+                cid = p['pbx']
+                p['pbx'] = None
+                if p['state'] == 'talk':
+                    self.ph_log_end()
+
+                async def drop():
+                    await self.pbx_unbridge(cid)
+                    await self.pbx_hangup(cid)
+                loop.create_task(drop())
+            elif p['state'] in ('talk', 'calling'):
+                loop.create_task(self.mdm_at('ATH'))
+                self.ph_log_end()
+            self.ph_tone(None)
+            self.ph_dtmf(False)
+            self.ph_set('idle', num='', digits='', since=None, note='')
+        self.mark()
+
+    async def ph_answer(self):
+        r = await self.mdm_at('ATA', 10)
+        if 'OK' not in r and self.ph()['state'] == 'talk' and 'BEGIN' not in r:
+            log.warning('javljanje nije uspelo: %s', r.strip()[:60])
+
+    async def ph_dial_timer(self, t0):
+        """Biranje: posle 4 s bez nove cifre -> poziv; bez ijedne cifre 30 s -> zauzeće."""
+        while self.ph()['state'] == 'dial':
+            await asyncio.sleep(0.5)
+            p = self.ph()
+            if p['state'] != 'dial':
+                return
+            if p['digits'] and time.time() - p.get('last_digit', 0) > 4:
+                return await self.ph_dial_now()
+            if not p['digits'] and time.time() - t0 > 30:
+                self.ph_dtmf(False)
+                self.ph_set('ended', note='nije birano')
+                self.ph_tone('busy')
+                return
+
+    def ph_digit(self, d):
+        p = self.ph()
+        if p['state'] == 'dial':
+            if not p['digits']:
+                self.ph_tone(None)   # ton slobodne linije prestaje na prvu cifru
+            if d == '#' and p['digits']:
+                asyncio.get_running_loop().create_task(self.ph_dial_now())
+                return
+            p['digits'] = (p['digits'] + d)[:20]
+            p['last_digit'] = time.time()
+            self.mark()
+            if self.pbx_on() and (p['digits'] in self.pbx_cfg()['ext'] or p['digits'] == '*97'):   # lokal / pošta: biraj odmah
+                asyncio.get_running_loop().create_task(self.ph_dial_now())
+        elif p['state'] == 'talk' and p.get('pbx') and d in '0123456789*#':   # kroz centralu: taster ide u Asterisk (pošta, meni)
+            asyncio.get_running_loop().create_task(self.pbx_req('POST', '/channels/%s/dtmf' % p['pbx'], dtmf=d))
+        elif p['state'] == 'talk' and d in '0123456789*#ABCD':   # u razgovoru: tonovi ka drugoj strani (meni, govorna pošta)
+            asyncio.get_running_loop().create_task(self.mdm_at('AT+VTS=' + d))
+
+    async def ph_dial_now(self):
+        p = self.ph()
+        num = p['digits'].rstrip('#')
+        self.ph_dtmf(False)
+        if len(num) < 3:
+            self.ph_set('ended', note='prekratak broj')
+            self.ph_tone('busy')
+            return
+        if self.pbx_on() and getattr(self, 'pbx_ari', None) and self.pbx_ari.ok:   # kroz centralu: lokal ili spolja preko modema
+            c = self.pbx_cfg()
+            self.ph_set('calling', num=num, since=None)
+            self.ph_tone('ringback')
+            ch = await self.pbx_req('POST', '/channels', endpoint='Local/%s@teco-internal' % num, app='teco', appArgs='slic-out',
+                                    callerId='"%s" <%s>' % (c['ext'][c['slic_ext']]['name'], c['slic_ext']), timeout=60)
+            if ch and self.ph()['state'] == 'calling':
+                self.ph()['pbx'] = ch['id']
+            elif self.ph()['state'] == 'calling':
+                self.ph_set('ended', note='centrala nije prihvatila poziv')
+                self.ph_tone('busy')
+            return
+        self.ph_set('calling', num=self.sms_num(num) if not num.startswith(('*', '#')) else num, since=None)
+        r = await self.mdm_at('ATD%s;' % num, 15)
+        if 'OK' not in r and self.ph()['state'] == 'calling':
+            self.call_log('out', self.ph()['num'])
+            self.ph_set('ended', note='poziv nije uspostavljen')
+            self.ph_tone('busy')
+
+    def ph_connected(self):
+        if getattr(self, 'gc', None):
+            return self.pbx_gsm_connected()
+        p = self.ph()
+        if p['state'] == 'calling':
+            self.ph_set('talk', since=time.time())
+        elif p['state'] == 'auto':
+            p['since'] = time.time()
+
+    def ph_log_end(self):
+        p = self.ph()
+        if self.ph_pbx_ext_only(p):
+            return
+        kind = 'in' if p.get('dir') == 'in' else 'out'
+        self.call_log(kind, p['num'], time.time() - p['since'] if p.get('since') else 0)
+
+    def ph_pbx_ext_only(self, p):
+        """Kroz centralu SLIC upisuje samo razgovore sa lokalima — spoljni (mobilni) deo upisuje GSM strana (inače dupli zapis)."""
+        return bool(p.get('pbx') or (self.pbx_on() and p.get('state') in ('talk', 'calling', 'ring_in'))) and p.get('num') not in self.pbx_cfg()['ext']
+
+    def ph_remote_end(self, gsm=False):
+        if getattr(self, 'gc', None):
+            asyncio.get_running_loop().create_task(self.pbx_gsm_end())
+            return
+        p = self.ph()
+        if p.get('pbx'):   # SLIC je u pozivu kroz centralu: kraj javlja Asterisk, ne modem
+            return
+        if p['state'] == 'ring_in':
+            self.ph_ring(False)
+            self.call_log('missed', p['num'])
+            self.ph_set('idle', num='')
+            self.notify_missed(p['num'])
+        elif p['state'] in ('calling', 'talk'):
+            self.ph_log_end()
+            self.ph_set('ended', note='druga strana je spustila' if p['state'] == 'talk' else 'zauzeto / nema odgovora')
+            self.ph_tone('busy')
+        elif p['state'] == 'auto':
+            self.call_log('alarm', p['num'], time.time() - p['since'] if p.get('since') else 0)
+            self.ph_set('idle', num='')
+
+    def notify_missed(self, num):
+        """Propušten poziv dok niko nije kod kuće: zapis + (ako je uključeno) SMS pouzdanim brojevima ide preko obaveštenja."""
+        log.info('propušten poziv od %s', num or 'nepoznat broj')
+
+    async def ph_auto_call(self, num, hold=45):
+        """Alarm: pozovi broj (bez slušalice), drži do 45 s pa spusti — telefon zazvoni vlasniku."""
+        p = self.ph()
+        if p['state'] != 'idle' or not self.mdm_ready() or not num:
+            return
+        self.ph_set('auto', num=self.sms_num(num), dir='out', since=None)
+        await self.mdm_at('ATD%s;' % num, 15)
+        t0 = time.time()
+        while self.ph()['state'] == 'auto' and time.time() - t0 < hold:
+            await asyncio.sleep(1)
+        if self.ph()['state'] == 'auto':
+            await self.mdm_at('ATH')
+            self.ph_remote_end()
+
+    def phone_line_view(self):
+        p = self.ph()
+        return {'state': p['state'], 'num': p['num'], 'digits': p['digits'], 'since': p.get('since'), 't': p['t'], 'note': p.get('note', ''),
+                'hook': p['hook'], 'ringing': bool(getattr(self, '_ringer', None) and self._ringer.ringing),
+                'tone': getattr(getattr(self, '_tones', None), 'kind', None), 'audio': self.ph_audio()}
+
+    async def phone_test(self, a):
+        import modem
+        kind = a.get('kind')
+        c = self.phone_cfg()
+        self.phone_st = getattr(self, 'phone_st', None) or {}
+        if kind == 'gsm':
+            if not c['gsm']['on']:
+                return {'err': 'Uključi modem.'}
+            await self.mdm_ensure()
+            if not self.mdm_ready():
+                err = (getattr(self, 'sms_st', None) or {}).get('err') or 'modem ne odgovara'
+                self.phone_st['gsm'] = {'ok': False, 'err': err, 't': time.time()}
+                self.mark()
+                return {'err': 'Modem: %s' % err}
+            try:
+                self.phone_st['gsm'] = await self.mdm_call(modem.info, c['gsm']['model'])
+            except Exception as e:
+                self.phone_st['gsm'] = {'ok': False, 'err': str(e)[:120], 't': time.time()}
+                self.mark()
+                return {'err': 'Modem: %s' % e}
+            self.mark()
+            return {'ok': 'Modem odgovara'}
+        if kind == 'sms':
+            return await self.sms_cmd('sms_send', {'to': a.get('to'), 'text': 'Teco.Pi: test poruka'})
+        if kind == 'ring':
+            if not c['slic']['on']:
+                return {'err': 'Uključi SLIC liniju.'}
+            if self.ph()['state'] != 'idle':
+                return {'err': 'Linija je zauzeta.'}
+            self.ph_ring(True)
+
+            async def off():
+                await asyncio.sleep(6)
+                if self.ph()['state'] == 'idle':
+                    self.ph_ring(False)
+            asyncio.get_running_loop().create_task(off())
+            return {'ok': 'Zvoni 6 s'}
+        return {'err': 'Nepoznat test.'}
+
+    async def phone_sim(self, a):
+        """Simulacija sa stranice: modem (model 'SIM') i slušalica — test cele linije bez hardvera."""
+        act = a.get('act')
+        lk = getattr(self, 'mdm', None)
+        sim = lk.ser if lk and getattr(lk, 'sim', False) else None
+        if act in ('hook_up', 'hook_down'):
+            self.ph()['sim_hook'] = act == 'hook_up'
+            self.ph_hook(act == 'hook_up')
+            return {}
+        if act == 'digits':
+            for d in str(a.get('digits') or '')[:20]:
+                if d in '0123456789*#':
+                    self.ph_digit(d)
+                    await asyncio.sleep(0.05)
+            return {}
+        if act == 'hook_release':   # vrati čitanje slušalice na pravi SHK ulaz
+            self.ph().pop('sim_hook', None)
+            return {}
+        if not sim:
+            return {'err': 'Izaberi model „Simulator“ i uključi modem.'}
+        if act == 'incoming':
+            num = self.sms_num(a.get('num') or '') or '+381641234567'
+            sim.sim_incoming(num)
+        elif act == 'hangup':
+            sim.sim_hangup()
+        elif act == 'answer':
+            sim.sim_answer()
+        elif act == 'sms':
+            sim.sim_sms(self.sms_num(a.get('num') or '') or '+381641234567', str(a.get('text') or 'STATUS')[:300])
+        else:
+            return {'err': 'Nepoznata simulacija.'}
+        return {}
+
+    # ---------- SMS poruke (Alati -> Komunikacija): preko SIM800 iz Telefonske linije. Istorija: data/sms.json.
+    # Primljene se čitaju sa SIM kartice na 20 s (i brišu sa nje), poslate idu iz reda (čekaju dok modul ne proradi).
+    SMS_FILE = DATA / 'sms.json'
+
+    def gsm_lock(self):
+        if getattr(self, '_gsm_lock', None) is None:
+            self._gsm_lock = asyncio.Lock()   # port modula koristi jedan po jedan (SMS, provera modula)
+        return self._gsm_lock
+
+    def sms_db(self):
+        if getattr(self, '_sms', None) is None:
+            try:
+                self._sms = json.loads(self.SMS_FILE.read_text())
+            except (OSError, ValueError):
+                self._sms = {'msgs': [], 'names': {}, 'seq': 0}
+        return self._sms
+
+    def sms_save(self):
+        db = self.sms_db()
+        db['msgs'] = db['msgs'][-5000:]
+        tmp = self.SMS_FILE.with_suffix('.tmp')
+        tmp.write_text(json.dumps(db, ensure_ascii=False))
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.SMS_FILE)
+
+    @staticmethod
+    def sms_num(n):
+        n = re.sub(r'[^\d+]', '', str(n or ''))[:16]
+        if n.startswith('00'):
+            n = '+' + n[2:]
+        elif n.startswith('0'):   # domaći broj (064…) -> +38164…
+            n = '+381' + n[1:]
+        return n
+
+    def sms_view(self):
+        db = self.sms_db()
+        convs = {}
+        for m in db['msgs']:
+            c = convs.setdefault(m['num'], {'num': m['num'], 'n': 0, 'unread': 0})
+            c['n'] += 1
+            c['t'], c['last'], c['dir'], c['st'] = m['t'], m['text'][:80], m['dir'], m.get('st')
+            if m['dir'] == 'in' and not m.get('read'):
+                c['unread'] += 1
+        for c in convs.values():
+            c['name'] = db['names'].get(c['num'], '')
+        st = getattr(self, 'sms_st', None) or {}
+        g = self.phone_cfg()['gsm']
+        return {'convs': sorted(convs.values(), key=lambda c: -c['t']), 'unread': sum(c['unread'] for c in convs.values()),
+                'on': g['on'], 'port_ok': g['model'] == 'SIM' or os.path.exists(g['port']), 'st': st.get('st'), 'err': st.get('err'), 'poll': st.get('t'), 'csq': st.get('csq'),
+                'queued': sum(1 for m in db['msgs'] if m.get('st') == 'queued'),
+                'notify': dict(self.notify_cfg(), pin='', pin_set=bool(self.notify_cfg()['pin'])), 'ussd': st.get('ussd')}
+
+    def sms_add(self, **m):
+        db = self.sms_db()
+        db['seq'] = db.get('seq', 0) + 1
+        m['id'] = db['seq']
+        db['msgs'].append(m)
+        return m
+
+    async def sms_loop(self):
+        """Veza sa modemom (otvori / zatvori po podešavanju) + na 60 s čitanje poruka i slanje reda.
+        Nova poruka (+CMTI) i slanje sa stranice ne čekaju 60 s (sms_kick)."""
+        self._sms_kick = asyncio.Event()
+        self.loop = asyncio.get_running_loop()   # za događaje iz niti (modem, ulazi)
+        while True:
+            try:
+                await self.mdm_ensure()
+                if self.mdm_ready():
+                    await self.sms_cycle()
+            except Exception:
+                log.exception('modem / SMS')
+            try:
+                await asyncio.wait_for(self._sms_kick.wait(), 60 if self.mdm_ready() else 10)
+            except asyncio.TimeoutError:
+                pass
+            self._sms_kick.clear()
+
+    def sms_kick(self, g=None):
+        if getattr(self, '_sms_kick', None):
+            self._sms_kick.set()
+
+    async def sms_cycle(self, g=None):
+        import modem
+        self.sms_st = getattr(self, 'sms_st', None) or {}
+        db = self.sms_db()
+        try:
+            msgs, csq = await self.mdm_call(modem.poll_sms)
+            self.sms_st.update(st='ok', err=None, t=time.time(), csq=csq)
+        except Exception as e:
+            self.sms_st.update(st='err', err=str(e)[:120], t=time.time())
+            self.mark()
+            return
+        for x in msgs:
+            num = self.sms_num(x['num']) or x['num']
+            self.sms_add(num=num, dir='in', text=x['text'], t=x['t'], read=False)
+            log.info('SMS primljen od %s', x['num'])
+            asyncio.get_running_loop().create_task(self.sms_command(num, x['text']))
+        for m in [m for m in db['msgs'] if m.get('st') == 'queued']:   # red za slanje
+            if self.ph()['state'] in ('ring_in', 'calling'):   # ne zauzimaj modem dok zvoni / bira
+                break
+            sim = getattr(self.mdm, 'sim', False)
+            if sim and m['t'] < getattr(self, 'mdm_since', 0):   # simulator ne šalje prave poruke koje su čekale u redu
+                continue
+            try:
+                m['parts'] = await self.mdm_call(modem.send_sms, m['num'], m['text'])
+                m['st'], m['t'] = 'sent', time.time()
+                if sim:
+                    m['sim'] = True
+            except Exception as e:
+                m['tries'] = m.get('tries', 0) + 1
+                m['err'] = str(e)[:120]
+                if m['tries'] >= 3:
+                    m['st'] = 'fail'
+        if msgs or any(m.get('st') in ('sent', 'fail') and time.time() - m['t'] < 120 for m in db['msgs'][-20:]):
+            self.sms_save()
+        self.mark()
+
+    async def sms_cmd(self, c, a):
+        db = self.sms_db()
+        num = self.sms_num(a.get('num') or a.get('to'))
+        if c == 'sms_send':
+            text = str(a.get('text') or '').strip()[:1000]
+            if len(num) < 6 or not text:
+                return {'err': 'Upiši broj i poruku.'}
+            m = self.sms_add(num=num, dir='out', text=text, t=time.time(), st='queued')
+            self.sms_save()
+            self.sms_kick()   # pošalji odmah (ne čekaj sledeći krug)
+            self.mark()
+            return {'ok': 'Šaljem…' if self.mdm_ready() else 'Poruka čeka u redu (modem nije spreman)', 'id': m['id']}
+        if c == 'sms_thread':
+            return {'num': num, 'name': db['names'].get(num, ''), 'msgs': [m for m in db['msgs'] if m['num'] == num][-500:]}
+        if c == 'sms_read':
+            for m in db['msgs']:
+                if m['num'] == num and m['dir'] == 'in':
+                    m['read'] = True
+        elif c == 'sms_del':
+            db['msgs'] = [m for m in db['msgs'] if m['num'] != num]
+        elif c == 'sms_name':
+            name = str(a.get('name') or '').strip()[:40]
+            if name:
+                db['names'][num] = name
+            else:
+                db['names'].pop(num, None)
+        elif c == 'sms_retry':
+            for m in db['msgs']:
+                if m['id'] == a.get('id') and m.get('st') == 'fail':
+                    m.update(st='queued', tries=0)
+        self.sms_save()
+        self.mark()
+        return {}
+
+    # ---------- SMS obaveštenja (alarm, struja, akvarijum, uređaji sa mreže) i SMS komande sa pouzdanih brojeva
+    NOTIFY_DEF = {'nums': [], 'alarm': True, 'arm': False, 'power': True, 'aqua': True, 'devices': True, 'cmds': True, 'pin': ''}
+
+    def notify_cfg(self):
+        return dict(self.NOTIFY_DEF, **(self.st.get('notify') or {}))
+
+    def notify_set(self, a):
+        c = self.notify_cfg()
+        for k in ('alarm', 'arm', 'power', 'aqua', 'devices', 'cmds'):
+            if k in a:
+                c[k] = bool(a[k])
+        if 'nums' in a and isinstance(a['nums'], list):
+            c['nums'] = [n for n in dict.fromkeys(self.sms_num(x) for x in a['nums'][:10]) if len(n) >= 8]
+        if 'pin' in a:
+            c['pin'] = re.sub(r'\D', '', str(a['pin']))[:8]
+        self.st['notify'] = c
+        save_state(self.st)
+        self.mark()
+        return {}
+
+    def notify(self, kind, text, key=None):
+        """Pošalji SMS obaveštenje svim pouzdanim brojevima (isto obaveštenje najviše jednom u 10 min)."""
+        c = self.notify_cfg()
+        if not c.get(kind) or not c['nums']:
+            return
+        last = getattr(self, '_notify_last', None) or {}
+        self._notify_last = last
+        k = key or (kind + ':' + text)
+        if time.time() - last.get(k, 0) < 600:
+            return
+        last[k] = time.time()
+        for n in c['nums']:
+            self.sms_add(num=n, dir='out', text='Teco.Pi: ' + text, t=time.time(), st='queued', auto=kind)
+        self.sms_save()
+        log.info('SMS obaveštenje (%s): %s', kind, text)
+        self.sms_kick()   # pošalji odmah (ne čekaj sledeći krug)
+        self.mark()
+
+    def notify_alarm(self, st):
+        """Iz stanja alarm centrale: alarm (zone), uključen/isključen, nestanak struje."""
+        parts = st.get('partitions', [])
+        al = [p for p in parts if any(p.get(k) for k in ('alarm', 'audible_alarm', 'silent_alarm', 'fire_alarm', 'panic_alarm'))]
+        armed = {p.get('id'): bool(p.get('arm')) for p in parts}
+        tr = (st.get('system') or {}).get('troubles') or {}
+        ac = any(v is True and (k.startswith('ac_') or 'ac_fail' in k or 'ac_loss' in k) for k, v in tr.items())
+        prev = getattr(self, '_ntf_prev', None)
+        self._ntf_prev = {'al': bool(al), 'armed': armed, 'ac': ac}
+        if prev is None:
+            return
+        if al and not prev['al']:
+            zones = [z.get('label') or ('zona %s' % z.get('id')) for z in st.get('zones', []) if z.get('alarm') or z.get('generated_alarm')]
+            kind = 'POŽAR' if any(p.get('fire_alarm') for p in al) else 'PANIC' if any(p.get('panic_alarm') for p in al) else 'ALARM'
+            msg = '%s! %s%s' % (kind, ', '.join(p.get('label') or 'particija' for p in al), (' — ' + ', '.join(zones[:5])) if zones else '')
+            self.notify('alarm', msg)
+            rt = self.phone_cfg()['route']   # Telefonska linija: alarm -> SMS i poziv na zadati broj
+            if rt.get('alarm_sms'):
+                self.sms_reply(self.sms_num(rt['alarm_sms']), 'Teco.Pi: ' + msg)
+            if rt.get('alarm_call'):
+                asyncio.get_running_loop().create_task(self.ph_auto_call(rt['alarm_call']))
+        for pid, on in armed.items():
+            if pid in prev['armed'] and on != prev['armed'][pid]:
+                lab = next((p.get('label') for p in parts if p.get('id') == pid), '') or 'alarm'
+                self.notify('arm', '%s je %s' % (lab, 'UKLJUČEN' if on else 'isključen'), key='arm:%s:%s' % (pid, on))
+        if ac != prev['ac']:
+            self.notify('power', 'Nestalo je struje (javlja alarm centrala).' if ac else 'Struja se vratila.', key='power:%s' % ac)
+
+    def notify_aqua(self, lv, ph):
+        prev = getattr(self, '_ntf_aqua', None) or {}
+        cur = {'alarm': bool(lv.get('alarm')), 'min': lv.get('min') is False, 'ph': ph is not None and not 6.0 <= ph <= 8.5}
+        self._ntf_aqua = cur
+        if cur['alarm'] and not prev.get('alarm'):
+            self.notify('aqua', 'Akvarijum: ALARM nivo vode (preliv)!')
+        if cur['min'] and not prev.get('min'):
+            self.notify('aqua', 'Akvarijum: voda je ispod MIN nivoa.')
+        if cur['ph'] and not prev.get('ph'):
+            self.notify('aqua', 'Akvarijum: pH je %.2f (van 6,0–8,5).' % ph, key='aqua:ph')
+
+    async def notify_loop(self):
+        """Na 60 s: praćeni uređaji iz Skeniranja mreže (3 propusta = nije na mreži) i modul akvarijuma."""
+        import netscan
+        sem = asyncio.Semaphore(8)
+        miss = {}
+        aqua_down = False
+        while True:
+            await asyncio.sleep(60)
+            try:
+                db = self.scan_db()
+                watched = [(k, d) for k, d in db['devices'].items() if d.get('watch') and d.get('ip')]
+                res = await asyncio.gather(*(netscan.ping(d['ip'], sem) for _, d in watched))
+                for (k, d), ok in zip(watched, res):
+                    name = d.get('label') or d.get('name') or d.get('vendor') or d['ip']
+                    if ok:
+                        if miss.get(k, 0) >= 3:
+                            self.notify('devices', '%s (%s) je ponovo na mreži.' % (name, d['ip']), key='dev:%s:up' % k)
+                        miss[k] = 0
+                    else:
+                        miss[k] = miss.get(k, 0) + 1
+                        if miss[k] == 3:
+                            self.notify('devices', '%s (%s) nije na mreži!' % (name, d['ip']), key='dev:%s:down' % k)
+                live = getattr(self, 'aqua_live', None)
+                down = bool(live) and time.time() - live.get('t', 0) > 180
+                if down and not aqua_down:
+                    self.notify('aqua', 'Akvarijum: modul se ne javlja već 3 min.')
+                aqua_down = down
+            except Exception:
+                log.exception('obaveštenja')
+
+    @staticmethod
+    def _plain(s):
+        for a, b in (('Š', 'S'), ('Đ', 'DJ'), ('Č', 'C'), ('Ć', 'C'), ('Ž', 'Z')):
+            s = s.replace(a, b)
+        return s
+
+    async def sms_command(self, num, text):
+        """SMS komanda sa pouzdanog broja; odgovor ide SMS-om."""
+        c = self.notify_cfg()
+        if not c['cmds'] or num not in c['nums']:
+            return
+        t = self._plain(text.upper()).split()
+        if c['pin']:
+            if not t or t[0] != c['pin']:
+                return self.sms_reply(num, 'Pogrešan ili nedostaje PIN (npr. "%s STATUS").' % ('****'))
+            t = t[1:]
+        if not t:
+            return
+        log.info('SMS komanda od %s: %s', num, ' '.join(t[:3]))
+        w = t[0]
+        if w in ('POMOC', 'HELP', '?', 'KOMANDE'):
+            return self.sms_reply(num, 'Komande: STATUS, ALARM ON, ALARM STAY, ALARM OFF, SVETLA ON/OFF, SVETLO <ime> ON/OFF, '
+                                       'UREDJAJ <ime> ON/OFF, AKVARIJUM' + (' (PIN na početku)' if c['pin'] else ''))
+        if w == 'STATUS':
+            return self.sms_reply(num, self.status_text())
+        if w == 'AKVARIJUM':
+            a = self.aqua_snapshot()
+            if not a['online']:
+                return self.sms_reply(num, 'Akvarijum: modul nije povezan.')
+            on = [o['n'] for o in a['outs'] if o['want']]
+            return self.sms_reply(num, 'Akvarijum: pH %s, %s°C, uključeno: %s' % (a['ph'] if a['ph'] is not None else '?', a['temp'] if a['temp'] is not None else '?', ', '.join(on) or 'ništa'))
+        if w == 'ALARM' and len(t) > 1:
+            cmd = {'ON': 'arm', 'UKLJUCI': 'arm', 'STAY': 'arm_stay', 'OFF': 'disarm', 'ISKLJUCI': 'disarm'}.get(t[1])
+            if not cmd:
+                return self.sms_reply(num, 'ALARM ON, ALARM STAY ili ALARM OFF.')
+            r = await self.alarm_do({'cmd': cmd})
+            return self.sms_reply(num, r.get('ok') or r.get('err') or 'Nije uspelo.')
+        if w in ('SVETLA', 'SVETLO', 'UREDJAJ', 'UREDAJ') and len(t) > 1:
+            on = {'ON': True, 'UKLJUCI': True, 'OFF': False, 'ISKLJUCI': False}.get(t[-1])
+            if on is None:
+                return self.sms_reply(num, 'Na kraju ON ili OFF.')
+            typ = 'light' if w.startswith('SVETL') else 'appliance'
+            devs = [d for d in self.st.get('devices', []) if d.get('type') == typ]
+            if w != 'SVETLA':
+                name = ' '.join(t[1:-1])
+                devs = [d for d in devs if name and name in self._plain(d.get('name', '').upper())]
+                if not devs:
+                    return self.sms_reply(num, 'Nema uređaja "%s".' % name.lower())
+            ok = []
+            for d in devs[:10]:
+                r = await self.dev_cmd('dev_set', {'id': d['id'], 'on': on})
+                ok.append('%s %s' % (d['name'], '✓' if not r.get('err') else '✗'))
+            return self.sms_reply(num, ('Uključeno: ' if on else 'Isključeno: ') + (', '.join(ok) or 'nema uređaja'))
+        return self.sms_reply(num, 'Nepoznata komanda. Pošalji POMOC.')
+
+    def sms_reply(self, num, text):
+        self.sms_add(num=num, dir='out', text=text[:600], t=time.time(), st='queued', auto='reply')
+        self.sms_save()
+        self.sms_kick()   # pošalji odmah (ne čekaj sledeći krug)
+        self.mark()
+
+    def status_text(self):
+        out = []
+        al = self.alarm or {}
+        if al.get('run') == 'run':
+            for p in al.get('partitions', []):
+                s = 'ALARM!' if p.get('alarm') else 'uključen' if p.get('arm') else 'isključen'
+                out.append('%s: %s' % (p.get('label') or 'Alarm', s))
+            open_z = [z.get('label') for z in al.get('zones', []) if z.get('open')]
+            if open_z:
+                out.append('otvoreno: ' + ', '.join(open_z[:5]))
+            tr = (al.get('system') or {}).get('troubles') or {}
+            if any(v is True and k.startswith('ac_') for k, v in tr.items()):
+                out.append('NEMA STRUJE')
+        lights = [d['name'] for d in self.st.get('devices', []) if d.get('type') == 'light' and (getattr(self, 'dev_state', {}) or {}).get(d['id'], {}).get('on')]
+        if lights:
+            out.append('svetla: ' + ', '.join(lights[:5]))
+        a = self.aqua_snapshot()
+        if a['online']:
+            out.append('akvarijum pH %s' % a['ph'])
+        down = [d.get('label') or d.get('name') or d['ip'] for d in self.scan_db()['devices'].values() if d.get('watch') and not d.get('online')]
+        if down:
+            out.append('van mreže: ' + ', '.join(down[:5]))
+        room = (getattr(self, 'sys', None) or {}).get('room')
+        if isinstance(room, (int, float)):
+            out.append('unutra %.1f°C' % room)
+        return 'Teco.Pi ' + time.strftime('%d.%m. %H:%M') + ': ' + ('; '.join(out) or 'sve mirno')
+
+    async def ussd(self, code):
+        import modem
+        code = str(code or '').strip().replace(' ', '')
+        if not re.fullmatch(r'[*#][0-9*#]{1,30}#', code):
+            return {'err': 'USSD kod je npr. *100#'}
+        if not self.mdm_ready():
+            return {'err': 'Modem nije uključen / povezan.'}
+        try:
+            txt = await self.mdm_call(modem.ussd, code)
+        except Exception as e:
+            return {'err': 'USSD: %s' % e}
+        self.sms_st = getattr(self, 'sms_st', None) or {}
+        self.sms_st['ussd'] = {'code': code, 'text': txt, 't': time.time()}
+        self.mark()
+        return {'ussd': txt}
+
+    # ---------- Telefonska centrala (Asterisk preko ARI). Lokali: SIP (101 Damir, 102 Support…) + SLIC telefon (103).
+    # Dolazni GSM poziv -> radno vreme? -> najava -> krugovi zvonjenja (samo lokali koji su online) -> govorna pošta.
+    # Teco.Pi je most za zvuk: SLIC i modem su kanali u Asteriskovom mostu (externalMedia RTP <-> zvučna kartica).
+    PBX_DEF = {'on': False, 'slic_ext': '103', 'vm_box': '100', 'vm_pin': '',
+               'ext': {'101': {'name': 'Damir'}, '102': {'name': 'Support'}, '103': {'name': 'Telefon (SLIC)'}},
+               'rounds': [{'m': ['103'], 'rings': 3}, {'m': ['101'], 'rings': 4}, {'m': ['102'], 'rings': 4}],
+               'work': {'on': True, 'days': [0, 1, 2, 3, 4], 'from': '08:00', 'to': '16:00'}}
+
+    def pbx_cfg(self):
+        c = json.loads(json.dumps(self.PBX_DEF))
+        s = self.st.get('pbx') or {}
+        for k, v in s.items():
+            if k in ('ext', 'rounds'):
+                c[k] = v
+            elif isinstance(v, dict) and isinstance(c.get(k), dict):
+                c[k].update(v)
+            else:
+                c[k] = v
+        changed = False   # lozinke i PIN-ovi se prave jednom (nasumično) i čuvaju
+        for n, e in c['ext'].items():
+            if n != c['slic_ext'] and not e.get('pass'):
+                e['pass'], changed = secrets.token_urlsafe(12), True
+            if not e.get('vmpin'):
+                e['vmpin'], changed = '%04d' % secrets.randbelow(10000), True
+        if not c.get('vm_pin'):
+            c['vm_pin'], changed = '%04d' % secrets.randbelow(10000), True
+        if not c.get('ari_pass'):
+            c['ari_pass'], changed = secrets.token_urlsafe(18), True
+        if changed:
+            self.st['pbx'] = c
+            save_state(self.st)
+        return c
+
+    def pbx_on(self):
+        return bool(self.pbx_cfg()['on'])
+
+    def pbx_permit(self):
+        nets = {'127.0.0.1/32', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'}
+        for i in self.net.get('ifs', []):
+            for a in i.get('ip') or []:
+                nets.add(str(ipaddress.ip_interface(a).network))
+        return sorted(nets)
+
+    async def pbx_cli(self, cmd):
+        return await self._run('sudo', '-n', '/usr/sbin/asterisk', '-rx', cmd, timeout=15)
+
+    async def pbx_apply(self):
+        """Upiši konfiguraciju (samo izmenjene fajlove) i ponovo učitaj odgovarajuće module Asteriska."""
+        import pbx
+        c = self.pbx_cfg()
+        files = pbx.gen_config(c, c['ari_pass'], self.pbx_permit())
+        reload = {'pjsip.conf': 'module reload res_pjsip.so', 'extensions.conf': 'dialplan reload', 'voicemail.conf': 'voicemail reload',
+                  'ari.conf': 'module reload res_ari.so'}
+        cmds = []
+        for name, text in files.items():
+            f = pbx.TECO_DIR / name
+            try:
+                if f.exists() and f.read_text() == text:
+                    continue
+                tmp = f.with_suffix('.tmp')
+                tmp.write_text(text)
+                os.chmod(tmp, 0o640)
+                os.replace(tmp, f)
+                cmds.append(reload[name])
+            except OSError as e:
+                log.warning('centrala: %s nije upisan: %s', name, e)
+                return {'err': 'Centrala: podešavanje nije upisano (%s).' % e}
+        rb = pbx.SOUNDS / 'ringback' / 'ringback.wav'
+        if not rb.exists():
+            try:
+                pbx.ringback_wav(rb)
+                cmds.append('moh reload')
+            except OSError as e:
+                log.warning('centrala: ringback: %s', e)
+        for cmd in cmds:
+            await self.pbx_cli(cmd)
+        await self.pbx_slic_var()
+        if cmds:
+            log.info('centrala: primenjeno (%s)', ', '.join(cmds))
+        return {}
+
+    async def pbx_slic_var(self):
+        """TECO_SLIC = 1 kad SLIC lokal može da zvoni (krugovi ga preskaču kad je isključen)."""
+        on = 1 if self.phone_cfg()['slic']['on'] else 0
+        if getattr(self, '_pbx_slic_var', None) != on:
+            await self.pbx_cli('dialplan set global TECO_SLIC %d' % on)
+            self._pbx_slic_var = on
+
+    async def pbx_loop(self):
+        """Veza sa Asteriskom (ARI) dok je centrala uključena; na 20 s: ko je online, govorna pošta."""
+        import pbx
+        self.pbx_ari, self.pbx_task, self.pbx_ch, self.gc = None, None, {}, None
+        self._pbx_kick = asyncio.Event()
+        self.pbx_st = {'eps': {}, 'vm': [], 'ok': False}
+        applied = None
+        while True:
+            try:
+                c = self.pbx_cfg()
+                if c['on']:
+                    key = json.dumps([c, self.phone_cfg()['slic']['on']], sort_keys=True)
+                    if key != applied:
+                        await self.pbx_apply()
+                        applied = key
+                    if not self.pbx_task or self.pbx_task.done():
+                        self.pbx_ari = pbx.Ari('teco', c['ari_pass'], self.pbx_event)
+                        self.pbx_task = asyncio.get_running_loop().create_task(self.pbx_ari.run())
+                    st = {'ok': self.pbx_ari.ok}
+                    if self.pbx_ari.ok:
+                        try:
+                            eps = await self.pbx_ari.req('GET', '/endpoints/PJSIP')
+                            st['eps'] = {e['resource']: e.get('state') for e in eps or []}
+                        except Exception:
+                            st['eps'] = self.pbx_st.get('eps', {})
+                    st['vm'] = await asyncio.get_running_loop().run_in_executor(None, pbx.voicemails)
+                    if st != {k: self.pbx_st.get(k) for k in st}:
+                        new = [m for m in st['vm'] if m['new'] and m['id'] + m['box'] not in {x['id'] + x['box'] for x in self.pbx_st.get('vm', [])}]
+                        if self.pbx_st.get('vm') is not None and new and self.pbx_st.get('ok'):
+                            for m in new:
+                                log.info('nova govorna poruka: %s od %s', m['box'], m['from'])
+                        self.pbx_st.update(st)
+                        self.mark()
+                elif self.pbx_task:
+                    self.pbx_task.cancel()
+                    self.pbx_task, self.pbx_ari = None, None
+                    self.pbx_st['ok'] = False
+                    self.mark()
+            except Exception:
+                log.exception('centrala')
+            try:
+                await asyncio.wait_for(self._pbx_kick.wait(), 20)
+            except (asyncio.TimeoutError, AttributeError):
+                if not hasattr(self, '_pbx_kick'):
+                    self._pbx_kick = asyncio.Event()
+            if hasattr(self, '_pbx_kick'):
+                self._pbx_kick.clear()
+
+    def pbx_kick(self):
+        if getattr(self, '_pbx_kick', None):
+            self._pbx_kick.set()
+
+    # ----- ARI događaji
+    def pbx_event(self, ev):
+        t = ev.get('type')
+        loop = asyncio.get_running_loop()
+        if t in ('_connected', '_disconnected'):
+            log.info('centrala: ARI %s', 'povezan' if t == '_connected' else 'prekinut')
+            self.pbx_st['ok'] = t == '_connected'
+            self.mark()
+            return
+        ch = ev.get('channel') or {}
+        cid = ch.get('id')
+        if t == 'StasisStart':
+            if ch.get('name', '').startswith('UnicastRTP'):
+                return   # naši kanali za zvuk
+            args = ev.get('args') or []
+            role = args[0] if args else ''
+            caller = ch.get('caller') or {}
+            loop.create_task(self.pbx_start(cid, role, args, caller))
+        elif t in ('StasisEnd', 'ChannelDestroyed'):
+            if cid in self.pbx_ch or cid == self.ph().get('pbx') or (self.gc and self.gc.get('chan') == cid):
+                loop.create_task(self.pbx_gone(cid))
+
+    async def pbx_req(self, method, path, **kw):
+        try:
+            return await self.pbx_ari.req(method, path, **kw)
+        except Exception as e:
+            log.warning('centrala: %s %s: %s', method, path, e)
+            return None
+
+    async def pbx_bridge(self, cid, device):
+        """Kanal + naš zvuk (externalMedia) u isti most."""
+        import pbx
+        m = pbx.Media(device)
+        ext = await self.pbx_req('POST', '/channels/externalMedia', app='teco', external_host='127.0.0.1:%d' % m.port, format='ulaw', direction='both')
+        br = await self.pbx_req('POST', '/bridges', type='mixing')
+        if not ext or not br:
+            m.close()
+            return False
+        await self.pbx_req('POST', '/bridges/%s/addChannel' % br['id'], channel='%s,%s' % (cid, ext['id']))
+        self.pbx_ch[cid] = dict(self.pbx_ch.get(cid) or {}, media=m, ext=ext['id'], bridge=br['id'])
+        return True
+
+    async def pbx_unbridge(self, cid):
+        x = self.pbx_ch.pop(cid, None) or {}
+        if x.get('media'):
+            x['media'].close()
+        if x.get('ext'):
+            await self.pbx_req('DELETE', '/channels/%s' % x['ext'])
+        if x.get('bridge'):
+            await self.pbx_req('DELETE', '/bridges/%s' % x['bridge'])
+
+    async def pbx_hangup(self, cid, reason='normal'):
+        if cid:
+            await self.pbx_req('DELETE', '/channels/%s' % cid, reason=reason)
+
+    def modem_audio(self):
+        import phoneline
+        k = self.phone_cfg()['gsm'].get('audio')
+        if k == 'none':
+            return None
+        slic_usb = self.phone_cfg()['slic']['audio'] == 'usb'
+        return phoneline.alsa_device('usb', 1 if slic_usb else 0) if k == 'usb' else phoneline.alsa_device('i2s')
+
+    async def pbx_start(self, cid, role, args, caller):
+        p = self.ph()
+        if role == 'slic':   # neko zove SLIC lokal
+            s = self.phone_cfg()['slic']
+            if not s['on'] or p['state'] != 'idle' or p['hook']:
+                return await self.pbx_hangup(cid, 'busy')
+            self.pbx_ch[cid] = {'role': 'slic-in'}
+            num = (args[1] if len(args) > 1 else '') or caller.get('number') or ''   # Stasis(teco,slic,broj,ime)
+            self.ph_set('ring_in', num=num, name=(args[2] if len(args) > 2 else '') or caller.get('name') or '', dir='in', pbx=cid, digits='')
+            self.ph_ring(True)
+            await self.pbx_req('POST', '/channels/%s/ring' % cid)
+        elif role == 'slic-out':   # SLIC je birao, druga strana se javila
+            if cid != p.get('pbx'):
+                return await self.pbx_hangup(cid)
+            self.ph_tone(None)
+            self.pbx_ch[cid] = {'role': 'slic-out'}
+            if await self.pbx_bridge(cid, self.ph_audio()):
+                self.ph_set('talk', since=time.time())
+        elif role == 'gsm-in':   # centrala je preuzela dolazni GSM poziv (najava / lokal se javio)
+            if not self.gc or self.gc.get('chan') != cid:
+                return await self.pbx_hangup(cid)
+            r = await self.mdm_at('ATA', 10)
+            if 'OK' not in r and 'BEGIN' not in r:
+                log.warning('centrala: modem nije prihvatio poziv: %s', r.strip()[:60])
+            self.pbx_ch[cid] = {'role': 'gsm-in'}
+            await self.pbx_bridge(cid, self.modem_audio())
+            self.gc.update(state='talk', since=time.time())
+            self.mark()
+        elif role == 'gsm-out':   # lokal bira spoljni broj
+            num = args[1] if len(args) > 1 else ''
+            if self.gc or not self.mdm_ready() or not num:
+                return await self.pbx_hangup(cid, 'busy' if self.gc else 'congestion')
+            self.gc = {'dir': 'out', 'num': self.sms_num(num) if not num.startswith(('*', '#')) else num, 'chan': cid, 'state': 'dial', 't': time.time(),
+                       'from': caller.get('number') or ''}
+            self.pbx_ch[cid] = {'role': 'gsm-out'}
+            await self.pbx_req('POST', '/channels/%s/ring' % cid)
+            self.mark()
+            r = await self.mdm_at('ATD%s;' % num, 15)
+            if 'OK' not in r and self.gc and self.gc.get('chan') == cid:
+                await self.pbx_gsm_end('modem nije uspostavio poziv')
+        else:
+            await self.pbx_hangup(cid)
+
+    async def pbx_gone(self, cid):
+        """Kanal se završio (druga strana spustila / Asterisk prekinuo)."""
+        role = (self.pbx_ch.get(cid) or {}).get('role')
+        await self.pbx_unbridge(cid)
+        p = self.ph()
+        if cid == p.get('pbx'):
+            if p['state'] == 'ring_in':
+                self.ph_ring(False)
+                if not self.ph_pbx_ext_only(p):
+                    self.call_log('missed', p['num'])
+                p['pbx'] = None
+                self.ph_set('idle', num='')
+            elif p['state'] in ('calling', 'talk'):
+                if p['state'] == 'talk':
+                    self.ph_log_end()
+                p['pbx'] = None
+                self.ph_set('ended', note='druga strana je spustila' if p['state'] == 'talk' else 'zauzeto / nema odgovora')
+                self.ph_tone('busy')
+        if self.gc and self.gc.get('chan') == cid:
+            await self.mdm_at('ATH')
+            self.pbx_gsm_log()
+        log.debug('centrala: kanal %s (%s) završen', cid, role)
+
+    # ----- GSM kroz centralu
+    def pbx_gsm_ring(self, num):
+        if num:
+            num = self.sms_num(num) or num
+        if self.gc:
+            if self.gc['dir'] == 'in':
+                self.gc['last'] = time.time()
+                if num and not self.gc.get('num'):
+                    self.gc['num'] = num
+            return
+        allow = self.phone_cfg()['route']['allow']
+        if allow and num and num not in [self.sms_num(x) for x in allow]:
+            log.info('poziv od %s odbijen (nije na spisku dozvoljenih)', num)
+            self.call_log('rejected', num)
+            asyncio.get_running_loop().create_task(self.mdm_at('ATH'))
+            return
+        self.gc = {'dir': 'in', 'num': num or '', 'state': 'ring', 't': time.time(), 'last': time.time()}
+        self.mark()
+        asyncio.get_running_loop().create_task(self.pbx_gsm_offer())
+
+    async def pbx_gsm_offer(self):
+        gc = self.gc
+        if not self.pbx_ari or not self.pbx_ari.ok:
+            log.warning('centrala nije povezana — dolazni poziv ide direktno na SLIC')
+            self.gc = None
+            return self.ph_incoming(gc['num'] or None, direct=True)
+        num = gc['num'] or 'nepoznat'
+        ch = await self.pbx_req('POST', '/channels', endpoint='Local/%s@teco-gsm-in' % (gc['num'] or 's'), app='teco', appArgs='gsm-in',
+                                callerId='"%s" <%s>' % (num, gc['num'] or 'anonymous'), timeout=120)
+        if not ch:
+            self.gc = None
+            return
+        gc['chan'] = ch['id']
+        while self.gc is gc and gc['state'] == 'ring':   # pozivalac odustao: RING prestane
+            await asyncio.sleep(1)
+            if time.time() - gc['last'] > 8 and self.gc is gc and gc['state'] == 'ring':
+                await self.pbx_gsm_end('pozivalac odustao')
+
+    def pbx_gsm_connected(self):
+        gc = self.gc
+        if gc and gc['dir'] == 'out' and gc['state'] == 'dial':
+            gc.update(state='talk', since=time.time())
+            self.mark()
+
+            async def go():
+                await self.pbx_req('POST', '/channels/%s/answer' % gc['chan'])
+                await self.pbx_bridge(gc['chan'], self.modem_audio())
+            asyncio.get_running_loop().create_task(go())
+
+    async def pbx_gsm_end(self, why=''):
+        gc = self.gc
+        if not gc:
+            return
+        log.info('centrala: GSM poziv završen (%s)', why or 'druga strana spustila')
+        self.pbx_gsm_log()
+        if gc.get('chan'):
+            await self.pbx_unbridge(gc['chan'])
+            await self.pbx_hangup(gc['chan'])
+
+    def pbx_gsm_log(self):
+        gc, self.gc = self.gc, None
+        if gc:
+            if gc['state'] == 'talk':
+                self.call_log(gc['dir'], gc['num'], time.time() - gc.get('since', time.time()))
+            else:
+                self.call_log('missed' if gc['dir'] == 'in' else 'out', gc['num'])
+        self.mark()
+
+    def pbx_view(self):
+        c = self.pbx_cfg()
+        st = getattr(self, 'pbx_st', None) or {}
+        eps = st.get('eps') or {}
+        slic_on = self.phone_cfg()['slic']['on']
+        ext = [{'n': n, 'name': e['name'], 'slic': n == c['slic_ext'],
+                'online': (slic_on and self.ph()['state'] != 'ring_in') if n == c['slic_ext'] else eps.get(n) == 'online'} for n, e in sorted(c['ext'].items())]
+        gc = getattr(self, 'gc', None)
+        heard = set(self.st.get('pbx_heard') or [])
+        vm = [dict(m, heard=('%s/%s/%s' % (m['box'], m['folder'], m['id'])) in heard) for m in (st.get('vm') or [])[:100]]
+        return {'on': c['on'], 'ok': bool(st.get('ok')), 'ext': ext, 'rounds': c['rounds'], 'work': c['work'], 'vm_box': c['vm_box'], 'slic_ext': c['slic_ext'],
+                'prompts': {k: (Path('/var/lib/asterisk/sounds/teco') / (k + '.wav')).exists() for k in ('welcome', 'out-worktime', 'nobody')},
+                'vm': vm, 'vm_new': sum(1 for m in vm if not m['heard']),
+                'gsm': {k: gc.get(k) for k in ('dir', 'num', 'state', 'since')} if gc else None, 'host': self.pbx_host()}
+
+    def pbx_host(self):
+        for i in self.net.get('ifs', []):
+            if i['n'] == 'wlan0' and i.get('ip'):
+                return i['ip'][0].split('/')[0]
+        for i in self.net.get('ifs', []):
+            if i.get('ip') and i['n'] != 'tun0':
+                return i['ip'][0].split('/')[0]
+        return ''
+
+    def pbx_set(self, a):
+        c = self.pbx_cfg()
+        if 'on' in a:
+            c['on'] = bool(a['on'])
+        if isinstance(a.get('names'), dict):
+            for n, name in a['names'].items():
+                if n in c['ext']:
+                    c['ext'][n]['name'] = str(name).strip()[:30] or n
+        if isinstance(a.get('rounds'), list):
+            rounds = []
+            for r in a['rounds'][:8]:
+                m = [n for n in dict.fromkeys(str(x) for x in (r.get('m') or [])) if n in c['ext']]
+                try:
+                    rings = max(1, min(20, int(r.get('rings') or 3)))
+                except (TypeError, ValueError):
+                    rings = 3
+                if m:
+                    rounds.append({'m': m, 'rings': rings})
+            c['rounds'] = rounds
+        w = a.get('work')
+        if isinstance(w, dict):
+            if 'on' in w:
+                c['work']['on'] = bool(w['on'])
+            if isinstance(w.get('days'), list):
+                c['work']['days'] = sorted({int(d) for d in w['days'] if str(d).isdigit() and 0 <= int(d) <= 6})
+            for k in ('from', 'to'):
+                if k in w and re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', str(w[k])):
+                    c['work'][k] = str(w[k])
+        self.st['pbx'] = c
+        save_state(self.st)
+        self.pbx_kick()
+        self.mark()
+        return {}
+
+    async def pbx_cmd(self, c, a):
+        import pbx
+        if c == 'pbx_set':
+            return self.pbx_set(a.get('cfg') or {})
+        if c == 'pbx_secret':   # SIP lozinke i PIN-ovi pošte (samo Admin)
+            cfg = self.pbx_cfg()
+            return {'ext': {n: {'pass': e.get('pass', ''), 'vmpin': e.get('vmpin', '')} for n, e in cfg['ext'].items()}, 'vm_pin': cfg['vm_pin'], 'host': self.pbx_host()}
+        if c == 'pbx_prompt_del':
+            name = str(a.get('name') or '')
+            if name in pbx.PROMPTS:
+                try:
+                    (pbx.SOUNDS / (name + '.wav')).unlink()
+                except OSError:
+                    pass
+                self.mark()
+            return {}
+        if c in ('pbx_vm_del', 'pbx_vm_heard'):
+            box, folder, mid = str(a.get('box') or ''), str(a.get('folder') or ''), str(a.get('id') or '')
+            if not (re.fullmatch(r'\d{2,6}', box) and folder in ('INBOX', 'Old', 'Urgent') and re.fullmatch(r'msg\d{4}', mid)):
+                return {'err': 'Nepoznata poruka.'}
+            key = '%s/%s/%s' % (box, folder, mid)
+            if c == 'pbx_vm_heard':
+                heard = set(self.st.get('pbx_heard') or [])
+                heard.add(key)
+                self.st['pbx_heard'] = sorted(heard)[-500:]
+            else:
+                for ext in ('.wav', '.txt', '.WAV', '.gsm'):
+                    try:
+                        (pbx.VM_DIR / box / folder / (mid + ext)).unlink()
+                    except OSError:
+                        pass
+            save_state(self.st)
+            self.pbx_kick()
+            self.mark()
+            return {}
+        return {'err': 'Nepoznata komanda.'}
+
+    def tool_set(self, name, a):
+        """Podešavanje alata sa stranice (samo poznata polja, u granicama)."""
+        cur = self.tool_cfg(name)
+        num = lambda v, lo, hi, d: max(lo, min(hi, float(v))) if v not in (None, '') else d
+        try:
+            if name == 'scope':
+                if a.get('exp') in ('exp1', 'exp2'):   # proširenje na kom je kartica osciloskopa / generatora
+                    if a['exp'] == self.phone_cfg()['exp']:
+                        return {'err': 'Na %s je već Telefonska linija.' % a['exp'].upper()}
+                    cur['exp'] = a['exp']
+                if 'run' in a:
+                    cur['run'] = bool(a['run'])
+                if 'tdiv' in a:
+                    cur['tdiv'] = num(a['tdiv'], 1e-6, 1.0, cur['tdiv'])
+                tr = a.get('trig') or {}
+                if tr.get('src') in ('ch1', 'ch2'):
+                    cur['trig']['src'] = tr['src']
+                if tr.get('edge') in ('rise', 'fall'):
+                    cur['trig']['edge'] = tr['edge']
+                if 'level' in tr:
+                    cur['trig']['level'] = num(tr['level'], -50, 50, 0.0)
+                for ch in ('ch1', 'ch2'):
+                    c = a.get(ch) or {}
+                    if 'on' in c:
+                        cur[ch]['on'] = bool(c['on'])
+                    if c.get('wave') in ('sine', 'square', 'triangle', 'saw', 'dc', 'noise'):
+                        cur[ch]['wave'] = c['wave']
+                    for k, lo, hi in (('freq', 0.01, 1e6), ('amp', 0, 50), ('offset', -50, 50), ('vdiv', 0.001, 50), ('noise', 0, 1)):
+                        if k in c:
+                            cur[ch][k] = num(c[k], lo, hi, cur[ch][k])
+            elif name == 'logic':
+                if 'run' in a:
+                    cur['run'] = bool(a['run'])
+                if 'tdiv' in a:
+                    cur['tdiv'] = num(a['tdiv'], 1e-7, 1.0, cur['tdiv'])
+                tr = a.get('trig') or {}
+                if tr.get('src') in ('ch0', 'ch1'):
+                    cur['trig']['src'] = tr['src']
+                if tr.get('edge') in ('rise', 'fall'):
+                    cur['trig']['edge'] = tr['edge']
+                for ch in ('ch0', 'ch1'):
+                    c = a.get(ch) or {}
+                    if 'on' in c:
+                        cur[ch]['on'] = bool(c['on'])
+                    if c.get('src') in ('clock', 'pwm', 'uart', 'pattern'):
+                        cur[ch]['src'] = c['src']
+                    for k, lo, hi in (('freq', 0.1, 1e7), ('duty', 1, 99), ('rate', 1, 1e7)):
+                        if k in c:
+                            cur[ch][k] = num(c[k], lo, hi, cur[ch][k])
+                    if c.get('baud') in (300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200) or str(c.get('baud')) in ('300', '1200', '2400', '4800', '9600', '19200', '38400', '57600', '115200'):
+                        cur[ch]['baud'] = int(c['baud'])
+                    if 'text' in c:
+                        cur[ch]['text'] = str(c['text'])[:40]
+                    if 'bits' in c:
+                        cur[ch]['bits'] = re.sub(r'[^01]', '', str(c['bits']))[:64] or '10'
+            elif name == 'resistor':
+                if a.get('mode') in ('bands', 'smd'):
+                    cur['mode'] = a['mode']
+                if a.get('bands') in (3, 4, 5, 6, '3', '4', '5', '6'):
+                    cur['bands'] = int(a['bands'])
+                if isinstance(a.get('colors'), list):
+                    cur['colors'] = [str(x)[:10] for x in a['colors'][:6]]
+                if 'smd' in a:
+                    cur['smd'] = re.sub(r'[^0-9A-Za-zR.]', '', str(a['smd']))[:5].upper()
+            elif name == 'guest':   # Wi-Fi za goste (QR na ekranu)
+                if 'ssid' in a:
+                    cur['ssid'] = str(a['ssid'])[:32]
+                if 'pw' in a:
+                    cur['pw'] = str(a['pw'])[:63]
+                if a.get('sec') in ('WPA', 'WEP', 'nopass'):
+                    cur['sec'] = a['sec']
+                if 'hidden' in a:
+                    cur['hidden'] = bool(a['hidden'])
+            elif name == 'capacitor':
+                if a.get('mode') in ('code', 'smd'):
+                    cur['mode'] = a['mode']
+                for k in ('code', 'smd'):   # mala/velika slova su bitna (EIA-198: a, b, d…; p n u)
+                    if k in a:
+                        cur[k] = re.sub(r'[^0-9A-Za-zµ. ]', '', str(a[k]))[:14]
+        except (TypeError, ValueError):
+            return {'err': 'Neispravna vrednost.'}
+        self.st.setdefault('tools', {})[name] = cur
+        save_state(self.st)
+        self.tool_write(name)
+        self.mark()
+        return {}
+
+    # ---------- Akvarijum (Smart Home): izlaze i senzore drži ESP32 („Teco ESP“ protokol, /api/aqua).
+    # Teco pamti ŽELJENO stanje izlaza (sa stranice); ESP32 na 1-2 s javi pH, nivoe i STVARNO stanje izlaza,
+    # a u odgovoru dobije željeno. Bez javljanja > 10 s: ESP nije na vezi.
+    AQUA_OUTS = [('pump1', 'Pumpa 1'), ('heater1', 'Grejač 1'), ('light1', 'Svetlo 1'), ('light2', 'Svetlo 2'),
+                 ('fan', 'Ventilator'), ('valve_in', 'Ventil dovoda vode'), ('pump_out', 'Pumpa odvoda vode')]
+    AQUA_LEVELS = [('min', 'Min'), ('q34', '3/4'), ('max', 'Max'), ('alarm', 'Alarm')]
+
+    def aqua_cfg(self):
+        a = self.st.setdefault('aqua', {})
+        w = a.setdefault('want', {})
+        for k, _ in self.AQUA_OUTS:   # novi izlazi (npr. ventilator) kreću isključeni
+            w.setdefault(k, False)
+        return a
+
+    def aqua_snapshot(self):
+        a, live = self.aqua_cfg(), getattr(self, 'aqua_live', None) or {}
+        online = bool(live) and time.time() - live.get('t', 0) < 10
+        return {'outs': [{'k': k, 'n': n, 'want': bool(a['want'].get(k)), 'on': live.get('outs', {}).get(k) if online else None} for k, n in self.AQUA_OUTS],
+                'levels': [{'k': k, 'n': n, 'wet': live.get('levels', {}).get(k) if online else None} for k, n in self.AQUA_LEVELS],
+                'ph': live.get('ph') if online else None, 'temp': live.get('temp') if online else None,
+                'online': online, 'seen': live.get('t'), 'esp': live.get('id')}
+
+    def aqua_report(self, q):
+        """ESP32 javlja stanje; vraća željene izlaze. Zaštita: dovod vode se gasi na MAX/ALARM nivou,
+        odvod se gasi kad voda padne ispod MIN (ESP treba to da radi i sam, ovo je druga linija zaštite)."""
+        a = self.aqua_cfg()
+        lv = {k: (bool(q['levels'][k]) if isinstance(q.get('levels'), dict) and k in q['levels'] else None) for k, _ in self.AQUA_LEVELS}
+        outs = {k: bool(v) for k, v in (q.get('outs') or {}).items() if k in a['want']}
+        ph = q.get('ph')
+        try:
+            ph = round(float(ph), 2) if ph not in (None, '') else None
+            if ph is not None and not 0 <= ph <= 14:
+                ph = None
+        except (TypeError, ValueError):
+            ph = None
+        try:
+            temp = round(float(q['temp']), 1) if q.get('temp') not in (None, '') else None
+        except (TypeError, ValueError):
+            temp = None
+        changed = False
+        if (lv.get('max') or lv.get('alarm')) and a['want'].get('valve_in'):
+            a['want']['valve_in'] = False
+            changed = True
+            log.info('akvarijum: nivo MAX/ALARM — ventil dovoda zatvoren')
+        if lv.get('min') is False and a['want'].get('pump_out'):
+            a['want']['pump_out'] = False
+            changed = True
+            log.info('akvarijum: voda ispod MIN — pumpa odvoda ugašena')
+        if changed:
+            save_state(self.st)
+        prev = getattr(self, 'aqua_live', None) or {}
+        if not prev or time.time() - prev.get('t', 0) >= 10:
+            log.info('akvarijum: ESP %s na vezi', q.get('id') or '')
+        self.aqua_live = {'t': time.time(), 'id': str(q.get('id') or 'esp32')[:30], 'outs': outs, 'levels': lv, 'ph': ph, 'temp': temp}
+        self.notify_aqua(lv, ph)
+        self.mark()
+        return {'ok': True, 'outs': dict(a['want'])}
+
     SRC_ROLES = ('av2', 'av3', 'av4', 'tuner')   # releji ulaza: uvek najviše jedan uključen
 
     def _relay_hw(self, i, on):
         self.st['relays'][i]['on'] = bool(on)
-        if self.gpio[i]:
-            self.gpio[i].value = bool(on)
+        for dev in self.gpio[i] if i < len(self.gpio) else []:
+            dev.value = bool(on)
 
     def relay_set(self, i, on):
         """Uključuje/isključuje rele uz zaštitu: samo jedan AV ulaz ili tjuner istovremeno,
@@ -1674,6 +3840,8 @@ class Teco:
     async def _set_source(self, s, title=None):
         prev, self.source = self.source, s
         log.info('izvor: %s -> %s', prev, s)
+        if self.tool_running():   # izabran je izvor: alat se sklanja sa ekrana
+            await self.tool_hide(restore=False)
         if prev == 'arc' and s != 'arc':   # prvo ugasi igru i sačekaj mpv — tek onda slika novog izvora
             await self.arc_stop()
         if s == 'av1' and prev != 'av1':
@@ -1817,9 +3985,37 @@ class Teco:
             opts.update({'video_refresh_rate': '60.000000', 'aspect_ratio_index': '20', 'video_aspect_ratio': '%.4f' % (fw / fh) if wide else '1.333333',
                          'video_vsync': 'true', 'audio_latency': '256'})
         opts['global_core_options'] = 'true'   # inače RetroArch ignoriše core_options_path
+        # PS2 džojstik preko USB konvertera „Twin USB Joystick“ (0810:0001, dva porta = igrač 1 i 2).
+        # Raspored snimljen 20.10.2026: ✕2 ○1 □3 △0, L1 6 R1 7, L2 4 R2 5, SELECT 8, START 9,
+        # strelice = osa 0/1 (bez ANALOG-a), u ANALOG režimu strelice su hat. START+SELECT = izlaz iz igre.
+        ac = ARC_DIR / 'autoconfig' / 'udev'
+        ac.mkdir(parents=True, exist_ok=True)
+        pad = {'input_driver': 'udev', 'input_device': 'Twin USB Joystick', 'input_vendor_id': '2064', 'input_product_id': '1',
+               'input_b_btn': '2', 'input_a_btn': '1', 'input_y_btn': '3', 'input_x_btn': '0',
+               'input_l_btn': '6', 'input_r_btn': '7', 'input_l2_btn': '4', 'input_r2_btn': '5',
+               'input_l3_btn': '10', 'input_r3_btn': '11', 'input_select_btn': '8', 'input_start_btn': '9',
+               'input_up_axis': '-1', 'input_down_axis': '+1', 'input_left_axis': '-0', 'input_right_axis': '+0',
+               'input_up_btn': 'h0up', 'input_down_btn': 'h0down', 'input_left_btn': 'h0left', 'input_right_btn': 'h0right',
+               'input_l_x_plus_axis': '+0', 'input_l_x_minus_axis': '-0', 'input_l_y_plus_axis': '+1', 'input_l_y_minus_axis': '-1',
+               'input_r_x_plus_axis': '+2', 'input_r_x_minus_axis': '-2', 'input_r_y_plus_axis': '+3', 'input_r_y_minus_axis': '-3'}
+        (ac / 'Twin USB Joystick.cfg').write_text(''.join('%s = "%s"\n' % kv for kv in pad.items()))
+        opts['joypad_autoconfig_dir'] = str(ARC_DIR / 'autoconfig')
+        opts['input_quit_gamepad_combo'] = '4'   # START + SELECT = izlaz iz igre (nazad u Teco)
+        opts['input_max_users'] = '2'
+        # vibracija: PS1 igre vibriraju samo sa DualShock-om (RETRO_DEVICE_SUBCLASS(ANALOG, 1) = 517).
+        # Konverter vibrira kroz hid-pl sa CONFIG_PANTHERLORD_FF — taj modul je napravljen na Pi-ju
+        # (~/hid-pl-ff, /lib/modules/<kernel>/updates/hid-pl.ko); posle novog kernela treba ga napraviti ponovo.
+        # RetroArch 1.14 tip kontrolera po portu čita iz remap fajla jezgra (ne iz retroarch.cfg)
+        rm = ARC_DIR / 'remaps' / 'PCSX-ReARMed'
+        rm.mkdir(parents=True, exist_ok=True)
+        (rm / 'PCSX-ReARMed.rmp').write_text('input_libretro_device_p1 = "517"\ninput_libretro_device_p2 = "517"\n'
+                                             'input_remap_port_p1 = "0"\ninput_remap_port_p2 = "1"\n')
+        opts['input_remapping_directory'] = str(ARC_DIR / 'remaps')
+        opts['auto_remaps_enable'] = 'true'
         (ARC_DIR / 'retroarch.cfg').write_text('# Teco.Pi Arcade (pravi server.py)\n' + ''.join('%s = "%s"\n' % kv for kv in opts.items()))
         core = {'pcsx_rearmed_drc': 'enabled', 'pcsx_rearmed_spu_interpolation': 'simple', 'pcsx_rearmed_frameskip_type': 'disabled', 'pcsx_rearmed_async_cd': 'async',
-                'pcsx_rearmed_neon_enhancement_enable': 'disabled', 'pcsx_rearmed_show_bios_bootlogo': 'disabled'}
+                'pcsx_rearmed_neon_enhancement_enable': 'disabled', 'pcsx_rearmed_show_bios_bootlogo': 'disabled',
+                'pcsx_rearmed_vibration': 'enabled'}
         if not hdmi:   # PAL TV (NTSC slika je isprana): igra u PAL ritmu 50 fps = 50 Hz ekran, glatko i bez kidanja zvuka
             core['pcsx_rearmed_region'] = 'PAL'   # tačno ovako (velikim slovima), inače jezgro vrati na auto
         (ARC_DIR / 'core-options.cfg').write_text(''.join('%s = "%s"\n' % kv for kv in core.items()))
@@ -1834,6 +4030,8 @@ class Teco:
             return {'err': 'Emulator nije instaliran.'}
         if self.source != 'arc':
             await self.set_source('arc')
+        if self.tool_running():
+            await self.tool_hide(restore=False)
         self.arc_starting = True
         try:
             return await self._arc_launch(g, core)
@@ -1857,7 +4055,7 @@ class Teco:
             w.p.kill()
         await self._run('sudo', '-n', 'sh', '-c', 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo performance > $f; done', timeout=5)
         log_f = open('/tmp/teco-arcade.log', 'w')
-        proc = await asyncio.create_subprocess_exec('retroarch', '--config', str(self.arc_cfg()), '-L', str(core), g['path'],
+        proc = await asyncio.create_subprocess_exec('retroarch', '--verbose', '--config', str(self.arc_cfg()), '-L', str(core), g['path'],
                                                     stdout=log_f, stderr=asyncio.subprocess.STDOUT, env=env)
         self.arc = {'proc': proc, 'game': g, 't0': time.time(), 'vol': vol, 'mute': mute, 'node': None}
         log.info('Arcade: %s', g['name'])
@@ -2938,6 +5136,21 @@ class Teco:
                 save_state(self.st)
                 self.mark()
                 return {'ok': 'Dodato: ' + d['name']}
+            if drv.key == 'usbcam':   # USB kamera na Pi-ju: bez IP adrese, bira se sa liste priključenih
+                devp = str(a.get('usb_dev') or '')
+                cams = UsbCamDriver.list_devices()
+                if not cams:
+                    return {'err': 'Nijedna USB kamera nije priključena.'}
+                if devp not in [c['dev'] for c in cams]:
+                    devp = cams[0]['dev']
+                d = {'id': secrets.token_hex(4), 'type': 'camera', 'proto': drv.key, 'ip': '', 'cam': {'dev': devp},
+                     'name': str(a.get('name') or '').strip()[:40] or next(c['n'] for c in cams if c['dev'] == devp),
+                     'room': str(a.get('room') or '').strip()[:30]}
+                devs.append(d)
+                save_state(self.st)
+                await self.dev_poll(d)
+                self.mark()
+                return {'ok': 'Dodato: ' + d['name']}
             kind = a.get('appl_kind') if a.get('appl_kind') in APPL_KINDS else 'other'
             if drv.key == 'applpgm':   # uređaj na PGM releju alarma: bez IP adrese
                 try:
@@ -2990,6 +5203,15 @@ class Teco:
         d = next((x for x in devs if x['id'] == a.get('id')), None)
         if not d:
             return {'err': 'Uređaj nije pronađen.'}
+        if c == 'dev_edit' and d.get('proto') == 'usbcam':
+            if a.get('usb_dev') and a['usb_dev'] in [x['dev'] for x in UsbCamDriver.list_devices()]:
+                d['cam'] = {'dev': a['usb_dev']}
+                self.cctv_stop(d['id'])
+            d.update(name=str(a.get('name') or d['name']).strip()[:40], room=str(a.get('room') if a.get('room') is not None else d.get('room', '')).strip()[:30])
+            save_state(self.st)
+            await self.dev_poll(d)
+            self.mark()
+            return {'ok': 'Sačuvano: ' + d['name']}
         if c == 'dev_edit' and d.get('type') == 'appliance':   # vrsta (klima, bojler…) i PGM; IP ide dalje kao kod ostalih
             ap = dict(d.get('appl') or {})
             if a.get('appl_kind') in APPL_KINDS:
@@ -3105,30 +5327,84 @@ class Teco:
     async def cctv_start(self, d, sub):
         if not hasattr(self, 'cctv'):
             self.cctv = {}
+        drv = DEV_DRIVERS.get(d.get('proto'))
+        if isinstance(drv, UsbCamDriver):   # USB kamera: jedan strim (uređaj može da otvori samo jedan program)
+            sub = False
         key = '%s-%s' % (d['id'], 's' if sub else 'm')
         s = self.cctv.get(key)
         if s and s['proc'].returncode is None:
             s['t'] = time.monotonic()
             return s
         self.cctv_stop(key=key)
-        drv = DEV_DRIVERS.get(d.get('proto'))
+        usb = isinstance(drv, UsbCamDriver)
         url = drv.url(d, sub) if isinstance(drv, CameraDriver) else ''
-        if not url:
+        if not url and not usb:
             return None
         out = CCTV_DIR / key
         shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True, exist_ok=True)
+        hls = ['-f', 'hls', '-hls_time', '1', '-hls_list_size', '5', '-hls_flags', 'delete_segments+omit_endlist+independent_segments',
+               '-hls_segment_type', 'fmp4', str(out / 'index.m3u8')]
         args = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-fflags', 'nobuffer']
-        if url.startswith('rtsp'):
-            args += ['-rtsp_transport', 'tcp', '-timeout', '5000000']
-        args += ['-i', url, '-an', '-c:v', 'copy', '-f', 'hls', '-hls_time', '1', '-hls_list_size', '5',
-                 '-hls_flags', 'delete_segments+omit_endlist+independent_segments', '-hls_segment_type', 'fmp4', str(out / 'index.m3u8')]
+        if usb:   # JPEG sa kamere -> H.264 hardverskim enkoderom Pi-ja, ključna slika na ~1 s
+            args += drv.ffmpeg_input(d) + ['-an', '-c:v', 'h264_v4l2m2m', '-b:v', '1200k', '-g', '8', '-pix_fmt', 'yuv420p'] + hls
+        else:   # IP kamera: slika se samo prepakuje (bez pretvaranja)
+            if url.startswith('rtsp'):
+                args += ['-rtsp_transport', 'tcp', '-timeout', '5000000']
+            args += ['-i', url, '-an', '-c:v', 'copy'] + hls
         proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
         self.cctv[key] = s = {'proc': proc, 'dir': out, 't': time.monotonic()}
         log.info('CCTV %s pokrenut (%s)', key, 'sporedni' if sub else 'glavni')
         if not hasattr(self, 'cctv_reaper'):
             self.cctv_reaper = asyncio.get_running_loop().create_task(self.cctv_reap())
         return s
+
+    # ---------- USB kamera kao MJPEG (kamera već daje JPEG): slike idu pravo u pregledač, kašnjenje < 0,5 s,
+    # bez dekodiranja/kodiranja. Jedan ffmpeg po kameri (uređaj se otvara samo jednom), slike se dele svim gledaocima.
+    async def mjpeg_reader(self, d):
+        rd = self.__dict__.setdefault('mjpeg', {})
+        r = rd.get(d['id'])
+        if r and r['proc'].returncode is None:
+            return r
+        dev = (d.get('cam') or {}).get('dev', '')
+        self.cctv_stop(d['id'])   # HLS strim iste kamere drži uređaj
+        # mjpeg2jpeg: EyeToy šalje JPEG bez Huffman tabela (kao AVI MJPEG) — pregledač ih traži
+        proc = await asyncio.create_subprocess_exec(
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'v4l2', '-input_format', 'mjpeg', '-video_size', '640x480',
+            '-framerate', '15', '-i', dev, '-c:v', 'copy', '-bsf:v', 'mjpeg2jpeg', '-flush_packets', '1', '-f', 'mjpeg', 'pipe:1',
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        r = rd[d['id']] = {'proc': proc, 'frame': None, 'seq': 0, 'ev': asyncio.Event(), 'viewers': 0, 't': time.monotonic()}
+        log.info('USB kamera %s: MJPEG pokrenut', d.get('name'))
+
+        async def pump():
+            buf = b''
+            while True:
+                chunk = await proc.stdout.read(65536)
+                if not chunk:
+                    break
+                buf += chunk
+                while True:   # celi JPEG-ovi: FFD8 ... FFD9
+                    a = buf.find(b'\xff\xd8')
+                    b = buf.find(b'\xff\xd9', a + 2) if a >= 0 else -1
+                    if a < 0 or b < 0:
+                        buf = b'' if a < 0 else buf[a:]   # bez početka slike: ostatak je otpad
+                        break
+                    r['frame'], buf = buf[a:b + 2], buf[b + 2:]
+                    r['seq'] += 1
+                    r['ev'].set()
+                    r['ev'] = asyncio.Event()
+            log.info('USB kamera %s: MJPEG završen', d.get('name'))
+
+        async def reap():   # rezerva: niko se nije ni povezao (npr. otvaranje prekinuto) -> ugasi posle 10 s
+            while proc.returncode is None:
+                await asyncio.sleep(2)
+                if r['viewers'] <= 0 and time.monotonic() - r['t'] > 10:
+                    proc.kill()
+            rd.pop(d['id'], None)
+        loop = asyncio.get_running_loop()
+        loop.create_task(pump())
+        loop.create_task(reap())
+        return r
 
     async def cctv_reap(self):
         """Gasi strimove koje niko ne gleda (stranica traži playlistu na ~1 s dok gleda)."""
@@ -3571,6 +5847,11 @@ class Teco:
         if c == 'alarm_mem_clear':
             r = await self.alarm_post('/zone', {'p': 'all', 'cmd': 'clear_alarm_memory'})
             return {'ok': 'Memorija alarma je obrisana'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
+        if c == 'alarm_panic':   # panic (kao 1+3 / 4+6 / 7+9 na šifratoru)
+            t = a.get('type') if a.get('type') in ('emergency', 'medical', 'fire') else 'emergency'
+            log.warning('PANIC sa stranice: %s', t)
+            r = await self.alarm_post('/panic', {'type': t, 'p': a.get('p') or 1})
+            return {'ok': 'PANIC poslat centrali'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
         if c == 'alarm_time':   # sat centrale = sat Teco.Pi-ja
             r = await self.alarm_post('/time', {})
             if not r.get('ok'):
@@ -3654,6 +5935,10 @@ class Teco:
         """Obaveštenja vezana za PGM alarma: PGM se uključi -> pokreni obaveštenje (zvono, interfon…)."""
         if st.get('run') != 'run':
             return
+        try:
+            self.notify_alarm(st)   # SMS obaveštenja: alarm, uključen/isključen, struja
+        except Exception:
+            log.exception('obaveštenje alarma')
         # interfoni: zona alarma se otvori (zvoni) -> obaveštenje + zapamti vreme poziva
         zc = {z.get('id'): bool(z.get('open')) for z in st.get('zones', [])}
         zp = getattr(self, '_zone_prev', None)
@@ -4413,7 +6698,7 @@ class Teco:
     async def handle(self, a, admin):
         """Obrada poruke sa stranice. Vraća dict koji ide nazad samo tom klijentu."""
         c = a.get('c')
-        if c not in ('ping', 'check', 'vol', 'seek', 'seek_rel'):   # zapis komandi sa stranice (bez PIN-a i tokena)
+        if c not in ('ping', 'check', 'vol', 'seek', 'seek_rel', 'vault_get', 'vault_put', 'phone_set', 'sms_send', 'sms_thread', 'sms_read', 'notify_set'):   # zapis komandi sa stranice (bez PIN-a i tokena)
             log.info('stranica: %s %s', c, {k: v for k, v in a.items()
                                              if k not in ('c', 'rid', 'tok', 'pin', 'pw') and 'pass' not in k and 'pw' not in k} or '')
         if c in ADMIN_CMDS and not admin and not (c == 'set_pin' and not self.st['pin']):
@@ -4479,6 +6764,129 @@ class Teco:
             return await self.dns_set(a)
         elif c == 'net_mode':
             return await self.net_mode(a.get('v'))
+        elif c in ('vault_get', 'vault_put'):   # Alati → Lozinke: šifrovan trezor (šifruje se u pregledaču, Pi ne zna lozinke)
+            f = DATA / 'vault.json'
+            try:
+                cur = json.loads(f.read_text())
+            except (OSError, ValueError):
+                cur = None
+            if c == 'vault_get':
+                return {'vault': cur}
+            b = a.get('vault')
+            if not isinstance(b, dict) or not all(isinstance(b.get(k), str) for k in ('salt', 'nonce', 'box')) or len(json.dumps(b)) > 2_000_000:
+                return {'err': 'Neispravan trezor.'}
+            if cur and int(a.get('base') or 0) != int(cur.get('rev') or 0):
+                return {'err': 'Trezor je u međuvremenu promenjen na drugom uređaju — zaključaj i otključaj ponovo.'}
+            b = {k: b[k] for k in ('v', 'kdf', 'iter', 'salt', 'nonce', 'box') if k in b}
+            b['rev'] = int((cur or {}).get('rev') or 0) + 1
+            b['ts'] = int(time.time())
+            tmp = f.with_suffix('.tmp')
+            tmp.write_text(json.dumps(b))
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, f)
+            return {'ok': True, 'rev': b['rev']}
+        elif c in ('tool_set', 'tool_show', 'tool_hide'):   # Alati: osciloskop, otpornici (prikaz na ekranu)
+            name = str(a.get('name') or '')
+            if c == 'tool_hide':
+                return await self.tool_hide()
+            if name not in self.TOOL_SCRIPTS:
+                return {'err': 'Nepoznat alat.'}
+            return await self.tool_show(name) if c == 'tool_show' else self.tool_set(name, a.get('cfg') or {})
+        elif c == 'net_test':   # Alati: mrežni tester
+            return await self.net_test()
+        elif c == 'phone_set':   # Alati: telefonska linija (SLIC + SIM800)
+            return self.phone_set(a.get('cfg') or {})
+        elif c == 'phone_test':
+            return await self.phone_test(a)
+        elif c in ('pbx_set', 'pbx_secret', 'pbx_prompt_del', 'pbx_vm_del', 'pbx_vm_heard'):   # Telefonska centrala (Asterisk)
+            return await self.pbx_cmd(c, a)
+        elif c == 'phone_sim':   # simulacija modema i slušalice (test bez hardvera)
+            return await self.phone_sim(a)
+        elif c in ('sms_send', 'sms_thread', 'sms_read', 'sms_del', 'sms_name', 'sms_retry'):   # Alati: SMS poruke
+            return await self.sms_cmd(c, a)
+        elif c == 'notify_set':   # SMS obaveštenja i komande
+            return self.notify_set(a.get('cfg') or {})
+        elif c == 'ussd':
+            return await self.ussd(a.get('code'))
+        elif c == 'scan_watch':   # prati uređaj (SMS kad nestane sa mreže)
+            d = self.scan_db()['devices'].get(str(a.get('key') or ''))
+            if not d:
+                return {'err': 'Nepoznat uređaj.'}
+            d['watch'] = bool(a.get('on'))
+            self.scan_save()
+            self.mark()
+            return {'ok': 'Uređaj se prati' if d['watch'] else 'Uređaj se više ne prati'}
+        elif c in ('dns_lookup', 'whois'):   # Alati: DNS (nslookup) i whois
+            import dnstools
+            q = dnstools.valid_name(str(a.get('q') or ''))
+            if not q:
+                return {'err': 'Upiši ispravno ime domena ili IP adresu.'}
+            loop = asyncio.get_running_loop()
+            try:
+                if c == 'whois':
+                    return {'whois': await asyncio.wait_for(loop.run_in_executor(None, dnstools.whois, q), 30)}
+                t = str(a.get('type') or 'ALL').upper()
+                if t != 'ALL' and t not in dnstools.TYPES:
+                    return {'err': 'Nepoznat tip zapisa.'}
+                srv = str(a.get('server') or 'system')
+                if srv == 'system':
+                    srv = ((self.net.get('dns') or {}).get('active') or ['8.8.8.8'])[0]
+                elif srv == 'router':
+                    srv = self.net.get('gw') or '8.8.8.8'
+                ipaddress.ip_address(srv)
+                return {'dns': await asyncio.wait_for(loop.run_in_executor(None, dnstools.lookup, q, t, srv), 30)}
+            except ValueError:
+                return {'err': 'Neispravna adresa DNS servera.'}
+            except (OSError, asyncio.TimeoutError) as e:
+                return {'err': 'Nema odgovora: %s' % (e or 'isteklo vreme')}
+        elif c == 'scan_run':   # Alati: skeniranje mreže
+            return await self.scan_run(a.get('ifs'))
+        elif c == 'wol':   # Wake-on-LAN: "magični paket" za uređaj iz spiska
+            return await self.wol(str(a.get('key') or ''))
+        elif c == 'scan_add':   # ručno dodat uređaj (npr. ugašen računar za buđenje)
+            mac = str(a.get('mac') or '').strip().lower().replace('-', ':')
+            if re.fullmatch(r'[0-9a-f]{12}', mac):
+                mac = ':'.join(mac[i:i + 2] for i in range(0, 12, 2))
+            if not re.fullmatch(r'([0-9a-f]{2}:){5}[0-9a-f]{2}', mac):
+                return {'err': 'Neispravna MAC adresa (npr. 00:1a:2b:3c:4d:5e).'}
+            if int(mac[1], 16) & 2:
+                return {'err': 'To je privatna (nasumična) MAC adresa — buđenje ne radi; upiši pravu MAC mrežne kartice.'}
+            import netscan
+            db = self.scan_db()
+            d = db['devices'].setdefault(mac, {'first': time.time(), 'last': 0, 'ip': '', 'online': False, 'ports': [], 'name': '',
+                                               'type': 'pc', 'kind': 'Računar (dodat ručno)', 'ifc': 'wlan0'})
+            d.update(mac=mac, label=str(a.get('label') or '').strip()[:40] or d.get('label', ''), vendor=netscan.vendor(mac) if netscan._manuf else d.get('vendor'))
+            self.scan_save()
+            self.mark()
+            return {'ok': 'Uređaj dodat'}
+        elif c in ('scan_label', 'scan_forget'):
+            db = self.scan_db()
+            d = db['devices'].get(str(a.get('key') or ''))
+            if not d:
+                return {'err': 'Nepoznat uređaj.'}
+            if c == 'scan_forget':
+                del db['devices'][str(a['key'])]
+            else:
+                d['label'] = str(a.get('label') or '').strip()[:40]
+            self.scan_save()
+            if self.tool_running() == 'scan':
+                self.tool_write('scan')
+            self.mark()
+            return {}
+        elif c == 'aqua_set':   # akvarijum: željeno stanje izlaza (ESP32 ga preuzme pri sledećem javljanju)
+            aq, k = self.aqua_cfg(), str(a.get('k') or '')
+            if k not in aq['want']:
+                return {'err': 'Nepoznat izlaz.'}
+            on = bool(a.get('on'))
+            lv = (getattr(self, 'aqua_live', None) or {}).get('levels', {})
+            if on and k == 'valve_in' and (lv.get('max') or lv.get('alarm')):
+                return {'err': 'Voda je na MAX nivou — dovod se ne otvara.'}
+            if on and k == 'pump_out' and lv.get('min') is False:
+                return {'err': 'Voda je ispod MIN nivoa — odvod se ne pali.'}
+            aq['want'][k] = on
+            save_state(self.st)
+            self.mark()
+            return {'ok': dict(self.AQUA_OUTS)[k] + (': uključeno' if on else ': isključeno')}
         elif c in ('scr_set', 'scr_press'):   # dugme SOURCE na ekranu (Admin)
             return await self.scr_cmd(c, a)
         elif c in ('fav_add', 'fav_del', 'fav_move'):   # Dashboard: omiljene prečice (zajedničke za sve telefone)
@@ -4533,7 +6941,7 @@ class Teco:
             return await self.alarm_cfg_set(a)
         elif c == 'alarm':   # uključi/isključi: dozvoljeno svima u mreži (izbor korisnika)
             return await self.alarm_do(a)
-        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events', 'alarm_time'):
+        elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events', 'alarm_time', 'alarm_panic'):
             return await self.alarm_extra(c, a)
         elif c == 'ntp_set':
             return await self.ntp_set(a)
@@ -4947,13 +7355,14 @@ class Teco:
             'stream': {'sys': SYS_STREAMS, 'my': self.st['stream']['list'], 'fav': self.st['stream'].get('fav') or [],
                        'cur': (self.stream_cur() or (0,))[0], 'err': self.st_err,
                        'on': self.source == 'st' and self.st_proc is not None, 'title': self.st_title},
-            'relays': [{'n': r['n'], 'pin': r['pin'], 'on': r['on'], 'role': r.get('role')} for r in self.st['relays']],
+            'relays': [{'n': r['n'], 'on': r['on'], 'role': r.get('role')} for r in self.st['relays']],
+            'inputs': self.input_state(),
             'io': [   # stanje uređaja (I/O prozor)
-                {'n': 'IR prijemnik', 'd': 'TSOP · GPIO17', 'ok': os.path.exists('/dev/lirc0')},
+                {'n': 'IR prijemnik', 'd': 'TSOP', 'ok': os.path.exists('/dev/lirc0')},
                 {'n': 'FM tjuner', 'd': 'RDA5807M · I2C 0x11', 'ok': bool(self.tuner)},
                 {'n': 'Pojačalo', 'd': 'TPA2016D2 · I2C 0x58', 'ok': bool(self.amp)},
                 {'n': 'Tasteri', 'd': 'PCF8574 · I2C 0x27', 'ok': bool(getattr(self, 'keys_addr', None))},
-                {'n': 'Unutra', 'd': 'DHT22 · GPIO4 ili DS18B20 · 1-Wire', 'ok': self.sys.get('room') is not None},
+                {'n': 'Unutra', 'd': 'DHT22', 'ok': self.sys.get('room') is not None},
                 {'n': 'Napolju', 'd': 'preko API-ja (/api/outside)', 'ok': self.sys.get('out') is not None},
             ],
             'ir': self.st['ir'],
@@ -4973,8 +7382,11 @@ class Teco:
             'devices': self.dev_snapshot(),
             'arcade': self.arc_snapshot(),
             'favs': self.st.get('favs', []),
-            'scrbtn': self.scr_cfg(),
+            'scrbtn': {k: v for k, v in self.scr_cfg().items() if k != 'pin'},
+            'aqua': self.aqua_snapshot(),
+            'tools': {'scope': self.tool_cfg('scope'), 'resistor': self.tool_cfg('resistor'), 'logic': self.tool_cfg('logic'), 'capacitor': self.tool_cfg('capacitor'), 'guest': self.tool_cfg('guest'), 'net': self.nt_view(), 'scan': self.scan_view(), 'phone': self.phone_view(), 'sms': self.sms_view(), 'pbx': self.pbx_view(), 'shown': self.tool_running()},
             'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
+            'usbcams': UsbCamDriver.list_devices(),   # priključene USB kamere (izbor u Adminu)
             'sys': self.sys,
         }
 
@@ -5228,6 +7640,40 @@ def make_app():
             return web.json_response({'err': err[:300] or 'kamera ne odgovara'}, status=502)
         return web.FileResponse(f, headers={'Cache-Control': 'no-cache'})
 
+    async def mjpeg_http(request):
+        """/cctv/<id>/mjpeg: USB kamera uživo (multipart JPEG, za <img>)."""
+        dev = next((x for x in teco.st.get('devices', []) if x['id'] == request.match_info['id'] and x.get('proto') == 'usbcam'), None)
+        if not dev:
+            raise web.HTTPNotFound()
+        r = await teco.mjpeg_reader(dev)
+        resp = web.StreamResponse(headers={'Content-Type': 'multipart/x-mixed-replace; boundary=frame', 'Cache-Control': 'no-cache',
+                                           'X-Accel-Buffering': 'no'})
+        await resp.prepare(request)
+        r['viewers'] += 1
+        last = 0
+        try:
+            while r['proc'].returncode is None:
+                if r['seq'] == last:
+                    try:
+                        await asyncio.wait_for(r['ev'].wait(), 5)
+                    except asyncio.TimeoutError:
+                        continue
+                last, fr = r['seq'], r['frame']
+                if fr:
+                    await resp.write(b'--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n' % len(fr) + fr + b'\r\n')
+        except (ConnectionResetError, asyncio.CancelledError, RuntimeError):
+            pass
+        finally:
+            r['viewers'] -= 1
+            r['t'] = time.monotonic()
+            if r['viewers'] <= 0:   # poslednji gledalac je zatvorio prozor: kamera se gasi posle 1,5 s
+                def off():
+                    if r['viewers'] <= 0 and r['proc'].returncode is None:
+                        r['proc'].kill()
+                        log.info('USB kamera %s: ugašena (niko ne gleda)', dev.get('name'))
+                asyncio.get_running_loop().call_later(1.5, off)
+        return resp
+
     async def arc_art(request):
         """/arc/art/<id>: omot igre sa flasha (?v=vreme izmene -> pregledač ga sme dugo čuvati)."""
         g = next((x for x in teco.arc_games() if x['id'] == request.match_info['id']), None)
@@ -5236,13 +7682,20 @@ def make_app():
         return web.FileResponse(g['art'], headers={'Cache-Control': 'public, max-age=604800'})
 
     async def on_start(app):
+        # server je restartovan usred igre: igra je ugašena zajedno sa njim, a plejer (mpv) je ostao ugašen
+        # i procesor na „performance“ — vrati oba (inače stranica piše „Plejer ne radi“, a ekran je prazan)
+        if (await teco._run('pgrep', '-c', 'retroarch', timeout=5)).strip() in ('', '0'):
+            if (await teco._run('systemctl', '--user', 'is-active', 'teco-player', timeout=5)).strip() != 'active':
+                log.info('plejer je bio ugašen (igra prekinuta restartom) — palim ga')
+                await teco._run('systemctl', '--user', 'start', 'teco-player', timeout=15)
+            await teco._run('sudo', '-n', 'sh', '-c', 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo ondemand > $f; done', timeout=5)
         await teco.events_assets()
         if teco.st.get('cast'):
             await teco.cast_start()
         await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
         if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
             await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop())]
+        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop(), teco.sms_loop(), teco.notify_loop(), teco.pbx_loop())]
 
     async def on_stop(app):
         await teco.fm_stop()
@@ -5253,8 +7706,57 @@ def make_app():
     app.router.add_get('/', index)
     app.router.add_get('/favicon.ico', lambda r: web.FileResponse(STATIC / 'favicon-64.png'))   # pregledači ga traže i bez linka
     app.router.add_get('/ws', ws_handler)
+
+    async def guest_qr(request):   # Alati -> Wi-Fi za goste: QR kod za stranicu (isti kao na ekranu)
+        import io
+        import wifiqr
+        cfg = teco.tool_cfg('guest')
+        if not cfg.get('ssid'):
+            return web.Response(status=404)
+        buf = io.BytesIO()
+        wifiqr.image(cfg, 360).save(buf, 'PNG')
+        return web.Response(body=buf.getvalue(), content_type='image/png', headers={'Cache-Control': 'no-store'})
+    app.router.add_get('/api/guest-qr.png', guest_qr)
+
+    async def pbx_prompt_up(request):   # Centrala: najava (bilo koji zvuk sa telefona / snimak) -> 8 kHz mono WAV za Asterisk
+        import pbx
+        name = request.match_info['name']
+        if name not in pbx.PROMPTS:
+            return web.json_response({'err': 'Nepoznata najava.'}, status=404)
+        raw = await request.read()
+        if not raw or len(raw) > 20 * 2**20:
+            return web.json_response({'err': 'Fajl je prazan ili veći od 20 MB.'}, status=400)
+        src = DATA / ('prompt-%s.in' % name)
+        src.write_bytes(raw)
+        dst = pbx.SOUNDS / (name + '.wav')
+        out = await teco._run('ffmpeg', '-y', '-v', 'error', '-i', str(src), '-ac', '1', '-ar', '8000', '-c:a', 'pcm_s16le', '-af', 'loudnorm=I=-18:TP=-2',
+                              '-t', '120', str(dst), timeout=60)
+        src.unlink(missing_ok=True)
+        if not dst.exists():
+            return web.json_response({'err': 'Zvuk nije prepoznat: ' + out.strip()[:120]}, status=400)
+        os.chmod(dst, 0o664)
+        teco.mark()
+        return web.json_response({'ok': 'Najava sačuvana'})
+
+    async def pbx_wav(request):   # preslušavanje najave ili govorne poruke na stranici
+        import pbx
+        kind = request.match_info['kind']
+        if kind == 'prompt':
+            name = request.match_info['a']
+            f = pbx.SOUNDS / (name + '.wav') if name in pbx.PROMPTS else None
+        else:
+            box, folder, mid = request.match_info['a'], request.match_info['b'], request.match_info['c']
+            ok = re.fullmatch(r'\d{2,6}', box) and folder in ('INBOX', 'Old', 'Urgent') and re.fullmatch(r'msg\d{4}', mid)
+            f = pbx.VM_DIR / box / folder / (mid + '.wav') if ok else None
+        if not f or not f.exists():
+            return web.Response(status=404)
+        return web.FileResponse(f, headers={'Cache-Control': 'no-store'})
+    app.router.add_post('/api/pbx-prompt/{name}', pbx_prompt_up)
+    app.router.add_get('/api/pbx/{kind}/{a}.wav', pbx_wav)
+    app.router.add_get('/api/pbx/{kind}/{a}/{b}/{c}.wav', pbx_wav)
     app.router.add_post('/api/upload', upload)
     app.router.add_post('/api/game', game_upload)
+    app.router.add_get('/cctv/{id}/mjpeg', mjpeg_http)
     app.router.add_get('/cctv/{id}/{q}/{name}', cctv_http)
     app.router.add_get('/arc/art/{id}', arc_art)
     app.router.add_post('/api/cast', cast_api)
@@ -5305,6 +7807,28 @@ def make_app():
         teco.mark()
         return web.json_response({'ok': True, 't': t, 'h': h})
 
+    async def api_aqua(request):
+        """ESP32 akvarijuma (Teco ESP protokol, samo lokalna mreža). Na 1-2 s:
+        POST /api/aqua  {"id": "aqua1", "ph": 7.1, "temp": 25.4,
+                         "levels": {"min": true, "q34": true, "max": false, "alarm": false},
+                         "outs": {"pump1": true, "heater1": false, "light1": true, "light2": false, "fan": false, "valve_in": false, "pump_out": false}}
+        odgovor: {"ok": true, "outs": {...željeno stanje...}} — ESP postavi releje po "outs".
+        levels: true = senzor u vodi. GET /api/aqua samo vraća željeno stanje."""
+        import ipaddress
+        if not ipaddress.ip_address(request.remote).is_private:
+            return web.json_response({'err': 'Samo iz lokalne mreže.'}, status=403)
+        if request.method == 'GET':
+            return web.json_response({'ok': True, 'outs': dict(teco.aqua_cfg()['want'])})
+        try:
+            q = await request.json()
+            if not isinstance(q, dict):
+                raise ValueError
+        except ValueError:
+            return web.json_response({'err': 'Pošalji JSON (vidi /api/aqua opis u server.py).'}, status=400)
+        return web.json_response(teco.aqua_report(q))
+
+    app.router.add_get('/api/aqua', api_aqua)
+    app.router.add_post('/api/aqua', api_aqua)
     app.router.add_get('/api/outside', api_outside)
     app.router.add_post('/api/outside', api_outside)
     app.router.add_post('/api/event-sound', event_sound_upload)

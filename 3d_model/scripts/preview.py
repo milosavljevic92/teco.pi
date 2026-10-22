@@ -1,13 +1,13 @@
 """Shaded preview of the assembled case from the real STL parts.
 Small numpy z-buffer rasterizer: flat shading, outline from depth/normal edges, 2x supersampling,
 screen rendered as a textured quad."""
-import sys, numpy as np, trimesh
+import sys, os, numpy as np, trimesh
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 OUT, PNG = sys.argv[1], sys.argv[2]
 D, DZ = 38.31, 34.5
 def T(r): return np.array(r, float)
-H_ADD, Z_ADD, FRONT_ADD = 5.0, 13.2, 14.2              # v2 (make_v2.py): case taller, bezel + strip further forward
+H_ADD, Z_ADD, FRONT_ADD, STRIP_ADD = 5.0, 13.2, 14.2, 17.12              # v2 (make_v2.py): case taller, bezel + strip further forward
 SLOT_XC = (-13.0, -30.7)
 BC = T([[1, 0, 0, 0], [0, -1, 0, 682.90 - D], [0, 0, -1, 110.04 - DZ], [0, 0, 0, 1]])   # back-cover frame -> shell
 SHELL = (0.235, 0.24, 0.255); BEZEL = (0.17, 0.175, 0.185); TRAY = (0.13, 0.135, 0.145); PLATE = (0.2, 0.205, 0.22)
@@ -16,9 +16,9 @@ PARTS = [
     ('screen-bezel', T([[1, 0, 0, 0], [0, 1, 0, 436.05], [0, 0, 1, -16.0], [0, 0, 0, 1]]), BEZEL),
     ('back-cover', BC, SHELL),
     ('bottom', T([[1, 0, 0, 0], [0, 0, -1, 238.22 - 5.08 + H_ADD], [0, 1, 0, 38.51], [0, 0, 0, 1]]), TRAY),
-    ('front-plate', T([[1, 0, 0, 0], [0, 1, 0, 362.94 + H_ADD], [0, 0, 1, 8.32 - FRONT_ADD], [0, 0, 0, 1]]), PLATE),
     ('io-shield', BC @ T([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, -17.08], [0, 0, 0, 1]]), PLATE),
-] + [('card-bracket', BC @ T([[1, 0, 0, xc], [0, 1, 0, 0], [0, 0, 1, -17.08], [0, 0, 0, 1]]), PLATE) for xc in SLOT_XC]
+] + [(os.path.join('later', 'card-bracket'), BC @ T([[1, 0, 0, xc], [0, 1, 0, 0], [0, 0, 1, -17.08], [0, 0, 0, 1]]), PLATE) for xc in SLOT_XC]
+FP = T([[1, 0, 0, 0], [0, 1, 0, 362.94 + H_ADD], [0, 0, 1, 8.32 - STRIP_ADD], [0, 0, 0, 1]])   # button strip frame (part of screen-bezel)
 # world frame: x right, y up, z towards the viewer of the front (shell: y down, z back)
 W = T([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
@@ -31,7 +31,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from frontpanel import caps_assembled
 for m, is_pwr in caps_assembled():
-    m.apply_transform(W @ PARTS[4][1])
+    m.apply_transform(W @ FP)
     tris.append(m.triangles); cols.append(np.tile((0.95, 0.5, 0.12) if is_pwr else (0.42, 0.43, 0.46), (len(m.faces), 1)))
     ids.append(np.full(len(m.faces), 50))
 tris = np.concatenate(tris); cols = np.concatenate(cols); ids = np.concatenate(ids)
@@ -177,7 +177,7 @@ sheet.paste(front, (0, 0)); sheet.paste(back, (front.width, 0))
 sheet.save(PNG)
 front.save(PNG.replace('.png', '-front.png')); back.save(PNG.replace('.png', '-back.png'))
 # close-up of the button strip
-strip_c = np.array([42.0, -248.8 - H_ADD, 18.0 + FRONT_ADD])
+strip_c = np.array([42.0, -248.8 - H_ADD, 18.0 + STRIP_ADD])
 strip = render(eye=strip_c + np.array([-35, 55, 230]), target=strip_c + np.array([0, 4, 0]), light=(-0.4, 0.8, 0.9),
                size=(1800, 700), fov=17)
 strip.save(PNG.replace('.png', '-strip.png'))

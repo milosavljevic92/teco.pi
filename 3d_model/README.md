@@ -35,9 +35,8 @@ Outer size: 186.5 W x 112.7 H (+ 21 mm tray below) x 97.6 D (+ 30.2 mm bezel in 
 - **Card brackets**: window **15 x 38** per slot (bracket 14.6 x 37.6, flange 1.2 left/right and 2 mm
   top/bottom, 17.4 x 42 overall; ~14.6 x 33 usable, the snap latches top and bottom take ~2 mm each). From the inside with the card, flange **glued**.
   Card on the L-tab with **2x M3** (holes D3.4).
-- **FM antenna**: `fm-bracket.stl` (14 x 14, D-hole for an SMA bulkhead D6.5 / flat 5.9, ring into the
-  D9 hole in the cover). Glue it on the inside, upper right seen from the back; SMA nut outside.
-- **Logo** (`assets/logo.png`, vectorised by `scripts/logo.py`) engraved 0.5 mm, 20 mm, on the left side wall, lower front corner (~3 mm above the bottom edge). **TECOMATIC** wordmark (`assets/tecomatic.png`) engraved 0.5 mm, 4 mm tall, bottom-left corner of the button strip.
+- **FM antenna**: SMA bulkhead straight in the back cover (D6.5 with a 5.9 flat, nut outside), upper right seen from the back.
+- **Logo** (`assets/logo.png`, vectorised by `scripts/logo.py`) engraved 0.5 mm, 20 mm, on the left side wall, lower front corner (~3 mm above the bottom edge). **TECOMATIC** wordmark (`assets/tecomatic.png`) engraved 0.5 mm, 5 mm tall, left end of the button strip in line with the buttons.
 - **Labels** engraved 0.6 mm: USB USB ETH, AV1 AV2 AV3 OUT (on the shield), EXP1 EXP2, FM, and
   AC250V next to the mains inlet. Recess 48 x 18 x 0.4 mm above the fan for a stick-on label.
 - **2 expansion-card slots** right of the I/O (seen from the back), centres x -13.0 / -30.7:
@@ -47,30 +46,36 @@ Outer size: 186.5 W x 112.7 H (+ 21 mm tray below) x 97.6 D (+ 30.2 mm bezel in 
     header); ribbon cables for anything else. Bracket M3 holes: 5 mm from the card's back edge,
     10.6 / 32.6 mm above its bottom edge
   - PCB left face (seen from the front) at x -19.7 / -37.4, components to the right (+x), max ~12.5 mm tall
-  - `card-bracket.stl` (print 2): blank back, drill/cut your connectors;
+  - `later/card-bracket.stl` (print 2 when needed): blank back, drill/cut your connectors;
     L-tab with 2x M3 holes into the card, 5 mm from its back edge, 8 mm from the bracket ends
 
-**Screws: M3 everywhere. M3 heat-set inserts (hole D4.0, M3 x 5.7) only in the shell (`top.stl`)**:
-4 front posts (screen brace), 2 upper back posts (back cover), 4 bottom lip holes (tray) = 10, plus 2 in each ack-clips.stl (lower back-cover screws) = **14 inserts**. Nothing in the covers / plates:
+**Screws: M3 everywhere. M3 heat-set inserts (hole D4.0, M3 x 5.7) only in the shell (`top.stl`), 12**:
+4 front posts (screen brace), 4 back corners (back cover: 2 upper posts + 2 lower bosses, the separate
+back-clips are gone), 4 bottom lip holes (tray). Nothing in the covers / plates:
 - screen brace corners: D3.4 + countersink from the front, **M3 x 8 countersunk** (flat under the screen)
-- back cover: D3.4 through, **M3 x 10**; tray: D3.5 through, **M3 x 10**
+- back cover: D3.4 through, **M3 x 10** (upper) / **M3 x 12** (lower, through the cover's inner rib)
+- tray: D3.5 through, **M3 x 10**
 - fan: M3 through the cover + nut; C8 inlet: M3 x 10 + nut / insert (see below)
 - screen to brace: D4.4 (thread of the screen unknown: M4, or M3 + washer)
+Main board top is now at shell y 226.59 (everything below y 185 moved 5 mm down). **Main board slider** in the shell: a 1.9 mm slot (1.6 mm PCB + 0.3) in each side wall, lips 2 mm thick reaching 2.5 mm in (2 mm grip per side), z 1.5..64; slide the board in from the back (cover off) until it stops at the front corner blocks. Keep a **3 mm strip along both side edges free of parts** (top and bottom) for z 0..64 of the board.
 
-Main board top is now at shell y 226.59 (everything below y 185 moved 5 mm down).
+## Parts to print (all in `elements/`) - 7 files
 
-## Parts to print (all in `elements/`)
+| Part | Qty | Note |
+|---|---|---|
+| `top.stl` | 1 | shell incl. PSU rails, speaker tubes, back-cover bosses, logo; **print front face down** |
+| `screen-bezel.stl` | 1 | bezel **and button strip in one part** (192.5 x 136.8 x 30.2); print front face down |
+| `x-brace.stl` | 1 | screen brace |
+| `back-cover.stl` | 1 | print outside face down |
+| `bottom.stl` | 1 | tray |
+| `io-shield.stl` | 1 | glued in from the inside |
+| `buttons.stl` | 1 | all 7 caps (PWR cap orange) |
+| `later/card-bracket.stl` | 2 | only when the expansion cards exist |
 
-| Part | v2 |
-|---|---|
-| `top.stl`, `screen-bezel.stl`, `back-cover.stl`, `x-brace.stl`, `bottom.stl` | changed (see above); `top.stl` includes the PSU rails, print it front face down |
-| `io-shield.stl` | new, 1x |
-| `card-bracket.stl` | new, 2x (one per slot) |
-| `fm-bracket.stl` | new, 1x (glued) |
-| `front-plate.stl` | v3 strip: from the left 4-slot grille (DHT22 behind it), headphone jack with engraved symbol, buttons **A B < > + −** (labels engraved), IR (8 x 8 window with a 0.8 mm frame lip, 11 x 11 recess behind it for a thin coloured transparent filter), LED, PWR |
-| `buttons.stl` | unchanged |
-| `back-clips.stl` | unchanged, **print 2** (lower back-cover screws) |
-
+Button strip (part of `screen-bezel.stl`): from the left TECOMATIC,
+headphone jack with symbol, buttons **A B < > + −** (labels engraved), IR (8 x 8 window with a 0.8 mm
+frame lip, 11 x 11 recess behind it for a thin coloured transparent filter) with IR symbol, LED with a
+bolt symbol, PWR. Its front is flush with the bezel front (17.1 mm further forward than v1).
 ## v1 parts (changes against the original)
 
 | Part | Change against the original |
@@ -99,7 +104,6 @@ Generated by `auxpcb.py` from `frontpanel.py`; close-up: `preview-strip.png`.
 - front side: SW1–SW6 + SW7 (PWR) tact switches **6x6x7 mm** THT (plungers touch the caps),
   D1 3 mm LED (body ~6 mm off the board), U1 IR receiver VS1838B/TSOP (leads bent 90°),
   J1 3.5 mm jack **PJ-392 style** (M6 nut on the front, body ≤ 11 mm deep, pins to the board)
-- U2 **DHT22 / AM2302** lying flat on the front side behind the grille (20 x 15.1, vents to the front, pins to the right)
 - back side: J2 JST-XH 12 pin (3V3, GND, SW1..SW7, LED, IR, DHT), J3 JST-XH 3 pin (L, R, AGND)
 - exact centres: printed by `python auxpcb.py aux-pcb.png aux-pcb-outline.dxf`
 
@@ -107,7 +111,7 @@ Generated by `auxpcb.py` from `frontpanel.py`; close-up: `preview-strip.png`.
 
 Upside down: the GPIO header plugs down into the main board, USB + Ethernet hang below the PCB
 (so they are mirrored on the back). Ports to the back, as far left (seen from the back) as the
-back-clips allow: x 59.6..115.6, PCB edge ~15 mm from the side wall.
+back-cover screw bosses allow: x 59.6..115.6, PCB edge ~15 mm from the side wall.
 - ports raised 6 mm: lowest port edge at shell y 231.6 (v2), window ~7.5 mm above the bottom edge
   of the back cover
 - PCB (component side down) at shell y 215.6 (v2), 47.0 mm above the tray floor (262.6)
@@ -122,7 +126,7 @@ mm; Pi holes on layer "Holes"). Interior renders: `interior.png` (`-rear`, `-top
 
 - **175.5 x 85.0 mm**, origin = front-left corner seen from the front
 - cut-out for the Pi ports merged with the right back-corner cut-out; 13.5 x 14.0 at the left
-  back corner (back-clips)
+  back corner (back-cover screw bosses)
 - board top 11.0 mm below the Pi (standard 2x20 female header 8.5 mm + Pi header 2.5 mm),
   Pi standoffs M2.5 x 11 at (108.77, 5.0) (157.77, 5.0) (108.77, 63.0) (157.77, 63.0)
 - female 2x20 header: rows X 156.53 (odd pins) / 159.08 (even), Y 9.87 .. 58.13, pin 1 at the front

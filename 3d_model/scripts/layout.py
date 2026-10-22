@@ -3,7 +3,7 @@ z towards the back) + the main PCB outline. Shared by interior.py (3D) and pcbdr
 import numpy as np
 
 D, DZ = 38.31, 34.5
-H_ADD, Z_ADD, FRONT_ADD = 5.0, 13.2, 14.2          # v2 (make_v2.py): 5 mm taller below y 185, bezel window 13.2 forward, bezel front + strip 14.2
+H_ADD, Z_ADD, FRONT_ADD, STRIP_ADD = 5.0, 13.2, 14.2, 17.12          # v2 (make_v2.py): 5 mm taller below y 185, bezel window 13.2 forward, bezel front + strip 14.2
 BC_Y = 682.90 - D
 LIP_TOP = BC_Y - 410.65 + H_ADD             # 238.94: top of the back-cover bottom lip
 TRAY_FLOOR = 257.62 + H_ADD                 # top of the tray floor

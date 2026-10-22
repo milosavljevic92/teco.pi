@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle
 OUT, PNG = sys.argv[1], sys.argv[2]
 X = float(sys.argv[3]) if len(sys.argv) > 3 else 42.0
 D, DZ = 38.31, 34.5
-H_ADD, Z_ADD, FRONT_ADD = 5.0, 13.2, 14.2          # v2 (make_v2.py)
+H_ADD, Z_ADD, FRONT_ADD, STRIP_ADD = 5.0, 13.2, 14.2, 17.12          # v2 (make_v2.py)
 
 def T(rows):
     return np.array(rows, float)
@@ -20,7 +20,6 @@ parts = {
     'back cover': ('back-cover', T([[1, 0, 0, 0], [0, -1, 0, 682.90 - D], [0, 0, -1, 110.04 - DZ], [0, 0, 0, 1]]), 'C3'),
     # tray: x same, tray y -> shell z (+38.51), tray z -> shell y (top -5.08 at shell 238.22, pointing down)
     'tray': ('bottom', T([[1, 0, 0, 0], [0, 0, -1, 238.22 - 5.08 + H_ADD], [0, 1, 0, 38.51], [0, 0, 0, 1]]), 'C4'),
-    'front plate': ('front-plate', T([[1, 0, 0, 0], [0, 1, 0, 362.94 + H_ADD], [0, 0, 1, 8.32 - FRONT_ADD], [0, 0, 0, 1]]), 'C5'),
 }
 fig, ax = plt.subplots(figsize=(14, 10))
 for name, (f, M, col) in parts.items():

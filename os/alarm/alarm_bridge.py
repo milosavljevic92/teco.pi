@@ -484,6 +484,29 @@ async def h_zone(request):
     return web.json_response({'ok': bool(ok)} if ok else {'err': 'Centrala nije prihvatila komandu.'})
 
 
+PANIC_TYPES = ('emergency', 'medical', 'fire')   # kao šifrator: 1+3, 4+6, 7+9
+
+
+async def h_panic(request):
+    """Panic alarm (kao istovremeni tasteri na šifratoru). Centrala mora imati uključen panic za šifrator.
+    PAI šalje EVO komandu 0x40/0x09 (korisnik 1 = master); kod vrste je u PAI-ju označen kao pretpostavka."""
+    a = await request.json()
+    t = str(a.get('type') or 'emergency')
+    if t not in PANIC_TYPES:
+        return web.json_response({'err': 'Nepoznata vrsta panike.'}, status=400)
+    if alarm is None or state['run'] != 'run':
+        return web.json_response({'err': 'Alarm nije povezan.'}, status=503)
+    try:
+        p = int(a.get('p') or 1)
+        ok = await alarm.panel.send_panic([p], t, int(a.get('user') or 1))
+    except Exception as e:
+        log.warning('panic %s: %s', t, e)
+        ok = False
+    log.warning('PANIC %s particija %s -> %s', t, a.get('p') or 1, ok)
+    full_status_now()
+    return web.json_response({'ok': True} if ok else {'err': 'Centrala nije prihvatila panic (proveri da li je panic uključen na centrali).'})
+
+
 async def h_time(request):
     """Sat centrale = sat Teco.Pi-ja (lokalno vreme, NTP). Kao PAI sync_time, ali uvek (bez praga odstupanja)."""
     if alarm is None or state['run'] != 'run':
@@ -558,6 +581,7 @@ async def main():
     app.router.add_post('/pgm', h_pgm)
     app.router.add_post('/zone', h_zone)
     app.router.add_post('/time', h_time)
+    app.router.add_post('/panic', h_panic)
     app.router.add_post('/events/clear', h_events_clear)
     app.router.add_post('/events/range', h_events_range)
     runner = web.AppRunner(app, access_log=None)   # server pita na 1,5 s: bez zapisa svakog upita (/tmp je u RAM-u)
