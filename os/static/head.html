@@ -1,12 +1,14 @@
 <title>Teco.Pi</title>
-<script>try { const t = localStorage.getItem('teco-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<script>try { const t = localStorage.getItem('teco-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+(function () { const mq = matchMedia('(prefers-color-scheme: dark)'), f = () => { const d = document.documentElement, t = d.dataset.theme; d.classList.toggle('lt', t === 'light' || (t !== 'dark' && !mq.matches)); };
+  f(); window.tecoLt = f; try { mq.addEventListener('change', f); } catch (e) { mq.addListener(f); } })();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- fontovi sa interneta ne smeju da drže prvo crtanje (ekran pri otvaranju): učitavaju se u pozadini -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 :root{
-  --bg:#f1f3f6; --stripe:rgba(20,30,50,.022); --surface:#ffffff; --surface-2:#f1f4f8; --surface-3:#e6ebf1; --line:#dfe5ed;
+  --bg:#e4e7eb; --stripe:transparent; --surface:#ffffff; --surface-2:#f4f6f8; --surface-3:#e8ecf0; --line:#d5dae1;
   --text:#101824; --muted:#5a6a7e; --faint:#8d9aab;
   --accent:#0d9488; --accent-2:#0f766e; --accent-ink:#ffffff; --accent-soft:rgba(13,148,136,.12);
   --gel-top:#6ee7da; --gel-mid:#14b8a6; --gel-bot:#0d9488; --gel-edge:#0b7d73;
@@ -636,6 +638,17 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9.5 3h5M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7.5 15h9"/></symbol>
   <symbol id="i-card" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6.5 15h4"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M4.5 6.5l15 11M19.5 6.5l-15 11M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5M3 10l3-.8-.8-3M21 14l-3 .8.8 3M18.8 6.2l-.8 3 3 .8M5.2 17.8l.8-3-3-.8"/></symbol>
+  <symbol id="i-shower" viewBox="0 0 24 24"><path d="M4 21V8a5 5 0 0 1 10 0"/><path d="M10 8h8l-1 3h-6zM12 14v.01M15 15v.01M12 17.5v.01M15 18.5v.01M18 15.5v.01M18 18.5v.01"/></symbol>
+  <symbol id="i-iron" viewBox="0 0 24 24"><path d="M3 18h16.5a1.5 1.5 0 0 0 1.5-1.5V14a5 5 0 0 0-5-5H8"/><path d="M3 18a7 7 0 0 1 7-7h11M8 6h6"/></symbol>
+  <symbol id="i-coffee" viewBox="0 0 24 24"><path d="M4 9h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16M8 2.5c-.8 1 .8 2 0 3.5M12 2.5c-.8 1 .8 2 0 3.5"/></symbol>
+  <symbol id="i-heat" viewBox="0 0 24 24"><path d="M7 4c-1.5 2 1.5 4 0 6s1.5 4 0 6M12 4c-1.5 2 1.5 4 0 6s1.5 4 0 6M17 4c-1.5 2 1.5 4 0 6s1.5 4 0 6M4 20h16"/></symbol>
+  <symbol id="i-washer" viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><circle cx="12" cy="13" r="5"/><path d="M7.5 6h.01M10.5 6h.01M9.5 14.5c1.5-1 3.5 1 5 0"/></symbol>
+  <symbol id="i-valve" viewBox="0 0 24 24"><path d="M3 13h5l2-3h4l2 3h5M3 9v8M21 9v8M12 10V5M8.5 5h7"/></symbol>
+  <symbol id="i-pan" viewBox="0 0 24 24"><path d="M3 11h14v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6zM17 12h4.5M7 4c-.8 1 .8 2 0 3.5M11 4c-.8 1 .8 2 0 3.5"/></symbol>
+  <symbol id="i-pump" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6.5"/><path d="M14.6 9.4V4.5H20M3 21.5h14M10 14l2.8-2.8M10 14H6.2M10 14l1.1 3.7"/></symbol>
+  <symbol id="i-pumpout" viewBox="0 0 24 24"><circle cx="9" cy="10" r="6"/><path d="M13.2 5.8V3H18M9 10l2.5-2.5M9 10H5.5M9 10l1 3.4M19 9.5V21M16 18l3 3 3-3M2.5 20.5h11"/></symbol>
+  <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15.5a4.5 4.5 0 1 1 1.2-8.8A6 6 0 0 1 19.6 9.3 3.2 3.2 0 0 1 18.5 15.5z"/><path d="M8.5 19l-1 2.5M12.5 19l-1 2.5M16.5 19l-1 2.5"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.8 12.2 9.7-9.7M17 6l3 3M14.5 8.5l2 2"/></symbol>
   <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 1-2-2zM14.5 6.5l2-2 3 3-2 2"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
@@ -660,42 +673,47 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
 <nav class="side" id="side" aria-label="Meni">
   <div class="side-logo"><span class="mark" aria-hidden="true"></span><span class="slt">Teco.Pi</span></div>
   <div class="tree">
-    <div class="tgrp" data-view="media">
+    <div class="tgrp" data-view="media" style="--c:#e0343c">
       <button class="tsec" data-view="media" title="Multimedija"><svg class="i"><use href="#i-media"/></svg><span>Multimedija</span></button>
     </div>
-    <div class="tgrp" data-view="smart">
+    <div class="tgrp" data-view="smart" style="--c:#0f9d8f">
       <button class="tsec" data-view="smart" title="Smart Home"><svg class="i"><use href="#i-home"/></svg><span>Smart Home</span><i class="tdot" id="navAlDot"></i></button>
       <div class="titems">
-        <a href="#lightsCard" data-view="lights">Svetla</a>
-        <a href="#applCard" data-view="appl">Uređaji</a>
-        <a href="#aquaCard" data-view="aqua">Akvarijum</a>
-        <a href="#doorsCard" data-view="doors">Interfon / Zvona</a>
-        <a href="#alList" data-view="alarm">Alarm</a>
-        <a href="#cctvCard" data-view="cctv">CCTV</a>
-        <a href="#waterCard" data-view="water">Navodnjavanje</a>
-        <a href="#powerCard" data-view="power">Potrošnja struje</a>
-        <a href="#weatherCard" data-view="weather">Meteorologija</a>
+        <a href="#lightsCard" data-view="lights"><span class="tic" style="--c:#f2a900"><svg class="i"><use href="#i-bulb"/></svg></span>Svetla</a>
+        <a href="#applCard" data-view="appl"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-plug"/></svg></span>Uređaji</a>
+        <a href="#aquaCard" data-view="aqua"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-fish"/></svg></span>Akvarijum</a>
+        <a href="#doorsCard" data-view="doors"><span class="tic" style="--c:#f07c1a"><svg class="i"><use href="#i-bell"/></svg></span>Interfon / Zvona</a>
+        <a href="#alList" data-view="alarm"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-shield"/></svg></span>Alarm</a>
+        <a href="#cctvCard" data-view="cctv"><span class="tic" style="--c:#4b5d73"><svg class="i"><use href="#i-cam"/></svg></span>CCTV</a>
+        <a href="#waterCard" data-view="water"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-drop"/></svg></span>Navodnjavanje</a>
+        <a href="#powerCard" data-view="power"><span class="tic" style="--c:#9aa618"><svg class="i"><use href="#i-zap"/></svg></span>Potrošnja struje</a>
+        <a href="#weatherCard" data-view="weather"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sun"/></svg></span>Meteorologija</a>
       </div>
     </div>
-    <div class="tgrp" data-view="tools">
+    <div class="tgrp" data-view="tools" style="--c:#4b5d73">
       <button class="tsec" data-view="tools" title="Alati"><svg class="i"><use href="#i-tool"/></svg><span>Alati</span></button>
       <div class="titems">
-        <a href="#toolsCard" data-view="tscope">Osciloskop</a>
-        <a href="#toolsCard" data-view="tlogic">Logički analizator</a>
-        <a href="#toolsCard" data-view="tres">Otpornici</a>
-        <a href="#toolsCard" data-view="tcap">Kondenzatori</a>
-        <a href="#toolsCard" data-view="tnet">Mrežni tester</a>
-        <a href="#toolsCard" data-view="tscan">Skeniranje mreže</a>
-        <a href="#toolsCard" data-view="tdns">DNS i Whois</a>
-        <a href="#toolsCard" data-view="tguest">Wi-Fi za goste</a>
-        <a href="#toolsCard" data-view="tpass">Lozinke</a>
-        <a href="#toolsCard" data-view="tpbx">Telefonska centrala</a>
-        <a href="#toolsCard" data-view="tsms">SMS poruke</a>
+        <small class="tgl">Merenje</small>
+        <a href="#toolsCard" data-view="tscope"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-scope"/></svg></span>Osciloskop</a>
+        <a href="#toolsCard" data-view="tlogic"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-logic"/></svg></span>Logički analizator</a>
+        <small class="tgl">Komponente</small>
+        <a href="#toolsCard" data-view="tres"><span class="tic" style="--c:#b7791f"><svg class="i"><use href="#i-resistor"/></svg></span>Otpornici</a>
+        <a href="#toolsCard" data-view="tcap"><span class="tic" style="--c:#7c5cd6"><svg class="i"><use href="#i-cap"/></svg></span>Kondenzatori</a>
+        <small class="tgl">Mreža</small>
+        <a href="#toolsCard" data-view="tnet"><span class="tic" style="--c:#2563eb"><svg class="i"><use href="#i-gauge"/></svg></span>Mrežni tester</a>
+        <a href="#toolsCard" data-view="tscan"><span class="tic" style="--c:#0891b2"><svg class="i"><use href="#i-radar"/></svg></span>Skeniranje mreže</a>
+        <a href="#toolsCard" data-view="tdns"><span class="tic" style="--c:#0f766e"><svg class="i"><use href="#i-dns"/></svg></span>DNS i Whois</a>
+        <a href="#toolsCard" data-view="tguest"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-qr"/></svg></span>Wi-Fi za goste</a>
+        <small class="tgl">Komunikacija</small>
+        <a href="#toolsCard" data-view="tpbx"><span class="tic" style="--c:#15803d"><svg class="i"><use href="#i-pbx"/></svg></span>Telefonska centrala</a>
+        <a href="#toolsCard" data-view="tsms"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sms"/></svg></span>SMS poruke</a>
+        <small class="tgl">Sigurnost</small>
+        <a href="#toolsCard" data-view="tpass"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-key"/></svg></span>Lozinke</a>
       </div>
     </div>
     <div class="tsep" role="separator"></div>
     <!-- Admin: posebna stranica sa svim podešavanjima (ulazak = admin režim, odlazak = izlaz iz admina) -->
-    <div class="tgrp" data-view="admin">
+    <div class="tgrp" data-view="admin" style="--c:#d97706">
       <button class="tsec tadm" id="adminSw" role="switch" aria-checked="false" title="Podešavanja (traži PIN)"><svg class="i"><use href="#i-lock" id="lockIco"/></svg><span>Admin</span><small class="tadm-on">uključen</small></button>
       <div class="titems">
         <a href="#hero" data-view="admin">Izvori i konzole</a>
@@ -717,7 +735,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
 <header class="top">
   <div class="top-in">
     <button class="navbtn" id="navBtn" type="button" aria-label="Meni" aria-controls="side" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
-    <div class="ptitle" aria-live="polite"><span class="pic"><svg class="i"><use href="#i-tv" id="ptIco"/></svg></span><span id="ptTxt">Multimedija</span></div>
+    <div class="ptitle" aria-live="polite"><span class="pic"><svg class="i"><use href="#i-tv" id="ptIco"/></svg></span><span class="ptx"><span id="ptTxt">Multimedija</span><small id="ptSub"></small></span></div>
     <div class="logo"><span class="mark" aria-hidden="true"></span>Teco.Pi</div>
     <button class="rtop" id="rTop" type="button" title="Otvori daljinski"><span class="lk"><svg class="i"><use href="#i-remote"/></svg></span><span class="al">Daljinski</span></button>
     <div class="chips"><div class="chip sbar">
@@ -736,15 +754,15 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <section class="card cctv" id="smartCard" aria-labelledby="h-smart">
     <div class="card-head"><h2 id="h-smart">Smart Home</h2></div>
     <div class="shgrid">
-      <button class="shtile go" type="button" id="shLights" data-go="lights"><svg class="i"><use href="#i-bulb"/></svg><b>Svetla</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shAppl" data-go="appl"><svg class="i"><use href="#i-plug"/></svg><b>Uređaji</b><small>nema uređaja</small></button>
-      <button class="shtile go" type="button" id="shAqua" data-go="aqua"><svg class="i"><use href="#i-fish"/></svg><b>Akvarijum</b><small id="shAquaTxt">modul nije povezan</small></button>
-      <button class="shtile go" type="button" id="shDoors" data-go="doors"><svg class="i"><use href="#i-bell"/></svg><b>Interfon / Zvona</b><small>nema uređaja</small></button>
-      <button class="shtile go" type="button" id="shAlarm" data-go="alarm"><i class="shdot" aria-hidden="true"></i><svg class="i"><use href="#i-shield"/></svg><b>Alarm</b><small id="shAlarmTxt">—</small></button>
-      <button class="shtile go" type="button" id="shCctv" data-go="cctv"><svg class="i"><use href="#i-cam"/></svg><b>CCTV</b><small>nema kamera</small></button>
-      <button class="shtile go" type="button" id="shWater" data-go="water"><svg class="i"><use href="#i-drop"/></svg><b>Navodnjavanje</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shPower" data-go="power"><svg class="i"><use href="#i-zap"/></svg><b>Potrošnja struje</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shWeather" data-go="weather"><svg class="i"><use href="#i-sun"/></svg><b>Meteorologija</b><small id="shWeatherTxt">primer</small></button>
+      <button class="shtile go" type="button" id="shLights" data-go="lights" style="--c:#f2a900"><span class="fic"><svg class="i"><use href="#i-bulb"/></svg></span><b>Svetla</b><small>primer</small></button>
+      <button class="shtile go" type="button" id="shAppl" data-go="appl" style="--c:#0f9d8f"><span class="fic"><svg class="i"><use href="#i-plug"/></svg></span><b>Uređaji</b><small>nema uređaja</small></button>
+      <button class="shtile go" type="button" id="shAqua" data-go="aqua" style="--c:#1d8fe0"><span class="fic"><svg class="i"><use href="#i-fish"/></svg></span><b>Akvarijum</b><small id="shAquaTxt">modul nije povezan</small></button>
+      <button class="shtile go" type="button" id="shDoors" data-go="doors" style="--c:#f07c1a"><span class="fic"><svg class="i"><use href="#i-bell"/></svg></span><b>Interfon / Zvona</b><small>nema uređaja</small></button>
+      <button class="shtile go" type="button" id="shAlarm" data-go="alarm" style="--c:#d64545"><i class="shdot" aria-hidden="true"></i><span class="fic"><svg class="i"><use href="#i-shield"/></svg></span><b>Alarm</b><small id="shAlarmTxt">—</small></button>
+      <button class="shtile go" type="button" id="shCctv" data-go="cctv" style="--c:#4b5d73"><span class="fic"><svg class="i"><use href="#i-cam"/></svg></span><b>CCTV</b><small>nema kamera</small></button>
+      <button class="shtile go" type="button" id="shWater" data-go="water" style="--c:#2fa84f"><span class="fic"><svg class="i"><use href="#i-drop"/></svg></span><b>Navodnjavanje</b><small>primer</small></button>
+      <button class="shtile go" type="button" id="shPower" data-go="power" style="--c:#9aa618"><span class="fic"><svg class="i"><use href="#i-zap"/></svg></span><b>Potrošnja struje</b><small>primer</small></button>
+      <button class="shtile go" type="button" id="shWeather" data-go="weather" style="--c:#27a9d9"><span class="fic"><svg class="i"><use href="#i-sun"/></svg></span><b>Meteorologija</b><small id="shWeatherTxt">primer</small></button>
     </div>
   </section>
   <!-- Svetla: dodata svetla (strana Uređaji) -->
@@ -761,13 +779,13 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     <!-- PRIMER (samo izgled): prekidači reaguju lokalno, bez prave kontrole -->
     <b class="netcfg-t">Primer <span class="demotag">primer</span></b>
     <div class="dgrid">
-      <div class="dv on" data-anim="spin"><span class="dvi"><span class="em">❄️</span></span><span class="t"><b>Klima · Dnevna soba</b><small>hlađenje 23° · 850 W</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
-      <div class="dv on" data-anim="heat"><span class="dvi"><span class="em">🚿</span></span><span class="t"><b>Bojler · Kupatilo</b><small>greje · 2.000 W · voda 54°</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
-      <div class="dv" data-anim="heat"><span class="dvi"><span class="em">☕</span></span><span class="t"><b>Aparat za kafu · Kuhinja</b><small>isključen · uključi 07:00 radnim danima</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
-      <div class="dv" data-anim="heat"><span class="dvi"><span class="em">👕</span></span><span class="t"><b>Pegla · Ostava</b><small>isključena · sama se gasi posle 30 min</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
-      <div class="dv on" data-anim="spin"><span class="dvi"><span class="em">🧺</span></span><span class="t"><b>Veš mašina · Kupatilo</b><small>pere · još 42 min</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
-      <div class="dv" data-anim="heat"><span class="dvi"><span class="em">♨️</span></span><span class="t"><b>Grejalica · Spavaća soba</b><small>isključena · termostat 21°</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
-      <div class="dv" data-anim="spin"><span class="dvi"><span class="em">💧</span></span><span class="t"><b>Pumpa · Bašta</b><small>isključena</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv on" data-anim="spin" style="--c:#27a9d9"><span class="dvi"><span class="em"><svg class="i"><use href="#i-snow"/></svg></span></span><span class="t"><b>Klima · Dnevna soba</b><small>hlađenje 23° · 850 W</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv on" data-anim="heat" style="--c:#f07c1a"><span class="dvi"><span class="em"><svg class="i"><use href="#i-shower"/></svg></span></span><span class="t"><b>Bojler · Kupatilo</b><small>greje · 2.000 W · voda 54°</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv" data-anim="heat" style="--c:#8d5a3b"><span class="dvi"><span class="em"><svg class="i"><use href="#i-coffee"/></svg></span></span><span class="t"><b>Aparat za kafu · Kuhinja</b><small>isključen · uključi 07:00 radnim danima</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv" data-anim="heat" style="--c:#b7791f"><span class="dvi"><span class="em"><svg class="i"><use href="#i-iron"/></svg></span></span><span class="t"><b>Pegla · Ostava</b><small>isključena · sama se gasi posle 30 min</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv on" data-anim="spin" style="--c:#1d8fe0"><span class="dvi"><span class="em"><svg class="i"><use href="#i-washer"/></svg></span></span><span class="t"><b>Veš mašina · Kupatilo</b><small>pere · još 42 min</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
+      <div class="dv" data-anim="heat" style="--c:#d64545"><span class="dvi"><span class="em"><svg class="i"><use href="#i-heat"/></svg></span></span><span class="t"><b>Grejalica · Spavaća soba</b><small>isključena · termostat 21°</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
+      <div class="dv" data-anim="spin" style="--c:#2fa84f"><span class="dvi"><span class="em"><svg class="i"><use href="#i-drop"/></svg></span></span><span class="t"><b>Pumpa · Bašta</b><small>isključena</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
     </div>
   </section>
 
@@ -775,10 +793,10 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <section class="card demo" id="waterCard" aria-labelledby="h-water">
     <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-water">Navodnjavanje</h2><span class="demotag">primer</span></div>
     <div class="wsum">
-      <div><small>Danas</small><b>48 L</b></div><div><small>Ova nedelja</small><b>312 L</b></div><div><small>Vreme</small><b>🌦️ 18° · kiša 60%</b></div>
+      <div><small>Danas</small><b>48 L</b></div><div><small>Ova nedelja</small><b>312 L</b></div><div><small>Vreme</small><b><svg class="i"><use href="#i-rain"/></svg> 18° · kiša 60%</b></div>
     </div>
     <button class="acc-row" type="button" role="switch" aria-checked="true" data-demo="sw"><span class="t"><b>Automatski raspored</b><span>Svaki dan u 06:00 · preskoči ako pada kiša</span></span><span class="sw"></span></button>
-    <div class="wrun"><b>💧 Travnjak napred</b><span>radi još 7 min</span><div class="smbbar"><i style="width:55%"></i></div><button class="btn ghost" type="button">Zaustavi</button></div>
+    <div class="wrun"><b><svg class="i" style="color:#27a9d9"><use href="#i-drop"/></svg> Travnjak napred</b><span>radi još 7 min</span><div class="smbbar"><i style="width:55%"></i></div><button class="btn ghost" type="button">Zaustavi</button></div>
     <div class="dgrid">
       <div class="wz run"><span class="t"><b>Travnjak napred</b><small>prskalice · 15 min</small></span><span class="wn">radi</span><button class="btn" type="button">Pokreni 10 min</button></div>
       <div class="wz"><span class="t"><b>Travnjak nazad</b><small>prskalice · 15 min</small></span><span class="wn">sledeće: sutra 06:15</span><button class="btn" type="button">Pokreni 10 min</button></div>
@@ -797,11 +815,11 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     <div class="pchart"><b>Danas po satu</b><div class="pbars" id="pBars"></div><div class="paxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>
     <b class="netcfg-t">Najveći potrošači danas</b>
     <div class="ptop">
-      <div><span>🔥 Bojler</span><i style="--w:46%"></i><em>3,9 kWh</em></div>
-      <div><span>🧺 Veš mašina</span><i style="--w:18%"></i><em>1,5 kWh</em></div>
-      <div><span>❄️ Klima</span><i style="--w:14%"></i><em>1,2 kWh</em></div>
-      <div><span>🍳 Kuhinja</span><i style="--w:12%"></i><em>1,0 kWh</em></div>
-      <div><span>💡 Ostalo</span><i style="--w:10%"></i><em>0,8 kWh</em></div>
+      <div><span><svg class="i" style="color:#f07c1a"><use href="#i-shower"/></svg>Bojler</span><i style="--w:46%"></i><em>3,9 kWh</em></div>
+      <div><span><svg class="i" style="color:#1d8fe0"><use href="#i-washer"/></svg>Veš mašina</span><i style="--w:18%"></i><em>1,5 kWh</em></div>
+      <div><span><svg class="i" style="color:#27a9d9"><use href="#i-snow"/></svg>Klima</span><i style="--w:14%"></i><em>1,2 kWh</em></div>
+      <div><span><svg class="i" style="color:#8d5a3b"><use href="#i-pan"/></svg>Kuhinja</span><i style="--w:12%"></i><em>1,0 kWh</em></div>
+      <div><span><svg class="i" style="color:#f2a900"><use href="#i-bulb"/></svg>Ostalo</span><i style="--w:10%"></i><em>0,8 kWh</em></div>
     </div>
   </section>
 
@@ -832,12 +850,12 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <section class="card demo" id="weatherCard" aria-labelledby="h-weather">
     <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-weather">Meteorologija</h2><span class="demotag">primer</span></div>
     <div class="mgrid">
-      <div class="mt"><span class="mi a-temp">🌡️</span><small>Temperatura u hladu</small><b id="mTemp">14,2<i>°C</i></b><em id="mTempSub">min 9,1 · max 17,8</em></div>
-      <div class="mt"><span class="mi a-drop">💧</span><small>Vlažnost vazduha</small><b id="mHum">68<i>%</i></b><em id="mHumSub">tačka rose 8,3 °C</em></div>
-      <div class="mt"><span class="mi a-rain">🌧️</span><small>Kiša</small><b>2,4<i>mm</i></b><em>danas · sada 0,6 mm/h</em></div>
+      <div class="mt"><span class="mi mb a-temp" style="--c:#d64545"><svg class="i"><use href="#i-therm"/></svg></span><small>Temperatura u hladu</small><b id="mTemp">14,2<i>°C</i></b><em id="mTempSub">min 9,1 · max 17,8</em></div>
+      <div class="mt"><span class="mi mb a-drop" style="--c:#1d8fe0"><svg class="i"><use href="#i-drop"/></svg></span><small>Vlažnost vazduha</small><b id="mHum">68<i>%</i></b><em id="mHumSub">tačka rose 8,3 °C</em></div>
+      <div class="mt"><span class="mi mb a-rain" style="--c:#27a9d9"><svg class="i"><use href="#i-rain"/></svg></span><small>Kiša</small><b>2,4<i>mm</i></b><em>danas · sada 0,6 mm/h</em></div>
       <div class="mt"><span class="mi a-sock" id="mSock"><svg viewBox="0 0 52 40" aria-hidden="true"><line x1="6" y1="4" x2="6" y2="39" stroke="currentColor" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/><circle cx="6" cy="5" r="2.2" fill="currentColor" fill-opacity=".55"/><g class="sock"><path class="s1" d="M7 4 L17 5.5 L17 14.5 L7 16 Z" fill="#ef4444"/><path class="s2" d="M17 5.5 L27 7 L27 13 L17 14.5 Z" fill="#f8fafc"/><path class="s3" d="M27 7 L36 8.3 L36 11.7 L27 13 Z" fill="#ef4444"/><path class="s4" d="M36 8.3 L44 9.3 L44 10.7 L36 11.7 Z" fill="#f8fafc"/></g></svg></span><small>Brzina vetra</small><b id="mWind">12<i>km/h</i></b><em>udari do 27 km/h</em></div>
       <div class="mt"><span class="mi mcomp a-comp"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/><path class="ndl" d="M20 6 25 22 20 19 15 22z" fill="#38bdf8"/></svg></span><small>Pravac vetra</small><b>JZ<i>225°</i></b><em>košava ne duva</em></div>
-      <div class="mt"><span class="mi a-sun">☀️</span><small>UV zračenje</small><b>3<i>umereno</i></b><em>zaštita oko podneva</em></div>
+      <div class="mt"><span class="mi mb a-sun" style="--c:#f2a900"><svg class="i"><use href="#i-sun"/></svg></span><small>UV zračenje</small><b>3<i>umereno</i></b><em>zaštita oko podneva</em></div>
     </div>
     <p class="muted" style="font-size:12px;margin:0">Temperatura i vlažnost su uživo kad spoljni senzor šalje podatke (/api/outside). Kiša, vetar i UV su primer dok se ne poveže meteo stanica.</p>
   </section>
@@ -847,21 +865,21 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     <div class="card-head"><button class="alback shback tback" type="button" id="toolBack"><svg class="i"><use href="#i-left"/></svg><span>Alati</span></button><h2 id="h-tools">Alati</h2><span class="aqesp" id="toolShown">nije na ekranu</span></div>
     <div id="toolTabs">
       <div class="ttgrp" style="--c:#f59e0b"><h3>Merenje</h3><div class="tooltabs">
-        <button type="button" data-tool="scope"><span class="ti"><svg class="i"><use href="#i-scope"/></svg></span><b>Osciloskop</b><small>2 kanala, signal na ekranu</small></button>
-        <button type="button" data-tool="logic"><span class="ti"><svg class="i"><use href="#i-logic"/></svg></span><b>Logički analizator</b><small>2 kanala, UART dekoder</small></button></div></div>
+        <button type="button" data-tool="scope" style="--c:#0f9d8f"><span class="ti"><svg class="i"><use href="#i-scope"/></svg></span><b>Osciloskop</b><small>2 kanala, signal na ekranu</small></button>
+        <button type="button" data-tool="logic" style="--c:#1d8fe0"><span class="ti"><svg class="i"><use href="#i-logic"/></svg></span><b>Logički analizator</b><small>2 kanala, UART dekoder</small></button></div></div>
       <div class="ttgrp" style="--c:#a78bfa"><h3>Komponente</h3><div class="tooltabs">
-        <button type="button" data-tool="resistor"><span class="ti"><svg class="i"><use href="#i-resistor"/></svg></span><b>Otpornici</b><small>boje i SMD šifre</small></button>
-        <button type="button" data-tool="capacitor"><span class="ti"><svg class="i"><use href="#i-cap"/></svg></span><b>Kondenzatori</b><small>kodovi sa nožicama i SMD</small></button></div></div>
+        <button type="button" data-tool="resistor" style="--c:#b7791f"><span class="ti"><svg class="i"><use href="#i-resistor"/></svg></span><b>Otpornici</b><small>boje i SMD šifre</small></button>
+        <button type="button" data-tool="capacitor" style="--c:#7c5cd6"><span class="ti"><svg class="i"><use href="#i-cap"/></svg></span><b>Kondenzatori</b><small>kodovi sa nožicama i SMD</small></button></div></div>
       <div class="ttgrp" style="--c:#38bdf8"><h3>Mreža</h3><div class="tooltabs">
-        <button type="button" data-tool="net"><span class="ti"><svg class="i"><use href="#i-gauge"/></svg></span><b>Mrežni tester</b><small>veza, ruter, port, brzina</small></button>
-        <button type="button" data-tool="scan"><span class="ti"><svg class="i"><use href="#i-radar"/></svg></span><b>Skeniranje mreže</b><small>uređaji, portovi, buđenje (WoL)</small></button>
-        <button type="button" data-tool="dns"><span class="ti"><svg class="i"><use href="#i-dns"/></svg></span><b>DNS i Whois</b><small>nslookup, vlasnik domena / IP</small></button>
-        <button type="button" data-tool="guest"><span class="ti"><svg class="i"><use href="#i-qr"/></svg></span><b>Wi-Fi za goste</b><small>QR kod na ekranu</small></button></div></div>
+        <button type="button" data-tool="net" style="--c:#2563eb"><span class="ti"><svg class="i"><use href="#i-gauge"/></svg></span><b>Mrežni tester</b><small>veza, ruter, port, brzina</small></button>
+        <button type="button" data-tool="scan" style="--c:#0891b2"><span class="ti"><svg class="i"><use href="#i-radar"/></svg></span><b>Skeniranje mreže</b><small>uređaji, portovi, buđenje (WoL)</small></button>
+        <button type="button" data-tool="dns" style="--c:#0f766e"><span class="ti"><svg class="i"><use href="#i-dns"/></svg></span><b>DNS i Whois</b><small>nslookup, vlasnik domena / IP</small></button>
+        <button type="button" data-tool="guest" style="--c:#2fa84f"><span class="ti"><svg class="i"><use href="#i-qr"/></svg></span><b>Wi-Fi za goste</b><small>QR kod na ekranu</small></button></div></div>
       <div class="ttgrp" style="--c:#22c55e"><h3>Komunikacija</h3><div class="tooltabs">
-        <button type="button" data-tool="pbx"><span class="ti"><svg class="i"><use href="#i-pbx"/></svg></span><b>Telefonska centrala <i class="smbadge" id="pxBadge" hidden></i></b><small>lokali, linija, modem, najave, pošta</small></button>
-        <button type="button" data-tool="sms"><span class="ti"><svg class="i"><use href="#i-sms"/></svg></span><b>SMS poruke <i class="smbadge" id="smBadge" hidden></i></b><small>poruke, obaveštenja, komande</small></button></div></div>
+        <button type="button" data-tool="pbx" style="--c:#15803d"><span class="ti"><svg class="i"><use href="#i-pbx"/></svg></span><b>Telefonska centrala <i class="smbadge" id="pxBadge" hidden></i></b><small>lokali, linija, modem, najave, pošta</small></button>
+        <button type="button" data-tool="sms" style="--c:#27a9d9"><span class="ti"><svg class="i"><use href="#i-sms"/></svg></span><b>SMS poruke <i class="smbadge" id="smBadge" hidden></i></b><small>poruke, obaveštenja, komande</small></button></div></div>
       <div class="ttgrp" style="--c:#f43f5e"><h3>Sigurnost</h3><div class="tooltabs">
-        <button type="button" data-tool="pass"><span class="ti"><svg class="i"><use href="#i-key"/></svg></span><b>Lozinke</b><small>šifrovan trezor + generator</small></button></div></div>
+        <button type="button" data-tool="pass" style="--c:#d64545"><span class="ti"><svg class="i"><use href="#i-key"/></svg></span><b>Lozinke</b><small>šifrovan trezor + generator</small></button></div></div>
     </div>
     <!-- Kondenzatori -->
     <div class="tpanel" id="tCap" hidden>
@@ -1693,5 +1711,6 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     </div>
   </section>
 </main>
+<footer class="foot"><span class="flogo"><span class="mark" aria-hidden="true"></span>Teco.Pi<i class="fled" title="Veza sa Teco.Pi"></i></span><span class="ftime" id="ftTime"></span></footer>
 <div class="toast" id="toast" role="status"></div>
 

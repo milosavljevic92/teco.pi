@@ -400,7 +400,7 @@ body[data-view="aqua"] .grid{display:none!important}
 #waterCard .wz,#waterCard .wsum div,#powerCard .wsum div,#weatherCard .mt{transition:transform .2s,box-shadow .2s,border-color .3s}
 #waterCard .wz:hover,#waterCard .wsum div:hover,#powerCard .wsum div:hover,#weatherCard .mt:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgb(0 0 0/.15)}
 #waterCard .wz.run{background:linear-gradient(135deg,rgb(56 189 248/.2),rgb(56 189 248/.05)),var(--surface-2);border-color:#38bdf8;animation:waterglow 2.6s ease-in-out infinite}
-#waterCard .wz.run .wn::before{content:"💧";display:inline-block;margin-right:4px;animation:dropbob 1s ease-in-out infinite}
+#waterCard .wz.run .wn::before{content:"●";color:#27a9d9;display:inline-block;margin-right:4px;animation:dropbob 1s ease-in-out infinite}
 #waterCard .wrun{border-color:#38bdf8;animation:waterglow 2.6s ease-in-out infinite}
 #waterCard .wrun b{display:inline-block;animation:dropbob 1.4s ease-in-out infinite}
 #waterCard .wrun .smbbar i{background:repeating-linear-gradient(45deg,#38bdf8 0 10px,#7dd3fc 10px 20px);background-size:28px 100%;animation:flowbar .9s linear infinite}
@@ -1143,6 +1143,171 @@ html.admin .rfab{display:none}
 #toolsCard :is(.phnote,.tpanel>p.muted,.snadd p.muted){font-size:12.5px;line-height:1.5}
 .btn.gel svg.i{color:var(--accent-ink)}   /* ikonica na glavnom dugmetu: boja teksta, ne akcenta (inače se ne vidi) */
 #toolsCard .pxtabs button,#toolsCard .segc button{display:inline-flex;align-items:center;justify-content:center;gap:6px}#toolsCard .segc svg.i{width:16px;height:16px}
+/* ===== Izgled po uzoru na Swegon IQlogic ===== */
+/* pločice kategorija: Smart Home i Alati isto — bela pločica, okrugla ikonica u boji, naziv ispod */
+.shgrid,#toolTabs .tooltabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:10px}
+.shgrid .shtile,#toolTabs .tooltabs button{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;text-align:center;min-height:128px;padding:16px 8px 12px;
+  border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,36,.07);color:var(--text)}
+.shgrid .shtile:hover,#toolTabs .tooltabs button:hover{border-color:var(--c,var(--accent));box-shadow:0 4px 14px rgba(16,24,36,.10)}
+.shgrid .fic,#toolTabs .tooltabs .ti{width:56px;height:56px;margin:0;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--c,var(--accent));
+  box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 5px rgba(0,0,0,.18)}
+.shgrid .fic svg.i,#toolTabs .tooltabs .ti svg.i{width:28px;height:28px;color:#fff;stroke-width:2.1}
+.shgrid .shtile b,#toolTabs .tooltabs button b{font-size:13.5px;font-weight:700;line-height:1.2}
+.shgrid .shtile small,#toolTabs .tooltabs button small{font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);line-height:1.3}
+.shgrid .shtile.act{border-color:var(--ok);background:var(--surface);animation:none}
+.shgrid .shtile.act .fic{box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 0 0 4px color-mix(in srgb,var(--ok) 35%,transparent)}
+.shgrid .shtile.warn{border-color:var(--warn);background:var(--surface)}
+.shgrid .shtile .shdot{top:10px;right:10px}
+#toolTabs .ttgrp h3{color:var(--muted)}
+/* podnožje */
+main.wrap{min-height:calc(100dvh - 200px)}   /* podnožje na dnu i kad je strana kratka */
+/* meni (IQlogic): bez zelene nijanse — neutralno sivo, izabrano = svetliji red + tanka traka levo */
+.side .tsec,.side .titems a{position:relative;transition:background .15s,color .15s}
+.side .tsec:hover,.side .titems a:hover{background:color-mix(in srgb,var(--text) 7%,transparent);color:var(--text)}
+.side .tgrp.on>.tsec{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
+.side .tgrp.on>.tsec svg.i{color:var(--text)}
+.side .tgrp.on>.tsec::before,.side .titems a.cur::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.side .titems a.cur{color:var(--text);font-weight:800;background:color-mix(in srgb,var(--text) 8%,transparent)}
+.side .titems{border-left-color:color-mix(in srgb,var(--text) 14%,transparent)}
+.foot{position:relative;z-index:46;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;min-height:54px;margin:18px -16px -40px;padding:0 18px env(safe-area-inset-bottom,0px);
+  background:#0c0e10;border-top:1px solid #2b3036;box-shadow:inset 0 1px 0 rgba(255,255,255,.05);color:#9aa4b1;font:600 12px/1 var(--f-body)}
+.foot .flogo{display:flex;align-items:center;gap:9px;color:#f4f6f8;font:800 15px/1 var(--f-display);letter-spacing:-.01em}
+.foot .mark{width:20px;height:20px;border-radius:6px;box-shadow:none}
+.foot .fmid{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #2b3036;border-radius:999px;background:#15181b;color:#d5dae0;
+  font:800 10.5px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+.foot .fmid::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;background:#7ac143;box-shadow:0 0 0 2px rgba(122,193,67,.18),0 0 8px rgba(122,193,67,.7)}
+.foot .ftime{justify-self:end;display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.foot .ftime b{color:#f4f6f8;font:700 15px/1 var(--f-body);letter-spacing:.02em}.foot .ftime span{color:#7d8894;font-size:11.5px}
+@media (max-width:420px){.foot .ftime span{display:none}.foot .flogo{font-size:14px}}
+/* svetla tema: crno zaglavlje, bočni meni i podnožje (okvir panela), svetlo siva sredina */
+.lt header.top,.lt .side,.lt .foot{--bg:#101214;--surface:#1a1d21;--surface-2:#23272c;--surface-3:#2b3036;--line:#30363d;--text:#f1f3f5;--muted:#9aa4b1;--faint:#6b7480;color:var(--text)}
+.lt header.top{background:#101214!important;backdrop-filter:none;-webkit-backdrop-filter:none;margin-bottom:16px}
+.lt header.top::after{display:none}
+.lt .side{border-right-color:#000}
+.lt body{background:var(--bg)}
+.lt .card{box-shadow:0 1px 3px rgba(16,24,36,.08)}
+/* ===== IQlogic: podstrane — ikonica stavke je krug u boji (bela ikonica), isključeno = sivo ===== */
+.dr .dri,.dv .dvi,.aqo .aqi,.dl .dlt{width:44px!important;height:44px!important;border-radius:50%!important;display:grid;place-items:center;background:var(--c,#4b5d73)!important;color:#fff!important;
+  filter:none!important;opacity:1!important;font-size:0;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.16)!important}
+:is(.dri,.dvi,.aqi,.dlt) svg.i{width:22px;height:22px;color:#fff;stroke-width:2.1}
+:is(.dri,.dvi,.aqi) .em{display:grid;place-items:center;filter:none!important;opacity:1!important}
+#applGrid .dr:not(.on) .dri,.dv:not(.on) .dvi,.aqo:not(.on) .aqi,.dl:not(.on) .dlt,.dr.off .dri{background:#a3acb8!important}
+.dl .dlt{--c:#f2a900}.dl.on .dlt{box-shadow:inset 0 0 0 3px rgba(0,0,0,.12),0 0 16px rgba(242,169,0,.55)!important}
+:is(#applGrid .dr.on,.dv.on,.aqo.on) :is(.dri,.dvi,.aqi){box-shadow:inset 0 0 0 3px rgba(0,0,0,.12),0 0 0 4px color-mix(in srgb,var(--c) 30%,transparent)!important}
+.dr.ring .dri{background:var(--warn)!important}.dr.open .dri{background:#f07c1a!important}
+/* stavke na podstranama: bele kartice kao pločice */
+.dr,.dv,.aqo,.dl,.wz,.relay{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 2px rgba(16,24,36,.06)}
+:is(#applGrid .dr.on,.dv.on,.aqo.on,.dl.on){background:var(--surface);border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.ptop span{display:inline-flex;align-items:center;gap:6px}.ptop span svg.i{width:16px;height:16px}
+.wrun b{display:inline-flex;align-items:center;gap:6px}.wrun b svg.i{width:18px;height:18px}
+/* ===== IQlogic zaglavlje: okrugla ikonica u boji strane, naslov + red ispod ===== */
+.ptitle .pic{border-radius:50%!important;background:var(--c,var(--accent))!important;color:#fff!important;box-shadow:inset 0 0 0 3px rgba(0,0,0,.18)}
+.ptitle .pic svg.i{color:#fff;width:20px;height:20px;stroke-width:2.2}
+.ptitle .ptx{display:flex;flex-direction:column;min-width:0;line-height:1.1}
+.ptitle #ptSub{font:600 11px/1.3 var(--f-body);color:var(--muted);letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.lt header.top .ptitle #ptSub{color:#9aa4b1}
+/* ===== IQlogic: ostale okrugle ikonice (alarm, skeniranje, lozinke) i dnevnik kao tabela ===== */
+.altile .ati,.sni .ico,.pvi .pvav{border-radius:50%!important;color:#fff!important;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.15)}
+.altile .ati{background:#2fa84f!important}.altile .ati svg.i{color:#fff}
+.altile[data-s="armed"] .ati{background:#d64545!important}.altile[data-s="alarm"] .ati{background:#ff0033!important}
+.altile[data-s="err"] .ati{background:#f07c1a!important}.altile[data-s="idle"] .ati{background:#a3acb8!important}
+.sni .ico{background:var(--c)!important;font-size:20px}.sni.off .ico{filter:grayscale(.8);opacity:.7}
+.alev{gap:0;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.ale{grid-template-columns:22px minmax(0,1fr) auto;border-radius:0;padding:9px 12px;border-bottom:1px solid var(--line)}
+.ale:last-child{border-bottom:0}.ale:nth-child(odd){background:var(--surface-2)}
+.ale i{width:18px;height:18px;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14)}
+.src .ic{border-radius:50%;background:var(--c);color:#fff;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.15)}
+.src .ic svg.i{color:#fff}.src:not([aria-pressed="true"]) .ic{filter:saturate(.85)}
+/* IQlogic dorada: Meteorologija, CCTV, Navodnjavanje, pumpe */
+#weatherCard .mt .mi.mb{width:44px!important;height:44px!important;border-radius:50%;display:grid;place-items:center;background:var(--c);box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.15);font-size:0;margin-bottom:4px}
+.mt .mi.mb svg.i{width:22px;height:22px;color:#fff;stroke-width:2.1}
+.camtile{background:var(--surface);border-radius:12px;box-shadow:0 1px 2px rgba(16,24,36,.06)}
+.cti{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#4b5d73;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.15);margin-bottom:4px}
+.cti svg.i{width:22px!important;height:22px!important;color:#fff!important}.cti i{right:-2px;top:-2px;width:12px;height:12px;border:2px solid var(--surface)}
+.wsum b svg.i{width:18px;height:18px;color:#27a9d9;vertical-align:-3px}
+/* unutrašnje kartice: bele sa tankom ivicom (kao pločice), u svim podstranama i alatima */
+.mt,.wsum div,.pchart,.aqvals>*,.camtile,.altile,
+#toolsCard :is(.phcard,.sccard,.pvgen,.pvedit,.pvlock,.snadd,.dnsum,.ntsum,.smst,.phs,.nti,.sni,.smc,.pvi,.rsprev,.dntab,.smmsgs){background:var(--surface);box-shadow:0 1px 2px rgba(16,24,36,.06)}
+#toolsCard :is(.pxr,.pxp,.pxv,.phc,.pxsec,.dnrow){background:var(--surface-2)}
+#powerCard .wsum div:first-child{background:color-mix(in srgb,var(--warn) 8%,var(--surface))}
+.on[data-anim=pump] .em{animation:pumppulse 1.2s ease-in-out infinite}
+@keyframes pumppulse{50%{transform:scale(1.14)}}
+@media (prefers-reduced-motion:reduce){.on[data-anim=pump] .em{animation:none}}
+/* ===== meni: ikonice u krugu, grupe u Alatima, bez linije ===== */
+.side .tsec>svg.i{width:30px;height:30px;padding:6px;box-sizing:border-box;border-radius:50%;background:var(--c,#4b5d73);color:#fff!important;flex:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.18)}
+.side .tsec{gap:12px;padding:8px 10px;font-size:14.5px}
+.side .titems{border-left:0;margin:4px 0 8px 8px;padding-left:0;gap:2px}
+.side .titems a{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;font-size:13.5px}
+.side .tic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--c);box-shadow:inset 0 0 0 2px rgba(0,0,0,.16)}
+.side .tic svg.i{width:13px;height:13px;color:#fff;stroke-width:2.4}
+.side .tgl{display:block;padding:10px 10px 3px;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.side .titems a.cur::before,.side .tgrp.on>.tsec::before{top:6px;bottom:6px}
+.side-logo{padding:4px 8px 14px;border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent);margin-bottom:4px}
+.side-logo .mark{box-shadow:none}
+/* ===== podnožje zakucano za dno ekrana ===== */
+:root{--fh:36px}
+.foot .flogo{font-size:13px!important;gap:7px!important}.foot .mark{width:16px!important;height:16px!important;border-radius:5px!important}
+.foot .ftime b{font-size:13px!important}.foot .ftime span{font-size:11px!important}.foot .fled{width:6px!important;height:6px!important}
+.foot{position:fixed!important;left:0;right:0;bottom:0;margin:0!important;z-index:46;grid-template-columns:auto 1fr!important;min-height:0!important;
+  height:calc(var(--fh) + env(safe-area-inset-bottom,0px));padding:0 18px env(safe-area-inset-bottom,0px)!important}
+.foot .fled{width:7px;height:7px;border-radius:50%;margin-left:4px;background:#7ac143;box-shadow:0 0 0 2px rgba(122,193,67,.18),0 0 8px rgba(122,193,67,.7)}
+body.is-offline .foot .fled{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.2),0 0 8px rgba(239,68,68,.7)}
+body{padding-bottom:calc(var(--fh) + 28px + env(safe-area-inset-bottom,0px))}
+html.admin body{padding-bottom:calc(var(--fh) + 84px + env(safe-area-inset-bottom,0px))}
+main.wrap{min-height:0}
+.side{bottom:calc(var(--fh) + env(safe-area-inset-bottom,0px))!important}
+@media (min-width:1000px){.side{bottom:calc(var(--fh) + 16px + env(safe-area-inset-bottom,0px))!important}}
+.toast{bottom:calc(14px + var(--fh) + env(safe-area-inset-bottom,0px))}
+html.admin .toast{bottom:calc(90px + var(--fh) + env(safe-area-inset-bottom,0px))}
+.admbar{bottom:calc(10px + var(--fh) + env(safe-area-inset-bottom,0px))!important}
+.rfab{bottom:calc(14px + var(--fh) + env(safe-area-inset-bottom,0px))}
+.mbar{bottom:calc(8px + var(--fh) + env(safe-area-inset-bottom,0px))}
+.pwag-arrow{bottom:calc(10px + var(--fh) + env(safe-area-inset-bottom,0px))}
+/* ===== Admin i spiskovi: okrugle ikonice u boji (kao svuda), bez „semafor“ tačkica, polja istim fontom ===== */
+.btd .ic{width:38px!important;height:38px!important;border-radius:50%!important;background:var(--c,#4b5d73)!important;color:#fff!important;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 4px rgba(0,0,0,.15)}
+.btd .ic svg.i{color:#fff;width:19px;height:19px}
+.btd .ic:has(use[href="#i-bulb"]){--c:#f2a900}.btd .ic:has(use[href="#i-plug"]){--c:#0f9d8f}.btd .ic:has(use[href="#i-cam"]),.btd .ic:has(use[href="#i-door"]){--c:#4b5d73}
+.btd .ic:has(use[href="#i-bell"]){--c:#f07c1a}.btd .ic:has(use[href="#i-usb"]){--c:#7c5cd6}.btd .ic:has(use[href="#i-game"]){--c:#e0343c}
+.btd .ic:has(use[href="#i-headph"]){--c:#1d8fe0}.btd .ic:has(use[href="#i-signal"]){--c:#27a9d9}
+.card-head .lights{display:none!important}
+input.field,select.field,textarea.field{font-family:var(--f-body)!important}
+/* ===== računar, svetla tema: ravan panel (IQlogic) — meni crni stub uz levu ivicu, zaglavlje jedna crna traka ===== */
+@media (min-width:1000px){
+  .lt .side{background:#101214!important;left:0!important;top:0!important;bottom:calc(var(--fh) + env(safe-area-inset-bottom,0px))!important;border:0!important;border-right:1px solid #000!important;border-radius:0!important;box-shadow:none!important}
+  .lt .wrap,.lt .top-in{margin-left:calc(var(--sw) + max(16px,(100% - var(--sw) - 600px) / 2))!important}
+  .lt header.top{padding-top:0!important;padding-bottom:0!important}
+  .lt header.top .top-in{background:transparent!important;border:0!important;border-radius:0!important;padding:14px 0 12px!important}
+  .lt body .admbar,.lt body .toast{left:calc(var(--sw) + (100% - var(--sw)) / 2)!important}
+}
+/* oznake odeljaka unutar strana (Vrata, Upravljanje, DNS…): kao grupe u Alatima */
+.netcfg-t{display:flex;align-items:center;gap:8px;font-size:10.5px!important;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.netcfg-t small,.netcfg-t .demotag{text-transform:none;letter-spacing:0}.netcfg-t .demotag{text-transform:uppercase;letter-spacing:.06em}
+#toolsCard .pvgen .netcfg-t{font-size:14.5px!important;letter-spacing:0;text-transform:none;color:var(--text)}
+/* kvačice, radio i klizači u boji akcenta (ne plave podrazumevane) */
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--accent)}
+/* Lozinke: katanac kao okrugla ikonica (kao pločica) */
+#toolsCard .pvico{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:#d64545;box-shadow:inset 0 0 0 3px rgba(0,0,0,.14),0 2px 5px rgba(0,0,0,.18)}
+#toolsCard .pvico svg.i{width:30px!important;height:30px!important;color:#fff!important;stroke-width:2.1}
+/* ===== doterivanje podstrana ===== */
+/* naslov podstrane: uvek iste boje i težine (Alarm, CCTV, primeri, alati) */
+.card-head h2{color:var(--text);font-weight:800;font-size:17px}
+/* Navodnjavanje: bele kartice, boja samo kao traka levo; stanje zone kao tekst (ne okvir), naslov se ne lomi */
+#waterCard .acc-row,#waterCard .wrun{background:var(--surface)!important;border:1px solid var(--line)!important;box-shadow:inset 4px 0 0 var(--bar,#2fa84f),0 1px 2px rgba(16,24,36,.06);animation:none!important}
+#waterCard .wrun{--bar:#27a9d9}
+#waterCard .wz{grid-template-columns:minmax(0,1fr);gap:6px}
+#waterCard .wz .wn{justify-self:start;padding:0;border:0;background:none;font-size:12px;font-weight:700;color:var(--muted)}
+#waterCard .wz.run{background:var(--surface)!important;border-color:#27a9d9!important;box-shadow:inset 4px 0 0 #27a9d9;animation:none!important}
+#waterCard .wz.run .wn{color:#1d8fe0}
+/* Akvarijum: stanje jednom (tekst), uključeno zeleno */
+.aqbadge{display:none!important}
+.aqo.on .aqst small{color:var(--ok);font-weight:800}
+/* SMS / modem stanje: ikonica u redu sa tekstom */
+.smst svg.i{width:16px;height:16px;vertical-align:-3px;color:var(--accent);margin-right:2px}.smst.bad svg.i{color:var(--crit)}
+/* krugovi zvonjenja: jedan red (krug · zvona · dugmad), lokali ispod */
+#toolsCard .pxr{grid-template-columns:minmax(0,1fr) 92px auto!important}
+#toolsCard .pxr .pxm{grid-column:1/-1;grid-row:2}
+#toolsCard .pxr label{flex-direction:row!important;align-items:center;gap:6px}
+@media (max-width:560px){#toolsCard .pxe small{display:none}}   /* lokal: broj i tačka dovoljni, bez reda ispod polja */
 </style>
 
 <script>
@@ -1579,7 +1744,7 @@ html.admin .rfab{display:none}
     if (changedView && v === 'power') $$('#pBars i, #powerCard .ptop i').forEach(e => { e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; });   // stubići rastu pri otvaranju
     $$('.titems a').forEach(a => a.classList.toggle('cur', a.dataset.view === v && v !== 'admin'));   // trenutna strana u meniju
     $$('.tgrp').forEach(g => g.classList.toggle('on', g.dataset.view === v || (g.dataset.view === 'smart' && ['alarm', 'cctv', 'lights', 'appl', 'aqua', 'water', 'devices', 'power', 'weather', 'doors'].includes(v)) || (g.dataset.view === 'tools' && ['tscope', 'tres', 'tlogic', 'tcap', 'tnet', 'tscan', 'tpass', 'tphone', 'tdns', 'tsms', 'tguest', 'tpbx'].includes(v))));   // Alarm i CCTV su pod Smart Home
-    $('#ptTxt').textContent = { media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', appl: 'Uređaji', aqua: 'Akvarijum', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', doors: 'Interfon / Zvona', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', tscope: 'Osciloskop', tres: 'Otpornici', tlogic: 'Logički analizator', tcap: 'Kondenzatori', tnet: 'Mrežni tester', tscan: 'Skeniranje mreže', tpass: 'Lozinke', tphone: 'Telefonska linija', tdns: 'DNS i Whois', tsms: 'SMS poruke', tguest: 'Wi-Fi za goste', tpbx: 'Telefonska centrala', admin: 'Admin' }[v];
+    $('#ptTxt').textContent = { media: 'Multimedija', smart: 'Smart Home', lights: 'Svetla', appl: 'Uređaji', aqua: 'Akvarijum', water: 'Navodnjavanje', devices: 'Uređaji', power: 'Potrošnja struje', weather: 'Meteorologija', doors: 'Interfon / Zvona', alarm: 'Alarm', cctv: 'CCTV', tools: 'Alati', tscope: 'Osciloskop', tres: 'Otpornici', tlogic: 'Logički analizator', tcap: 'Kondenzatori', tnet: 'Mrežni tester', tscan: 'Skeniranje mreže', tpass: 'Lozinke', tphone: 'Telefonska centrala', tdns: 'DNS i Whois', tsms: 'SMS poruke', tguest: 'Wi-Fi za goste', tpbx: 'Telefonska centrala', admin: 'Admin' }[v];
     $('#ptIco').setAttribute('href', { media: '#i-media', smart: '#i-home', lights: '#i-bulb', appl: '#i-plug', aqua: '#i-fish', water: '#i-drop', devices: '#i-plug', power: '#i-zap', weather: '#i-sun', doors: '#i-bell', alarm: '#i-shield', cctv: '#i-cam', tools: '#i-tool', tscope: '#i-scope', tres: '#i-resistor', tlogic: '#i-logic', tcap: '#i-cap', tnet: '#i-gauge', tscan: '#i-radar', tpass: '#i-key', tphone: '#i-handset', tdns: '#i-dns', tsms: '#i-sms', tguest: '#i-qr', tpbx: '#i-pbx', admin: '#i-unlock' }[v]);
     store.set('teco-view', v);
     try { if (location.hash !== '#/' + v) history.replaceState(null, '', '#/' + v); } catch (e) {}
@@ -1632,6 +1797,23 @@ html.admin .rfab{display:none}
     inp.type = show ? 'text' : 'password'; b.classList.toggle('on', show);
   });
   $('#alBack').onclick = () => alOpen(null);
+
+  // zaglavlje (IQlogic): boja kategorije za okruglu ikonicu + red ispod naslova
+  const VIEW_C = { media: '#e0343c', smart: '#0f9d8f', lights: '#f2a900', appl: '#0f9d8f', aqua: '#1d8fe0', water: '#2fa84f', devices: '#0f9d8f', power: '#9aa618',
+    weather: '#27a9d9', doors: '#f07c1a', alarm: '#d64545', cctv: '#4b5d73', tools: '#4b5d73', tscope: '#0f9d8f', tlogic: '#1d8fe0', tres: '#b7791f', tcap: '#7c5cd6',
+    tnet: '#2563eb', tscan: '#0891b2', tdns: '#0f766e', tguest: '#2fa84f', tpbx: '#15803d', tphone: '#15803d', tsms: '#27a9d9', tpass: '#d64545', admin: '#d97706' };
+  const VIEW_UP = { lights: 'Smart Home', appl: 'Smart Home', aqua: 'Smart Home', water: 'Smart Home', devices: 'Smart Home', power: 'Smart Home', weather: 'Smart Home',
+    doors: 'Smart Home', alarm: 'Smart Home', cctv: 'Smart Home' };
+  function ptHead() {
+    const v = document.body.dataset.view || 'media', d = new Date();
+    $('.ptitle .pic').style.setProperty('--c', VIEW_C[v] || 'var(--accent)');
+    const up = VIEW_UP[v] || (v[0] === 't' && v !== 'tools' ? 'Alati' : '');
+    $('#ptSub').textContent = 'Teco.Pi · ' + d.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' }) + (up ? ' · ' + up : '');
+  }
+  setInterval(ptHead, 15000);
+  new MutationObserver(ptHead).observe(document.body, { attributes: true, attributeFilter: ['data-view'] }); ptHead();
+  // podnožje: naziv strane i sat
+  setInterval(function ft() { const d = new Date(); $('#ftTime').innerHTML = '<b>' + d.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' }) + '</b><span>' + d.toLocaleDateString('sr-RS', { day: '2-digit', month: '2-digit', year: 'numeric' }) + '</span>'; return ft; }(), 15000);
   $$('.shtile[data-go]').forEach(b => b.onclick = () => setView(b.dataset.go));   // prečice na strani Smart Home
   $$('.shback').forEach(b => b.onclick = () => setView(b.dataset.up));   // nazad na Smart Home (Alarm, CCTV)
   // Smart Home uređaji: registar (strana Uređaji) i prava svetla (strana Svetla)
@@ -1753,25 +1935,28 @@ html.admin .rfab{display:none}
   function doorRender(doors, ics) {
     ics = ics || [];
     $('#icEmpty').hidden = !!ics.length;
-    $('#icGrid').innerHTML = ics.map(x => `<div class="dr${x.ringing ? ' ring' : ''}"><span class="dri"><svg class="i"><use href="#i-bell"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ringing ? 'ZVONI!' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : (x.ok ? 'bez poziva' : 'alarm nije povezan')}</small></span><span></span></div>`).join('');
+    $('#icGrid').innerHTML = ics.map(x => `<div class="dr${x.ringing ? ' ring' : ''}" style="--c:#f07c1a"><span class="dri"><svg class="i"><use href="#i-bell"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ringing ? 'ZVONI!' : x.last_ring ? 'poslednji poziv ' + evTime(x.last_ring) : (x.ok ? 'bez poziva' : 'alarm nije povezan')}</small></span><span></span></div>`).join('');
     $('#doorEmpty').hidden = !!doors.length;
     $('#doorCount').textContent = doors.length ? doors.length + (doors.length === 1 ? ' vrata' : ' vrata') : '';
     $('#doorGrid').innerHTML = doors.map(x => { const dr = x.door || {}, tog = dr.mode === 'toggle';
       const st = x.open == null ? (x.ok ? (tog ? (x.pgm_on ? 'uključeno' : 'isključeno') : 'spremno') : 'alarm nije povezan') : x.open ? 'otvorena' : 'zatvorena';
-      return `<div class="dr${x.open ? ' open' : ''}"><span class="dri"><svg class="i"><use href="#i-door"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${st}</small></span>`
+      return `<div class="dr${x.open ? ' open' : ''}" style="--c:#4b5d73"><span class="dri"><svg class="i"><use href="#i-door"/></svg></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${st}</small></span>`
         + (tog ? `<button class="dvs" type="button" role="switch" aria-checked="${!!x.pgm_on}" data-dtog="${esc(x.id)}"${x.ok ? '' : ' disabled'}></button>`
                : `<button class="btn gel drb${x.pgm_on ? ' run' : ''}" type="button" data-dopen="${esc(x.id)}"${x.ok ? '' : ' disabled'}><span>${x.pgm_on ? 'Vrata otvorena' : 'Otvori'}</span></button>`) + '</div>'; }).join('');
     $('#shDoors').classList.toggle('warn', ics.some(x => x.ringing) || doors.some(x => x.open || x.pgm_on));   // zvoni / otvoreno: narandžasto
     const t = $('#shDoors small'); if (t) t.textContent = ics.some(x => x.ringing) ? 'ZVONI!' : doors.some(x => x.open) ? 'otvoreno: ' + doors.filter(x => x.open).map(x => x.name).join(', ') : (doors.length || ics.length) ? [doors.length ? doors.length + ' vrata' : '', ics.filter(x => x.type !== 'bell').length ? ics.filter(x => x.type !== 'bell').length + ' interfon' : '', ics.filter(x => x.type === 'bell').length ? ics.filter(x => x.type === 'bell').length + ' zvono' : ''].filter(Boolean).join(' · ') : 'nema uređaja';
   }
   // Uređaji (klima, bojler, pegla…): uključi / isključi
+  const APPL_IC = { ac: ['snow', '#27a9d9'], boiler: ['shower', '#f07c1a'], iron: ['iron', '#b7791f'], coffee: ['coffee', '#8d5a3b'], heater: ['heat', '#d64545'],
+    washer: ['washer', '#1d8fe0'], fan: ['fan', '#0f9d8f'], pump: ['drop', '#2fa84f'], other: ['plug', '#4b5d73'] };
   const APPL_ANIM = { ac: 'spin', fan: 'spin', pump: 'spin', washer: 'spin', heater: 'heat', boiler: 'heat', iron: 'heat', coffee: 'heat' };
   function applRender(ap) {
     $('#applEmpty').hidden = !!ap.length;
     const on = ap.filter(x => x.on).length;
     $('#applCount').textContent = ap.length ? on + ' od ' + ap.length + ' uključeno' : '';
     $('#applGrid').innerHTML = ap.map(x => { const k = APPL[(x.appl || {}).kind] || APPL.other;
-      return `<div class="dr${x.on ? ' on' : ''}${x.ok ? '' : ' off'}" data-anim="${APPL_ANIM[(x.appl || {}).kind] || ''}"><span class="dri"><span class="em">${k[1]}</span></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ok ? (x.on ? 'uključeno' : 'isključeno') + (x.w != null ? ' · ' + Math.round(x.w) + ' W' : '') : 'ne odgovara'}</small></span>`
+      const ic = APPL_IC[(x.appl || {}).kind] || APPL_IC.other;
+      return `<div class="dr${x.on ? ' on' : ''}${x.ok ? '' : ' off'}" data-anim="${APPL_ANIM[(x.appl || {}).kind] || ''}" style="--c:${ic[1]}"><span class="dri"><span class="em"><svg class="i"><use href="#i-${ic[0]}"/></svg></span></span><span class="t"><b>${esc(x.name)}</b><small>${x.room ? esc(x.room) + ' · ' : ''}${x.ok ? (x.on ? 'uključeno' : 'isključeno') + (x.w != null ? ' · ' + Math.round(x.w) + ' W' : '') : 'ne odgovara'}</small></span>`
         + `<button class="dvs" type="button" role="switch" aria-checked="${!!x.on}" data-atog="${esc(x.id)}"${x.ok ? '' : ' disabled'} aria-label="Uključi / isključi"></button></div>`; }).join('');
     $('#shAppl small').textContent = ap.length ? (on ? on + ' uključeno' : 'sve isključeno') : 'nema uređaja';
     if (!$('#shAppl .shdot')) $('#shAppl').insertAdjacentHTML('afterbegin', '<i class="shdot lg" aria-hidden="true"></i>');
@@ -2244,9 +2429,9 @@ html.admin .rfab{display:none}
     ntRenderCfg(sm);
     $('#smBadge').hidden = !sm.unread; $('#smBadge').textContent = sm.unread;
     $('#smSt').className = 'smst ' + (!sm.on ? 'off' : sm.st === 'ok' ? 'ok' : sm.st === 'err' || !sm.port_ok ? 'bad' : '');
-    $('#smSt').innerHTML = !sm.on ? '📵 GSM modul je isključen — uključi ga u <a href="#toolsCard" data-view="tphone">Telefonska centrala → Linija i modem</a>. Poruke čekaju u redu.'
-      : !sm.port_ok ? '⚠️ Veza sa modemom nije uključena na Teco.Pi.' : sm.st === 'err' ? '⚠️ ' + esc(sm.err || 'modul ne odgovara')
-      : sm.st === 'ok' ? `📶 Modul radi${sm.csq != null && sm.csq !== 99 ? ' · signal ' + sm.csq + '/31' : ''} · provereno ${smTime(sm.poll)}` : '⏳ Povezujem modul…';
+    $('#smSt').innerHTML = !sm.on ? '<svg class="i"><use href="#i-signal"/></svg> GSM modul je isključen — uključi ga u <a href="#toolsCard" data-view="tphone">Telefonska centrala → Linija i modem</a>. Poruke čekaju u redu.'
+      : !sm.port_ok ? '<svg class="i"><use href="#i-alert"/></svg> Veza sa modemom nije uključena na Teco.Pi.' : sm.st === 'err' ? '<svg class="i"><use href="#i-alert"/></svg> ' + esc(sm.err || 'modul ne odgovara')
+      : sm.st === 'ok' ? `<svg class="i"><use href="#i-signal"/></svg> Modul radi${sm.csq != null && sm.csq !== 99 ? ' · signal ' + sm.csq + '/31' : ''} · provereno ${smTime(sm.poll)}` : '<svg class="i"><use href="#i-clock"/></svg> Povezujem modul…';
     if (sm.queued) $('#smSt').innerHTML += ` · ${sm.queued} u redu za slanje`;
     const q = $('#smQ').value.trim().toLowerCase();
     $('#smList').innerHTML = sm.convs.filter(c => !q || [c.name, c.num, c.last].join(' ').toLowerCase().includes(q)).map(c =>
@@ -2475,8 +2660,8 @@ html.admin .rfab{display:none}
     if (l) { const x = snLast.devices.find(d => d.key === l.dataset.snl), v = prompt('Ime uređaja', x ? x.label || x.name || '' : ''); if (v !== null) act('scan_label', { key: l.dataset.snl, label: v }); }
     if (f && confirm('Zaboraviti ovaj uređaj? Ako je na mreži, pojaviće se ponovo pri sledećem skeniranju.')) act('scan_forget', { key: f.dataset.snf }); };
   // Akvarijum: stanje sa ESP32 (pH, nivoi, stvarni izlazi) + željeni izlazi sa stranice
-  const AQ_ICO = { pump1: '🌀', heater1: '♨️', light1: '💡', light2: '💡', fan: '🌬️', valve_in: '🚰', pump_out: '⬇️' };
-  const AQ_ANIM = { pump1: 'spin', pump_out: 'spin', fan: 'spin', heater1: 'heat', light1: 'bulb', light2: 'bulb' };
+  const AQ_ICO = { pump1: ['pump', '#1d8fe0'], heater1: ['heat', '#d64545'], light1: ['bulb', '#f2a900'], light2: ['bulb', '#f2a900'], fan: ['fan', '#0f9d8f'], valve_in: ['valve', '#0891b2'], pump_out: ['pumpout', '#2fa84f'] };
+  const AQ_ANIM = { pump1: 'pump', pump_out: 'pump', fan: 'spin', heater1: 'heat', light1: 'bulb', light2: 'bulb' };
   const AQ_POS = { min: 22, q34: 58, max: 78, alarm: 90 };   // visina oznake u akvarijumu (%)
   function aquaRender(a) {
     if (!a || !changed('aqua', a)) return;
@@ -2492,7 +2677,7 @@ html.admin .rfab{display:none}
     $('#aqOuts').innerHTML = (a.outs || []).map(o => {
       const busy = a.online && o.on != null && o.on !== o.want;   // izlaz koji modul ne prijavljuje nije u toku
       const st = !a.online ? (o.want ? 'uključeno · modul nije povezan' : 'isključeno') : busy ? (o.want ? 'uključujem…' : 'isključujem…') : (o.on ? 'radi' : 'isključeno');
-      return `<div class="aqo${o.want ? ' on' : ''}${busy ? ' busy' : ''}${a.online ? '' : ' off'}" data-anim="${AQ_ANIM[o.k] || ''}"><span class="aqi"><span class="em">${AQ_ICO[o.k] || '🔌'}</span></span><span class="t"><b>${esc(o.n)}</b><span class="aqst"><span class="aqbadge">${o.want ? 'UKLJUČENO' : 'ISKLJUČENO'}</span><small>${st}</small></span></span>`
+      return `<div class="aqo${o.want ? ' on' : ''}${busy ? ' busy' : ''}${a.online ? '' : ' off'}" data-anim="${AQ_ANIM[o.k] || ''}" style="--c:${(AQ_ICO[o.k] || ['plug', '#4b5d73'])[1]}"><span class="aqi"><span class="em"><svg class="i"><use href="#i-${(AQ_ICO[o.k] || ['plug'])[0]}"/></svg></span></span><span class="t"><b>${esc(o.n)}</b><span class="aqst"><span class="aqbadge">${o.want ? 'UKLJUČENO' : 'ISKLJUČENO'}</span><small>${st}</small></span></span>`
         + `<button class="dvs" type="button" role="switch" aria-checked="${!!o.want}" data-aq="${esc(o.k)}" aria-label="Uključi / isključi"></button></div>`; }).join('');
     const al = lv.find(l => l.k === 'alarm' && l.wet);
     $('#shAqua').classList.toggle('act', (a.outs || []).some(o => o.want) && !al);
@@ -3558,6 +3743,7 @@ html.admin .rfab{display:none}
     if (changed('theme', s.theme)) {
       const th = s.theme || 'auto';
       if (th === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = th;
+      if (window.tecoLt) tecoLt();
       try { localStorage.setItem('teco-theme', th); } catch (e) {}
       $$('#themeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === th));
     }

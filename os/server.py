@@ -7346,7 +7346,7 @@ class Teco:
             'tv': {'all': self.tv_all(), 'fav': self.st['tv'].get('fav') or [], 'u': (self.tv_cur() or (0, {}))[1].get('u'), 'err': self.tv_err,
                    'on': self.source == 'tv' and self.mode == 'tv', 'loading': self.tv_loading},
             'boot': self.st.get('boot', 'last'),
-            'theme': self.st.get('theme', 'auto'),
+            'theme': self.st.get('theme', 'light'),   # podrazumevano: svetla (IQlogic izgled)
             'alarm': self.alarm_snapshot(),   # (i kao lista 'alarms' na stranici: jedan za sada)
             'last_av': self.st.get('last_av', 'av2'),
             'radio_clock': int(self.st.get('radio_clock', 15) or 0),
