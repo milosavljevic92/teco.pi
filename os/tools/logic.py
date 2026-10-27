@@ -99,8 +99,105 @@ def measure(v, dt):
     return 1 / per, per, duty
 
 
+PK2_COL = [(74, 222, 128), (244, 114, 182), (250, 204, 21)]
+
+
+def render_pk2(cfg, cap, w, h):
+    """Snimak sa PICkit 2: 3 kanala × 1024 uzorka, merenja i dekodiran UART na izabranom kanalu."""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    import pickit2
+    img = Image.new('RGB', (w, h), COL['bg'])
+    d = ImageDraw.Draw(img)
+    f_s = ImageFont.truetype(FONT, max(14, h // 29))
+    f_b = ImageFont.truetype(FONTB, max(15, h // 23))
+    f_d = ImageFont.truetype(FONTB, max(12, h // 36))
+    top, bot, side = int(h * 0.1), int(h * 0.2), int(w * 0.1)
+    px0, py0, px1, py1 = side, top, w - int(w * 0.02), h - bot
+    gw, gh = px1 - px0, py1 - py0
+    p = cfg.get('pk2') or {}
+    if not cap:
+        d.text((px0, top * 0.25), 'LOGIČKI ANALIZATOR · PICkit 2', font=f_b, fill=COL['txt'])
+        s = 'Pokreni snimanje na stranici (Alati → Logički analizator)'
+        d.text(((w - d.textlength(s, font=f_b)) / 2, h * 0.45), s, font=f_b, fill=COL['grid'])
+        return img
+    us, n = cap['us'], len(cap['ch'][0])
+    dt = us * 1e-6
+    tdiv = n * dt / DIVX
+    d.text((px0, top * 0.25), 'LOGIČKI ANALIZATOR · PICkit 2 · %s · %s/div · %s' % (cap['rate'], fmt_t(tdiv), fmt_t(n * dt)), font=f_b, fill=COL['txt'])
+    tm = time.strftime('%H:%M:%S', time.localtime(cap.get('t', 0)))
+    d.text((px1 - d.textlength(tm, font=f_s), top * 0.3), tm, font=f_s, fill=COL['grid'])
+    for i in range(DIVX + 1):
+        x = px0 + gw * i / DIVX
+        d.line([(x, py0), (x, py1)], fill=COL['grid'])
+    lane = gh / 3
+    uch, baud = int(p.get('uart') or 0), int(p.get('baud') or 9600)
+    meas, text = [], ''
+    for k in range(3):
+        v = np.array(cap['ch'][k], dtype=np.uint8)
+        y0 = py0 + lane * k
+        d.line([(px0, y0), (px1, y0)], fill=COL['grid'])
+        d.text((w * 0.012, y0 + lane * 0.3), 'CH%d' % (k + 1), font=f_b, fill=PK2_COL[k])
+        d.text((w * 0.012, y0 + lane * 0.3 + h * 0.05), 'pin %d' % (k + 4), font=f_s, fill=COL['txt'])
+        yh, yl = y0 + lane * 0.3, y0 + lane * 0.82
+        xs = px0 + np.arange(n) * gw / (n - 1)
+        edges = np.nonzero(np.diff(v.astype(np.int8)))[0] + 1
+        seg = [0] + edges.tolist() + [n - 1]
+        pts = []
+        for a, b in zip(seg[:-1], seg[1:]):
+            y = yh if v[a] else yl
+            pts += [(xs[a], y), (xs[b], y)]
+        d.line(pts, fill=PK2_COL[k], width=3)
+        if uch == k + 1:   # UART dekoder: okvir i znak iznad bajta
+            fr = pickit2.uart_decode(v.tolist(), us, baud)
+            for a, b, byte, bad in fr:
+                xa, xb = px0 + a * gw / (n - 1), px0 + min(b, n - 1) * gw / (n - 1)
+                yb = y0 + lane * 0.04
+                d.rounded_rectangle([xa + 1, yb, xb - 1, yb + lane * 0.2], radius=4, fill=COL['decbg'], outline=(239, 68, 68) if bad else COL['dec'])
+                lab = chr(byte) if 32 <= byte < 127 else '0x%02X' % byte
+                if xb - xa > d.textlength(lab, font=f_d) + 4:
+                    d.text((xa + 3, yb + 2), lab, font=f_d, fill=COL['dec'])
+            text = ''.join(chr(b) if 32 <= b < 127 else '·' for _, _, b, _ in fr)
+            meas.append((k, 'CH%d  UART %d 8N1: "%s"' % (k + 1, baud, text[:48]) if fr else 'CH%d  UART %d: nema znakova' % (k + 1, baud)))
+            continue
+        r = measure(v, dt)
+        hi = float(v.mean()) * 100
+        meas.append((k, 'CH%d  f=%s  T=%s  duty=%.1f%%' % (k + 1, fmt_f(r[0]), fmt_t(r[1]), r[2]) if r else 'CH%d  stalno %s (%.0f%% visoko)' % (k + 1, '1' if hi > 50 else '0', hi)))
+    if cap.get('window') == 'start':
+        d.polygon([(px0, py0), (px0 - 7, py0 - 10), (px0 + 7, py0 - 10)], fill=COL['trig'])
+    for i, (k, txt) in enumerate(meas):
+        d.text((px0, py1 + bot * (0.08 + 0.3 * i)), txt, font=f_s, fill=PK2_COL[k])
+    return img
+
+
 def main():
     scr = Screen('logic')
+    w, h = scr.size()
+    cap_file = CFG.parent / 'logic-pk2.json'
+    while running:   # izvor PICkit 2: crta se snimak (menja se samo posle novog snimanja ili podešavanja)
+        cfg0 = load()
+        if cfg0.get('srcmode') != 'pk2':
+            break
+        try:
+            key = (CFG.stat().st_mtime, cap_file.stat().st_mtime if cap_file.exists() else 0)
+        except OSError:
+            key = None
+        if key != getattr(main, 'pk2_key', None) or time.time() - getattr(main, 'pk2_shown', 0) > 2:
+            if key != getattr(main, 'pk2_key', None):
+                try:
+                    cap = json.loads(cap_file.read_text())
+                except (OSError, ValueError):
+                    cap = None
+                main.pk2_img = render_pk2(cfg0, cap, w, h)
+                main.pk2_key = key
+                if os.environ.get('LOGIC_SNAP'):
+                    main.pk2_img.save(os.environ['LOGIC_SNAP'])
+                    return
+            scr.show(main.pk2_img.convert('RGBA').tobytes('raw', 'BGRA'), w, h)
+            main.pk2_shown = time.time()
+        time.sleep(0.2)
+    if not running:
+        scr.close()
+        return
     w, h = scr.size()
     top, bot, side = int(h * 0.09), int(h * 0.19), int(w * 0.12)   # 7" ekran: krupnija slova
     px0, py0, px1, py1 = side, top, w - int(w * 0.02), h - bot
@@ -126,6 +223,8 @@ def main():
             m = None
         if m != mt or cfg is None:
             mt, cfg = m, load()
+            if cfg.get('srcmode') == 'pk2':   # prebačeno na PICkit 2: ispočetka, u režimu snimka
+                return main()
             bgr = Image.new('RGB', (w, h), COL['bg'])
             d = ImageDraw.Draw(bgr)
             for i in range(DIVX + 1):

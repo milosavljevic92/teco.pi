@@ -44,9 +44,10 @@ NTP_CONF = Path('/etc/systemd/timesyncd.conf.d/teco.conf')   # NTP serveri iz po
 SMB_CONF = Path('/etc/samba/smb.conf')   # Teco.Pi ga piše ceo (deljenje fajlova iz admina)
 SHARE = BASE / 'share'                   # deljeni folder na SD kartici (\\tecopi\Teco)
 USB_MNT = Path('/media/teco')            # USB diskovi: /media/teco/<ime>
+# slike za ekran (sat, slike, alati): /dev/shm (pola RAM-a), ne /tmp (64 MB — puni se sa 8 MB slikama na 1080p TV-u)
+OVL_TMP = Path('/dev/shm') if os.path.isdir('/dev/shm') else Path('/tmp')
 USB_FS = {'vfat': 'vfat', 'exfat': 'exfat', 'ntfs': 'ntfs3', 'ext4': 'ext4', 'ext3': 'ext3', 'ext2': 'ext2'}
 SMB_BIN = Path('/usr/sbin/smbd')
-SMB_PROTOS = {'NT1': ('NT1', 'SMB1 + novi (PS2 / OPL)'), 'SMB2': ('SMB2_02', 'SMB2 i SMB3'), 'SMB3': ('SMB3_00', 'samo SMB3')}
 OPL_DIRS = ('APPS', 'ART', 'CD', 'CFG', 'CHT', 'DVD', 'LNG', 'POPS', 'THM', 'VMC')   # folderi koje Open PS2 Loader očekuje
 GAME_EXT = {'.iso': None, '.zso': None, '.vcd': 'POPS'}   # None: CD (do 700 MB) ili DVD
 CD_MAX = 700 * 2**20
@@ -173,6 +174,9 @@ DEFAULT_EVENTS = {
 }
 EVENT_SUB = {'zvono': 'Pozvonio je neko', 'interfon': 'Pozvonio je neko', 'pozar': 'Proveri odmah!', 'voda': 'Proveri odmah!'}
 ALARMS = {'pozar', 'voda'}   # zvuk se ponavlja dok je slika na ekranu i prekidaju zvono/interfon
+# Zvukovi (Skladište → Zvukovi, SD kartica): melodije za zvono/interfon. Ugrađene se sintetišu, ostale otpremi korisnik.
+EVENT_TONES = {'dingdong': 'Ding-dong', 'seven': '7-Eleven (Tajland)', 'westminster': 'Westminster', 'trio': 'Tri tona'}
+TONES_DIR = EVENTS_DIR / '_tones'
 EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
     'zvono': ('#fbbf24', '<path d="M50 14c-3 0-5 2-5 5v3c-12 3-20 13-20 26v16l-7 9v3h64v-3l-7-9V48c0-13-8-23-20-26v-3c0-3-2-5-5-5z" fill="currentColor"/>'
                          '<path d="M40 80a10 10 0 0 0 20 0z" fill="currentColor"/>'
@@ -188,18 +192,32 @@ EVENT_LOOK = {   # boja i ikonica (viewBox 0 0 100 100)
                         '<path d="M10 92c7-5 13-5 20 0s13 5 20 0 13-5 20 0 13 5 20 0" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>'),
 }
 
-ADMIN_CMDS = {'scr_set', 'scr_press', 'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'ev_sound_del', 'q_move', 'idle', 'img_del', 'slide_sec',
+ADMIN_CMDS = {'scr_set','scr_press', 'reboot', 'boot', 'theme','radio_clock', 'yt_cookies_del', 'wifi_scan', 'wifi_connect', 'wifi_forget', 'tv_add', 'tv_del', 'ev_set', 'ev_test', 'tone_play', 'tone_del', 'q_move',
               # Bluetooth: povezivanje već uparenih (bt_connect/bt_disconnect) je za sve, uparivanje samo Admin
               'bt_scan', 'bt_pair', 'bt_remove', 'pin_req', 'pbx_secret',
-              'cast', 'smb', 'smb_usb', 'smb_install', 'smb_eject', 'smb_pw', 'smb_ls', 'smb_dir', 'smb_opl', 'game_del', 'smb_opt', 'smb_name', 'smb_pw_get', 'smb_direct', 'alarm_cfg_get',
+              'cast', 'alarm_cfg', 'alarm_add', 'alarm_del',   # alarmi se podešavaju u Admin → Uređaji; SMB share je u Ekstenzijama (kao WDS i DNS resolver): bez Admina
               'dev_add', 'dev_edit', 'dev_del', 'dev_scan',   # uređaji se dodaju u Adminu; dev_set (upravljanje) je za sve   # uređaji (dev_*): svi u mreži (za sada samo svetla)
-              'net_mode', 'net_set', 'dns_set', 'ntp_set', 'alarm_cfg', 'relay', 'ir_save', 'ir_del',
+              'net_mode', 'net_set', 'dns_set', 'ntp_set', 'relay', 'ir_save', 'ir_del',
               'cons', 'name', 'fm_save', 'fm_del', 'st_add', 'st_del', 'set_pin'}
+
+
+def fmt_hz(f):
+    return '%g kHz' % round(f / 1000, 3) if f >= 1000 else '%g Hz' % round(f, 2)
+
+
+def gen_pw(n=14, special=True):
+    """Nasumična lozinka: slova i brojevi bez sličnih (Il1O0o), od specijalnih znakova samo @ . ! ? (prolaze svuda)."""
+    al = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+    sp = '@.!?' if special else ''
+    while True:
+        pw = ''.join(secrets.choice(al + sp) for _ in range(n))
+        if (not sp or any(ch in sp for ch in pw)) and any(ch.isdigit() for ch in pw) and any(ch.isupper() for ch in pw) and any(ch.islower() for ch in pw):
+            return pw
 
 
 # ---------------------------------------------------------------- Smart Home drajveri (po proizvođaču)
 
-DEV_TYPES = {'light': 'Svetlo', 'appliance': 'Uređaj', 'camera': 'Kamera', 'door': 'Vrata', 'intercom': 'Interfon', 'bell': 'Zvono'}
+DEV_TYPES = {'light': 'Svetlo', 'appliance': 'Uređaj', 'tv': 'TV', 'camera': 'Kamera', 'door': 'Vrata', 'intercom': 'Interfon', 'bell': 'Zvono'}
 RING_TYPES = ('intercom', 'bell')   # okidač je zona alarma (neko zvoni)
 APPL_KINDS = {'ac': 'Klima', 'boiler': 'Bojler', 'iron': 'Pegla', 'coffee': 'Aparat za kafu', 'heater': 'Grejalica', 'washer': 'Veš mašina', 'fan': 'Ventilator', 'pump': 'Pumpa', 'other': 'Uređaj'}
 
@@ -475,7 +493,142 @@ class TasmotaDriver(HttpRelayDriver):
         return await self._get('http://%s/cm?cmnd=Power%%20%s' % (d['ip'], 'On' if on else 'Off')) is not None
 
 
-DEV_DRIVERS = {d.key: d for d in (WizDriver(), WizPlugDriver(), ShellyDriver(), TasmotaDriver(), PgmApplDriver(),
+class LgTvDriver(DevDriver):
+    """LG TV (webOS): upravljanje preko mreže (SSAP, lgtv.py), paljenje Wake-on-LAN-om (TV ugašen ne sluša mrežu).
+    Ključ uparivanja po TV-u: data/lgtv-<ip>.json. Pri dodavanju TV mora biti upaljen (upit za uparivanje na ekranu)."""
+    key, label, ready, dtype = 'lgwebos', 'LG (webOS)', True, 'tv'
+    INS = ('HDMI_1', 'HDMI_2', 'HDMI_3')
+    _tv, _seen, _wake, _off = {}, {}, {}, {}
+
+    @staticmethod
+    async def _port(ip):
+        try:
+            _, w = await asyncio.wait_for(asyncio.open_connection(ip, 3001), 1.5)
+            w.close()
+            return True
+        except (OSError, asyncio.TimeoutError):
+            return False
+
+    @staticmethod
+    def key_file(ip):
+        return DATA / ('lgtv-%s.json' % ip)
+
+    def tv(self, ip):
+        import lgtv
+        if ip not in self._tv:
+            self._tv[ip] = lgtv.Tv(ip, str(self.key_file(ip)))
+        return self._tv[ip]
+
+    @staticmethod
+    def arp_mac(ip):
+        try:
+            for l in Path('/proc/net/arp').read_text().splitlines()[1:]:
+                f = l.split()
+                if f[0] == ip and f[3] != '00:00:00:00:00:00':
+                    return f[3].lower()
+        except (OSError, IndexError):
+            pass
+        return None
+
+    async def probe(self, ip):
+        import lgtv
+        try:
+            await self.tv(ip).connect(pair_wait=60)   # bez ključa: TV pita „Dozvoli“ — potvrdi daljinskim
+        except lgtv.TvError:
+            return None
+        return {'mac': self.arp_mac(ip)}
+
+    async def poll(self, d):
+        import lgtv
+        if not self.key_file(d['ip']).exists():
+            return {'ok': False}
+        t, last = self._seen.get(d['id'], (0, None))
+        waking = time.time() - self._wake.get(d['id'], 0) < 40   # posle „upali“: proverava svaki put dok se ne javi
+        if time.time() < self._off.get(d['id'], 0):   # posle „ugasi“: TV se još gasi i ume da se javi kao upaljen
+            return {'ok': True, 'on': False}
+        if last and not last.get('on') and time.time() - t < 10 and not waking:   # ugašen: ređe
+            return last
+        tv, s = self.tv(d['ip']), {'ok': True}
+        try:
+            if not tv.up and not await self._port(d['ip']):   # ugašen TV nije na mreži: brz odgovor bez čekanja veze
+                raise lgtv.TvError('nije na mreži')
+            await tv.connect(pair_wait=3)   # u stanju pripreme (standby) TV primi vezu, ali se ne registruje
+            p = await tv.req('ssap://com.webos.service.tvpower/power/getPowerState')
+            # 'Active' = radi; 'Active Standby' / 'Suspend' / 'processing: Request Power Off' = gasi se ili je ugašen
+            s['on'] = p.get('state') in ('Active', 'Screen Off') and not p.get('processing')
+            if s['on']:
+                a = await tv.req('ssap://audio/getStatus')
+                vs = a.get('volumeStatus') or {}
+                s['vol'] = a.get('volume', vs.get('volume'))
+                s['mute'] = bool(a.get('mute', vs.get('muteStatus')))
+                app = (await tv.req('ssap://com.webos.applicationManager/getForegroundAppInfo')).get('appId') or ''
+                m = re.match(r'com\.webos\.app\.hdmi(\d)', app)
+                s['in'] = 'HDMI_%s' % m.group(1) if m else ''
+                s['app'] = 'YouTube' if app.startswith('youtube') else '' if m else app.split('.')[-1]
+        except lgtv.TvError:
+            s['on'] = False
+            await tv.close()
+        if waking and not s['on']:
+            s['waking'] = True
+        self._seen[d['id']] = (time.time(), s)
+        return s
+
+    async def set(self, d, on=None, **kw):
+        import lgtv
+        self._seen.pop(d['id'], None)
+        if on:
+            import socket
+            mac = d.get('mac') or self.arp_mac(d['ip'])
+            if not mac:
+                return False
+            self._wake[d['id']] = time.time()
+            self._off.pop(d['id'], None)
+            pkt = b'\xff' * 6 + bytes.fromhex(mac.replace(':', '')) * 16
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            try:
+                for _ in range(3):
+                    for t in ('255.255.255.255', d['ip'].rsplit('.', 1)[0] + '.255'):
+                        s.sendto(pkt, (t, 9))
+                    await asyncio.sleep(0.3)
+            finally:
+                s.close()
+            return True
+        try:
+            await self.tv(d['ip']).req('ssap://system/turnOff')
+            await self.tv(d['ip']).close()
+            self._off[d['id']], self._wake[d['id']] = time.time() + 20, 0
+            return True
+        except lgtv.TvError:
+            return False
+
+    async def remote(self, d, k, v=None):
+        """Dugmad u kartici TV-a: jačina, kanal, ulaz, YouTube. Vraća grešku (tekst) ili None."""
+        import lgtv
+        tv, last = self.tv(d['ip']), (self._seen.get(d['id']) or (0, {}))[1]
+        self._seen.pop(d['id'], None)
+        try:
+            if k in ('vol+', 'vol-'):
+                await tv.req('ssap://audio/volume' + ('Up' if k == 'vol+' else 'Down'))
+            elif k == 'mute':
+                await tv.req('ssap://audio/setMute', {'mute': not last.get('mute')})
+            elif k in ('ch+', 'ch-'):   # taster daljinskog: preko SIMPLINK-a stiže i do set-top box-a
+                try:
+                    await tv.button('CHANNELUP' if k == 'ch+' else 'CHANNELDOWN')
+                except Exception:
+                    await tv.req('ssap://tv/channel' + ('Up' if k == 'ch+' else 'Down'))
+            elif k == 'in' and v in self.INS:
+                await tv.req('ssap://tv/switchInput', {'inputId': v})
+            elif k == 'yt':
+                await tv.req('ssap://system.launcher/launch', {'id': 'youtube.leanback.v4'})
+            else:
+                return 'Nepoznata komanda.'
+        except lgtv.TvError as e:
+            return str(e)
+        return None
+
+
+DEV_DRIVERS = {d.key: d for d in (WizDriver(), WizPlugDriver(), ShellyDriver(), TasmotaDriver(), PgmApplDriver(), LgTvDriver(),
                                    CameraDriver('hikvision', 'Hikvision'), CameraDriver('dahua', 'Dahua'), CameraDriver('camurl', 'Drugi (RTSP/HTTP adresa)'), UsbCamDriver(),
                                    PgmDoorDriver(), ZoneIntercomDriver(), ZoneBellDriver())}
 CCTV_DIR = Path('/tmp/cctv')   # HLS segmenti kamera (tmpfs, RAM)
@@ -670,6 +823,26 @@ class Mpv:
             self.pending.pop(rid, None)
             return None
         return m.get('data', True) if m.get('error') == 'success' else None
+
+    async def alive(self, timeout=4):
+        """Da li jezgro mpv-a odgovara: True / False (zamrznut) / None (nije povezan).
+        Posle gašenja i paljenja TV-a mpv ume da zaglavi čekajući sliku (DRM) — IPC se poveže, ali komande ne prolaze."""
+        if not self.connected:
+            return None
+        self.rid += 1
+        rid = self.rid
+        fut = asyncio.get_running_loop().create_future()
+        self.pending[rid] = fut
+        try:   # i slanje ima rok: zamrznut mpv ne čita socket, pa bi drain() čekao zauvek
+            await asyncio.wait_for(self._send({'command': ['show-text', '', 1], 'request_id': rid}), timeout)
+            await asyncio.wait_for(fut, timeout)
+            return True
+        except asyncio.TimeoutError:
+            self.pending.pop(rid, None)
+            return False
+        except (asyncio.CancelledError, OSError, ConnectionError):
+            self.pending.pop(rid, None)
+            return None
 
 
 async def loop_watchdog(limit=0.3):
@@ -965,15 +1138,24 @@ class Teco:
 
     # ---------- Alati na ekranu (Osciloskop, Otpornici…): poseban program crta sloj PREKO plejera (mpv overlay),
     # pa YouTube/radio/TV rade ispod; gasi se samo Arcade. Podešavanje: data/tool-<ime>.json (program ga prati).
-    TOOL_SCRIPTS = {'scope': 'scope.py', 'resistor': 'resistor.py', 'logic': 'logic.py', 'capacitor': 'capacitor.py', 'net': 'net.py', 'scan': 'scan.py', 'guest': 'guest.py'}
+    TOOL_SCRIPTS = {'scope': 'scope.py', 'resistor': 'resistor.py', 'logic': 'logic.py', 'capacitor': 'capacitor.py', 'net': 'net.py', 'scan': 'scan.py', 'guest': 'guest.py', 'pin': 'pinout.py', 'ser': 'serial_tv.py', 'dice': 'dice.py', 'timer': 'timer.py', 'wifi': 'wifi_tv.py', 'prog': 'prog_tv.py', 'gen': 'gen_tv.py'}
     TOOL_DEFAULTS = {
         'scope': {'run': True, 'exp': 'exp2', 'tdiv': 0.005, 'trig': {'src': 'ch1', 'level': 0.0, 'edge': 'rise'},
                   'ch1': {'on': True, 'wave': 'sine', 'freq': 50.0, 'amp': 2.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.03},
                   'ch2': {'on': True, 'wave': 'square', 'freq': 100.0, 'amp': 1.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.02}},
         'net': {}, 'scan': {}, 'guest': {'ssid': '', 'pw': '', 'sec': 'WPA', 'hidden': False},
         'capacitor': {'mode': 'code', 'code': '2A104J', 'smd': 'S5'},
+        'pin': {'chip': {}, 'sel': -1},   # Pinout: podaci izabranog čipa dolaze sa stranice (tamo je biblioteka čipova)
+        'ser': {'ts': True, 'hex': False},   # serijski terminal na ekranu: podaci idu kroz /ws/serial, ovde samo prikaz
+        'dice': {'n': 2, 'sides': 6, 'vals': [], 't': 0},   # kockice: bacanje je na stranici, ekran prikazuje poslednje
+        # tajmer: kraj (end) drži server, pa je isti svuda; režimi: cd odbrojavanje, sw štoperica, al alarm (HH:MM)
+        'timer': {'mode': 'cd', 'dur': 300, 'left': 300, 'end': 0, 'run': False, 'label': '',
+                  'sw_run': False, 'sw_start': 0, 'sw_acc': 0, 'laps': [], 'al_at': '07:00', 'al_on': False, 'al_last': '', 'ring': 0},
+        'wifi': {}, 'prog': {},   # Wi-Fi analizator i programatori na ekranu: podatke piše server (tool_write)
         'resistor': {'mode': 'bands', 'bands': 4, 'colors': ['brown', 'black', 'red', 'gold', 'brown', 'brown'], 'smd': '103'},
         'logic': {'run': True, 'tdiv': 0.0002, 'trig': {'src': 'ch0', 'edge': 'rise'},
+                  # izvor: sim (simulator) ili pk2 (PICkit 2: 3 kanala, 1024 uzorka); snimak je u data/logic-pk2.json
+                  'srcmode': 'sim', 'pk2': {'rate': '1MHz', 'trig_ch': 0, 'trig': 'rise', 'win': 'start', 'uart': 0, 'baud': 9600},
                   'ch0': {'on': True, 'src': 'clock', 'freq': 10000.0, 'duty': 50.0, 'text': 'Teco', 'baud': 9600, 'bits': '10110010', 'rate': 10000.0},
                   'ch1': {'on': True, 'src': 'uart', 'freq': 1000.0, 'duty': 50.0, 'text': 'Teco.Pi', 'baud': 9600, 'bits': '1100', 'rate': 5000.0}},
     }
@@ -990,12 +1172,39 @@ class Teco:
     def tool_write(self, name):
         f = DATA / ('tool-%s.json' % name)
         tmp = f.with_suffix('.tmp')
-        tmp.write_text(json.dumps(self.nt_view() if name == 'net' else self.scan_view() if name == 'scan' else self.tool_cfg(name), ensure_ascii=False))
+        data = (self.nt_view() if name == 'net' else self.scan_view() if name == 'scan' else getattr(self, 'wifi_last', None) or {} if name == 'wifi'
+                else self.prog_view() if name == 'prog' else self.gen_view() if name == 'gen' else self.tool_cfg(name))
+        tmp.write_text(json.dumps(data, ensure_ascii=False))
         os.replace(tmp, f)   # program na ekranu vidi novu verziju (mtime) i odmah je primeni
 
     def tool_running(self):
         t = getattr(self, 'tool', None)
         return t['name'] if t and t['proc'].returncode is None else None
+
+    TOOL_BLACK = OVL_TMP / 'teco-black.png'
+
+    def is_black(self):
+        """U plejeru je crna podloga za alat (nije video: ne prikazuje se kao YouTube)."""
+        return (self.mpv.props.get('path') or '') == str(self.TOOL_BLACK)
+
+    async def tool_base(self):
+        """mpv koji ništa ne pušta (prazan) ne crta slojeve — alat se ne bi video. Tada se učita crna slika kao podloga."""
+        if not self.mpv.connected or not self.mpv.props.get('idle-active'):
+            return
+        if not self.TOOL_BLACK.exists():
+            from PIL import Image
+            Image.new('RGB', (16, 16)).save(self.TOOL_BLACK)
+        await self.mpv.cmd('set_property', 'image-display-duration', 'inf')
+        await self.mpv.cmd('loadfile', str(self.TOOL_BLACK), 'replace')
+        await self.mpv.cmd('set_property', 'pause', False)
+        self.tool_black = True
+
+    async def tool_base_off(self):
+        if getattr(self, 'tool_black', False) or self.is_black():   # i posle restarta servera (zastavica izgubljena)
+            self.tool_black = False
+            if self.is_black():
+                await self.mpv.cmd('stop')
+                await self.mpv.cmd('set_property', 'image-display-duration', self.st['slide_sec'])
 
     async def tool_show(self, name):
         if name not in self.TOOL_SCRIPTS:
@@ -1007,6 +1216,7 @@ class Teco:
         self.tool_write(name)
         if self.source in AVS:   # ekran je na AV ulazu (konzola): alat je na HDMI-ju
             asyncio.get_running_loop().create_task(self.scr_input('HDMI'))
+        await self.tool_base()   # ulaz na TV-u (Uređaji) se ne menja sam — samo ručno
         proc = await asyncio.create_subprocess_exec('python3', str(BASE / 'tools' / self.TOOL_SCRIPTS[name]), str(DATA / ('tool-%s.json' % name)),
                                                     stdout=asyncio.subprocess.DEVNULL, stderr=open('/tmp/teco-tool.log', 'w'))
         self.tool = {'name': name, 'proc': proc}
@@ -1023,7 +1233,9 @@ class Teco:
         if name == 'scan' and not self.scan_db()['last']:
             await self.scan_run()
         self.mark()
-        return {'ok': 'Na ekranu: ' + {'scope': 'Osciloskop', 'resistor': 'Otpornici', 'logic': 'Logički analizator', 'capacitor': 'Kondenzatori', 'net': 'Mrežni tester', 'scan': 'Skeniranje mreže', 'guest': 'Wi-Fi za goste'}[name]}
+        return {'ok': 'Na ekranu: ' + {'scope': 'Osciloskop', 'resistor': 'Otpornici', 'logic': 'Logički analizator', 'capacitor': 'Kondenzatori', 'net': 'Mrežni tester', 'scan': 'Skeniranje mreže', 'guest': 'Wi-Fi za goste',
+                                      'pin': 'Pinout', 'ser': 'Serijski terminal', 'dice': 'Kockice', 'timer': 'Tajmer', 'prog': 'Programator',
+                                      'wifi': 'Wi-Fi analizator', 'gen': 'Generator signala'}.get(name, name)}
 
     async def tool_hide(self, restore=True):
         t = getattr(self, 'tool', None)
@@ -1038,6 +1250,8 @@ class Teco:
                 t['proc'].kill()
         self.tool = None
         await self.mpv.cmd('overlay-remove', 63)   # sloj alata (ako ga program nije stigao da skloni)
+        if restore:   # bez alata: crna podloga više ne treba (slike / sat se vraćaju kao pre)
+            await self.tool_base_off()
         if restore and self.source in AVS:   # ekran nazad na AV ulaz konzole
             await self.scr_input('AV')
         log.info('alat sklonjen sa ekrana')
@@ -1347,17 +1561,10 @@ class Teco:
             self.tool_write('scan')
         self.mark()
 
-    async def wol(self, key):
-        """Wake-on-LAN: 6×FF + 16× MAC, UDP broadcast (port 9 i 7) na svim mrežama Pi-ja; zatim 2 min čeka da se uređaj javi."""
+    async def wol_send(self, mac):
+        """Wake-on-LAN paket: 6×FF + 16× MAC, UDP broadcast (port 9 i 7) na svim mrežama Pi-ja."""
         import socket
-        db = self.scan_db()
-        d = db['devices'].get(key)
-        if not d or not d.get('mac'):
-            return {'err': 'Uređaj nema MAC adresu.'}
-        mac = bytes.fromhex(d['mac'].replace(':', ''))
-        if mac[0] & 2:
-            return {'err': 'Privatna (nasumična) MAC adresa — buđenje ne radi.'}
-        pkt = b'\xff' * 6 + mac * 16
+        pkt = b'\xff' * 6 + bytes.fromhex(mac.replace(':', '')) * 16
         targets = {'255.255.255.255'}
         for i in self.net.get('ifs', []):
             if i['n'] in ('lo', 'tun0'):
@@ -1377,6 +1584,17 @@ class Teco:
                 await asyncio.sleep(0.3)
         finally:
             s.close()
+        return targets
+
+    async def wol(self, key):
+        """Wake-on-LAN za uređaj iz spiska skeniranja; zatim 2 min čeka da se uređaj javi."""
+        db = self.scan_db()
+        d = db['devices'].get(key)
+        if not d or not d.get('mac'):
+            return {'err': 'Uređaj nema MAC adresu.'}
+        if bytes.fromhex(d['mac'].replace(':', ''))[0] & 2:
+            return {'err': 'Privatna (nasumična) MAC adresa — buđenje ne radi.'}
+        targets = await self.wol_send(d['mac'])
         d['wake'] = {'t': time.time(), 'st': 'wait'}
         self.mark()
         log.info('Wake-on-LAN: %s (%s)', d.get('label') or d.get('name') or d['mac'], ', '.join(sorted(targets)))
@@ -1973,8 +2191,9 @@ class Teco:
             c = self.pbx_cfg()
             self.ph_set('calling', num=num, since=None)
             self.ph_tone('ringback')
+            se = c.get('slic_ext') or ''
             ch = await self.pbx_req('POST', '/channels', endpoint='Local/%s@teco-internal' % num, app='teco', appArgs='slic-out',
-                                    callerId='"%s" <%s>' % (c['ext'][c['slic_ext']]['name'], c['slic_ext']), timeout=60)
+                                    callerId='"%s" <%s>' % ((c['ext'].get(se) or {}).get('name', 'Telefon'), se or 'fxs'), timeout=60)
             if ch and self.ph()['state'] == 'calling':
                 self.ph()['pbx'] = ch['id']
             elif self.ph()['state'] == 'calling':
@@ -2276,14 +2495,14 @@ class Teco:
         return {}
 
     # ---------- SMS obaveštenja (alarm, struja, akvarijum, uređaji sa mreže) i SMS komande sa pouzdanih brojeva
-    NOTIFY_DEF = {'nums': [], 'alarm': True, 'arm': False, 'power': True, 'aqua': True, 'devices': True, 'cmds': True, 'pin': ''}
+    NOTIFY_DEF = {'nums': [], 'alarm': True, 'arm': False, 'power': True, 'aqua': True, 'devices': True, 'web': True, 'cmds': True, 'pin': ''}
 
     def notify_cfg(self):
         return dict(self.NOTIFY_DEF, **(self.st.get('notify') or {}))
 
     def notify_set(self, a):
         c = self.notify_cfg()
-        for k in ('alarm', 'arm', 'power', 'aqua', 'devices', 'cmds'):
+        for k in ('alarm', 'arm', 'power', 'aqua', 'devices', 'web', 'cmds'):
             if k in a:
                 c[k] = bool(a[k])
         if 'nums' in a and isinstance(a['nums'], list):
@@ -2296,9 +2515,11 @@ class Teco:
         return {}
 
     def notify(self, kind, text, key=None):
-        """Pošalji SMS obaveštenje svim pouzdanim brojevima (isto obaveštenje najviše jednom u 10 min)."""
+        """Obaveštenje SMS-om (pouzdani brojevi) i e-mailom (Ekstenzije → Email); isto najviše jednom u 10 min."""
         c = self.notify_cfg()
-        if not c.get(kind) or not c['nums']:
+        m = self.mail_cfg()
+        mail = m.get('on') and m.get('notify') and m.get('to') and m.get('host')
+        if not c.get(kind) or not (c['nums'] or mail):
             return
         last = getattr(self, '_notify_last', None) or {}
         self._notify_last = last
@@ -2306,6 +2527,12 @@ class Teco:
         if time.time() - last.get(k, 0) < 600:
             return
         last[k] = time.time()
+        if mail:
+            coro = self.mail_send('Teco.Pi: ' + text[:90], text + '\n\n— Teco.Pi, ' + time.strftime('%d.%m.%Y %H:%M'))
+            try:
+                asyncio.get_running_loop().create_task(coro)
+            except RuntimeError:   # poziv iz GPIO niti (ulazi struja/baterija): na glavnu petlju
+                asyncio.run_coroutine_threadsafe(coro, self.loop)
         for n in c['nums']:
             self.sms_add(num=n, dir='out', text='Teco.Pi: ' + text, t=time.time(), st='queued', auto=kind)
         self.sms_save()
@@ -2313,21 +2540,23 @@ class Teco:
         self.sms_kick()   # pošalji odmah (ne čekaj sledeći krug)
         self.mark()
 
-    def notify_alarm(self, st):
-        """Iz stanja alarm centrale: alarm (zone), uključen/isključen, nestanak struje."""
+    def notify_alarm(self, st, aid='a1'):
+        """Iz stanja alarm centrale: alarm (zone), uključen/isključen, nestanak struje (posebno za svaku centralu)."""
         parts = st.get('partitions', [])
         al = [p for p in parts if any(p.get(k) for k in ('alarm', 'audible_alarm', 'silent_alarm', 'fire_alarm', 'panic_alarm'))]
         armed = {p.get('id'): bool(p.get('arm')) for p in parts}
         tr = (st.get('system') or {}).get('troubles') or {}
         ac = any(v is True and (k.startswith('ac_') or 'ac_fail' in k or 'ac_loss' in k) for k, v in tr.items())
-        prev = getattr(self, '_ntf_prev', None)
-        self._ntf_prev = {'al': bool(al), 'armed': armed, 'ac': ac}
+        prevs = self.__dict__.setdefault('_ntf_prevs', {})
+        prev = prevs.get(aid)
+        prevs[aid] = {'al': bool(al), 'armed': armed, 'ac': ac}
+        pre = (self.alarm_cfg(aid).get('name') + ': ') if len(self.alarm_list()) > 1 and self.alarm_cfg(aid).get('name') else ''
         if prev is None:
             return
         if al and not prev['al']:
             zones = [z.get('label') or ('zona %s' % z.get('id')) for z in st.get('zones', []) if z.get('alarm') or z.get('generated_alarm')]
             kind = 'POŽAR' if any(p.get('fire_alarm') for p in al) else 'PANIC' if any(p.get('panic_alarm') for p in al) else 'ALARM'
-            msg = '%s! %s%s' % (kind, ', '.join(p.get('label') or 'particija' for p in al), (' — ' + ', '.join(zones[:5])) if zones else '')
+            msg = pre + '%s! %s%s' % (kind, ', '.join(p.get('label') or 'particija' for p in al), (' — ' + ', '.join(zones[:5])) if zones else '')
             self.notify('alarm', msg)
             rt = self.phone_cfg()['route']   # Telefonska linija: alarm -> SMS i poziv na zadati broj
             if rt.get('alarm_sms'):
@@ -2337,7 +2566,7 @@ class Teco:
         for pid, on in armed.items():
             if pid in prev['armed'] and on != prev['armed'][pid]:
                 lab = next((p.get('label') for p in parts if p.get('id') == pid), '') or 'alarm'
-                self.notify('arm', '%s je %s' % (lab, 'UKLJUČEN' if on else 'isključen'), key='arm:%s:%s' % (pid, on))
+                self.notify('arm', pre + '%s je %s' % (lab, 'UKLJUČEN' if on else 'isključen'), key='arm:%s:%s:%s' % (aid, pid, on))
         if ac != prev['ac']:
             self.notify('power', 'Nestalo je struje (javlja alarm centrala).' if ac else 'Struja se vratila.', key='power:%s' % ac)
 
@@ -2417,7 +2646,7 @@ class Teco:
             cmd = {'ON': 'arm', 'UKLJUCI': 'arm', 'STAY': 'arm_stay', 'OFF': 'disarm', 'ISKLJUCI': 'disarm'}.get(t[1])
             if not cmd:
                 return self.sms_reply(num, 'ALARM ON, ALARM STAY ili ALARM OFF.')
-            r = await self.alarm_do({'cmd': cmd})
+            r = await self.alarm_do({'cmd': cmd, 'id': (self.alarm_list() or [{'id': 'a1'}])[0]['id']}, trusted=True)   # SMS sa pouzdanog broja: bez šifre stranice
             return self.sms_reply(num, r.get('ok') or r.get('err') or 'Nije uspelo.')
         if w in ('SVETLA', 'SVETLO', 'UREDJAJ', 'UREDAJ') and len(t) > 1:
             on = {'ON': True, 'UKLJUCI': True, 'OFF': False, 'ISKLJUCI': False}.get(t[-1])
@@ -2507,13 +2736,13 @@ class Teco:
         changed = False   # lozinke i PIN-ovi se prave jednom (nasumično) i čuvaju
         for n, e in c['ext'].items():
             if n != c['slic_ext'] and not e.get('pass'):
-                e['pass'], changed = secrets.token_urlsafe(12), True
+                e['pass'], changed = gen_pw(14), True
             if not e.get('vmpin'):
                 e['vmpin'], changed = '%04d' % secrets.randbelow(10000), True
         if not c.get('vm_pin'):
             c['vm_pin'], changed = '%04d' % secrets.randbelow(10000), True
         if not c.get('ari_pass'):
-            c['ari_pass'], changed = secrets.token_urlsafe(18), True
+            c['ari_pass'], changed = gen_pw(20, special=False), True   # ide u adresu (ARI), bez znakova
         if changed:
             self.st['pbx'] = c
             save_state(self.st)
@@ -2855,6 +3084,35 @@ class Teco:
             for n, name in a['names'].items():
                 if n in c['ext']:
                     c['ext'][n]['name'] = str(name).strip()[:30] or n
+        # lokali: dodavanje / brisanje; vrsta = SIP (IP telefon / aplikacija) ili FXS (obični telefon na liniji, jedan port)
+        ad = a.get('add')
+        if isinstance(ad, dict):
+            n = str(ad.get('n') or '').strip()
+            if not re.fullmatch(r'[1-9]\d{1,3}', n):
+                return {'err': 'Broj lokala: 2 do 4 cifre (npr. 104).'}
+            if n in c['ext'] or n == c['vm_box']:
+                return {'err': 'Lokal %s već postoji.' % n}
+            if len(c['ext']) >= 20:
+                return {'err': 'Najviše 20 lokala.'}
+            c['ext'][n] = {'name': str(ad.get('name') or '').strip()[:30] or 'Lokal ' + n}
+            if ad.get('kind') == 'fxs':
+                c['slic_ext'] = n
+        if a.get('del') is not None:
+            n = str(a['del'])
+            if n in c['ext']:
+                del c['ext'][n]
+                c['rounds'] = [dict(r, m=[x for x in r['m'] if x != n]) for r in c['rounds']]
+                c['rounds'] = [r for r in c['rounds'] if r['m']]
+                if c.get('slic_ext') == n:
+                    c['slic_ext'] = None
+        if isinstance(a.get('kind'), dict):   # {n: 'sip'|'fxs'}: FXS port ima samo jedan lokal
+            for n, k in a['kind'].items():
+                if n not in c['ext']:
+                    continue
+                if k == 'fxs':
+                    c['slic_ext'] = n
+                elif k == 'sip' and c.get('slic_ext') == n:
+                    c['slic_ext'] = None
         if isinstance(a.get('rounds'), list):
             rounds = []
             for r in a['rounds'][:8]:
@@ -2877,6 +3135,7 @@ class Teco:
                     c['work'][k] = str(w[k])
         self.st['pbx'] = c
         save_state(self.st)
+        self.pbx_cfg()   # nov / prebačen SIP lokal odmah dobija lozinku i PIN pošte
         self.pbx_kick()
         self.mark()
         return {}
@@ -2949,6 +3208,22 @@ class Teco:
                         if k in c:
                             cur[ch][k] = num(c[k], lo, hi, cur[ch][k])
             elif name == 'logic':
+                if a.get('srcmode') in ('sim', 'pk2'):
+                    cur['srcmode'] = a['srcmode']
+                p = a.get('pk2') or {}
+                import pickit2
+                if p.get('rate') in pickit2.RATES:
+                    cur['pk2']['rate'] = p['rate']
+                if p.get('win') in pickit2.WINDOWS:
+                    cur['pk2']['win'] = p['win']
+                if p.get('trig') in ('rise', 'fall', 'high', 'low'):
+                    cur['pk2']['trig'] = p['trig']
+                if str(p.get('trig_ch')) in ('0', '1', '2', '3'):
+                    cur['pk2']['trig_ch'] = int(p['trig_ch'])
+                if str(p.get('uart')) in ('0', '1', '2', '3'):
+                    cur['pk2']['uart'] = int(p['uart'])
+                if p.get('baud') not in (None, ''):
+                    cur['pk2']['baud'] = max(50, min(500000, int(p['baud'])))
                 if 'run' in a:
                     cur['run'] = bool(a['run'])
                 if 'tdiv' in a:
@@ -2991,6 +3266,75 @@ class Teco:
                     cur['sec'] = a['sec']
                 if 'hidden' in a:
                     cur['hidden'] = bool(a['hidden'])
+            elif name == 'timer':   # tajmer: odbrojavanje (set/start/pause/reset/add), štoperica (sw_*), alarm (al_*), stop zvona
+                now, act = time.time(), a.get('act')
+                if 'label' in a:
+                    cur['label'] = str(a['label'])[:30]
+                if a.get('mode') in ('cd', 'sw', 'al'):
+                    cur['mode'] = a['mode']
+                if act == 'stop':   # ugasi zvono (alarm / isteklo odbrojavanje)
+                    cur['ring'] = 0
+                    self.timer_sound(False)
+                    if cur['run'] and cur['end'] <= now:
+                        cur.update(run=False, left=cur['dur'], end=0)
+                elif act == 'sw_start' and not cur['sw_run']:
+                    cur.update(sw_run=True, sw_start=now)
+                elif act == 'sw_pause' and cur['sw_run']:
+                    cur.update(sw_run=False, sw_acc=round(cur['sw_acc'] + now - cur['sw_start'], 2))
+                elif act == 'sw_reset':
+                    cur.update(sw_run=False, sw_acc=0, sw_start=0, laps=[])
+                elif act == 'sw_lap':
+                    el = cur['sw_acc'] + (now - cur['sw_start'] if cur['sw_run'] else 0)
+                    cur['laps'] = (cur['laps'] + [round(el, 2)])[-30:]
+                elif act == 'al_set':
+                    at = str(a.get('at') or '')
+                    if not re.fullmatch(r'([01]\d|2[0-3]):[0-5]\d', at):
+                        return {'err': 'Vreme alarma: SS:MM (npr. 07:30).'}
+                    cur.update(al_at=at, al_on=True, al_last='')
+                elif act == 'al_off':
+                    cur.update(al_on=False)
+                if act == 'set':
+                    cur['dur'] = cur['left'] = max(1, min(86400, int(a.get('dur') or 0)))
+                    cur.update(run=False, end=0)
+                elif act == 'start' and not cur['run']:
+                    if cur['left'] <= 0:
+                        cur['left'] = cur['dur']
+                    cur.update(run=True, end=now + cur['left'])
+                elif act == 'pause' and cur['run']:
+                    cur.update(run=False, left=max(0, round(cur['end'] - now, 1)), end=0)
+                elif act == 'reset':
+                    cur.update(run=False, left=cur['dur'], end=0)
+                elif act == 'add':
+                    sec = int(a.get('sec') or 60)
+                    if cur['run']:
+                        cur['end'] = max(now, cur['end']) + sec
+                    else:
+                        cur['left'] = max(0, cur['left']) + sec
+            elif name == 'prog':   # programatori na ekranu: koji je otvoren (esp / avr / pic)
+                if a.get('mode') in ('esp', 'avr', 'pic'):
+                    self.prog_tvmode = a['mode']
+            elif name == 'dice':   # kockice: broj, vrsta i poslednje bacanje
+                if int(a.get('sides', cur['sides'])) in (4, 6, 8, 10, 12, 20, 100):
+                    cur['sides'] = int(a.get('sides', cur['sides']))
+                cur['n'] = max(1, min(10, int(a.get('n', cur['n']))))
+                if 'vals' in a:
+                    cur['vals'] = [max(1, min(cur['sides'], int(x))) for x in list(a['vals'])[:10]]
+                    cur['t'] = time.time()
+            elif name == 'ser':   # serijski terminal na ekranu: vreme i HEX kao na stranici
+                for k in ('ts', 'hex'):
+                    if k in a:
+                        cur[k] = bool(a[k])
+            elif name == 'pin':   # Pinout na ekranu: ceo čip (JSON tekst, da se stari ključevi ne mešaju) + izabrani pin
+                if 'chipj' in a:
+                    s = str(a['chipj'])
+                    if len(s) > 40000:
+                        raise ValueError
+                    ch = json.loads(s)
+                    if not isinstance(ch, dict):
+                        raise ValueError
+                    cur['chip'] = ch
+                if 'sel' in a:
+                    cur['sel'] = int(a['sel'])
             elif name == 'capacitor':
                 if a.get('mode') in ('code', 'smd'):
                     cur['mode'] = a['mode']
@@ -3008,8 +3352,9 @@ class Teco:
     # ---------- Akvarijum (Smart Home): izlaze i senzore drži ESP32 („Teco ESP“ protokol, /api/aqua).
     # Teco pamti ŽELJENO stanje izlaza (sa stranice); ESP32 na 1-2 s javi pH, nivoe i STVARNO stanje izlaza,
     # a u odgovoru dobije željeno. Bez javljanja > 10 s: ESP nije na vezi.
-    AQUA_OUTS = [('pump1', 'Pumpa 1'), ('heater1', 'Grejač 1'), ('light1', 'Svetlo 1'), ('light2', 'Svetlo 2'),
+    AQUA_OUTS = [('pump1', 'Pumpa 1'), ('air', 'Pumpa za kiseonik'), ('heater1', 'Grejač 1'), ('light1', 'Svetlo 1'), ('light2', 'Svetlo 2 · RGB'),
                  ('fan', 'Ventilator'), ('valve_in', 'Ventil dovoda vode'), ('pump_out', 'Pumpa odvoda vode')]
+    AQUA_RGB = ('light2',)   # RGB traka: uz uključeno/isključeno i boja #RRGGBB (ESP dobije "rgb": {"light2": [r, g, b]})
     AQUA_LEVELS = [('min', 'Min'), ('q34', '3/4'), ('max', 'Max'), ('alarm', 'Alarm')]
 
     def aqua_cfg(self):
@@ -3017,12 +3362,19 @@ class Teco:
         w = a.setdefault('want', {})
         for k, _ in self.AQUA_OUTS:   # novi izlazi (npr. ventilator) kreću isključeni
             w.setdefault(k, False)
+        rgb = a.setdefault('rgb', {})
+        for k in self.AQUA_RGB:
+            rgb.setdefault(k, '#3b82f6')
         return a
+
+    def aqua_rgb_list(self):
+        return {k: [int(c[i:i + 2], 16) for i in (1, 3, 5)] for k, c in self.aqua_cfg()['rgb'].items()}
 
     def aqua_snapshot(self):
         a, live = self.aqua_cfg(), getattr(self, 'aqua_live', None) or {}
         online = bool(live) and time.time() - live.get('t', 0) < 10
-        return {'outs': [{'k': k, 'n': n, 'want': bool(a['want'].get(k)), 'on': live.get('outs', {}).get(k) if online else None} for k, n in self.AQUA_OUTS],
+        return {'outs': [{'k': k, 'n': n, 'want': bool(a['want'].get(k)), 'on': live.get('outs', {}).get(k) if online else None,
+                          **({'rgb': a['rgb'].get(k)} if k in self.AQUA_RGB else {})} for k, n in self.AQUA_OUTS],
                 'levels': [{'k': k, 'n': n, 'wet': live.get('levels', {}).get(k) if online else None} for k, n in self.AQUA_LEVELS],
                 'ph': live.get('ph') if online else None, 'temp': live.get('temp') if online else None,
                 'online': online, 'seen': live.get('t'), 'esp': live.get('id')}
@@ -3061,7 +3413,7 @@ class Teco:
         self.aqua_live = {'t': time.time(), 'id': str(q.get('id') or 'esp32')[:30], 'outs': outs, 'levels': lv, 'ph': ph, 'temp': temp}
         self.notify_aqua(lv, ph)
         self.mark()
-        return {'ok': True, 'outs': dict(a['want'])}
+        return {'ok': True, 'outs': dict(a['want']), 'rgb': self.aqua_rgb_list()}
 
     SRC_ROLES = ('av2', 'av3', 'av4', 'tuner')   # releji ulaza: uvek najviše jedan uključen
 
@@ -3098,6 +3450,10 @@ class Teco:
                 asyncio.get_running_loop().create_task(self.hide_console())
         if name == 'idle-active' and self.mpv.props.get('idle-active') and self.mode == 'yt':
             asyncio.get_running_loop().create_task(self.start_slides())
+        elif name == 'idle-active' and self.mpv.props.get('idle-active') and self.tool_running():
+            asyncio.get_running_loop().create_task(self.tool_base())   # plejer se ispraznio (restart, kraj videa) dok je alat na ekranu
+        if name == 'path' and self.is_black() and not self.tool_running():   # ostala crna podloga bez alata (npr. posle restarta servera)
+            asyncio.get_running_loop().create_task(self.tool_base_off())
         if getattr(self, 'yt_loading', None) and self.mode == 'yt' and name == 'event:playback-restart':
             asyncio.get_running_loop().create_task(self.yt_loaded())   # video je krenuo: skloni sliku „Učitavam“
         if self.mode == 'tv':
@@ -3117,6 +3473,12 @@ class Teco:
             pl = self.mpv.props.get('playlist') or []
             if pl:
                 self.mode = 'slides' if pl[0].get('filename', '').startswith(str(IMAGES)) else 'yt'
+        if name == 'time-pos':   # pozicija videa se menja ~10×/s: stranicama jednom u sekundi (ceo snapshot je ~50 kB), skok odmah
+            pos, now = self.mpv.props.get('time-pos') or 0, time.monotonic()
+            lp, lt = getattr(self, 'pos_sent', (0, 0))
+            if now - lt < 1 and abs(pos - lp - (now - lt)) < 1.5:
+                return
+            self.pos_sent = (pos, now)
         self.mark()
 
     def mark(self):
@@ -3433,8 +3795,8 @@ class Teco:
         pl = self.mpv.props.get('playlist') or []
         cur = next((i for i, e in enumerate(pl) if e.get('current')), 0)
         for i, e in enumerate(pl):
-            if i < cur:
-                continue  # već pušteni su u istoriji
+            if i < cur or e.get('filename') == str(self.TOOL_BLACK):
+                continue  # već pušteni su u istoriji; crna podloga alata nije video
             m = self.meta.get(e.get('filename'), {})
             title = m.get('t') or (self.mpv.props.get('media-title') if e.get('current') else 'YouTube video')
             out.append({'i': i, 't': title, 'd': m.get('d') or 0, 'cur': bool(e.get('current')), 'src': m.get('src', 'link')})
@@ -3486,7 +3848,7 @@ class Teco:
         key = hashlib.md5(json.dumps(parts + [w, h, 7], ensure_ascii=False).encode()).hexdigest()[:12]
         if keep:
             (DATA / 'ovl').mkdir(exist_ok=True)
-        raw = (DATA / 'ovl' / ('%s.bgra' % key)) if keep else Path('/tmp/teco-ovl-%s.bgra' % key)
+        raw = (DATA / 'ovl' / ('%s.bgra' % key)) if keep else OVL_TMP / ('teco-ovl-%s.bgra' % key)
         if not raw.exists():
             svg_path = raw.with_suffix('.svg')
             svg_path.write_text(build(vw, h))
@@ -3529,11 +3891,11 @@ class Teco:
             pass
 
     @staticmethod
-    def _overlay_prune(keep, n=12):
-        """/tmp je u RAM-u (64 MB), a jedna slika ima ~1,6 MB: čuvaj samo poslednjih n."""
+    def _overlay_prune(keep, n=6):
+        """Slike za ekran su u RAM-u, a jedna na 1080p ima 8 MB: čuvaj samo poslednjih n."""
         try:
             os.utime(keep)
-            files = sorted(Path('/tmp').glob('teco-ovl-*.bgra'), key=lambda p: p.stat().st_mtime, reverse=True)
+            files = sorted(OVL_TMP.glob('teco-ovl-*.bgra'), key=lambda p: p.stat().st_mtime, reverse=True)
             for p in files[n:]:
                 p.unlink()
         except OSError:
@@ -4680,7 +5042,7 @@ class Teco:
         streams = out[out.find('Streams:'):out.find('Video')]
         if ('[paused]' in streams or '[init]' in streams) and '[active]' in streams:
             await self.audio_relink()
-        if not any(x['hdmi'] for x in sinks):
+        if not any(x['hdmi'] for x in sinks) or not getattr(self, '_hdmi_ok', False):
             await self.hdmi_audio_on()
         await self.amp_sync()
         self.mark()
@@ -4862,15 +5224,36 @@ class Teco:
             dump = json.loads(await self._run('pw-dump', timeout=8) or '[]')
         except ValueError:
             return
+        # već postoji: tačno jedan, sa isključenim gašenjem u mirovanju -> ništa. Duplikati (ranije se pravio
+        # više puta) i stari bez tog podešavanja se brišu i pravi se jedan nov.
+        mine = [o for o in dump if o.get('type') == 'PipeWire:Interface:Node' and ((o.get('info') or {}).get('props') or {}).get('node.name') == self.HDMI_SINK]
+        if len(mine) == 1 and str(mine[0]['info']['props'].get('session.suspend-timeout-seconds')) == '0':
+            self._hdmi_ok = True
+            return
+        for o in mine:
+            await self._run('pw-cli', 'destroy', str(o['id']), timeout=5)
         for o in dump:   # ACP profil kartice ugasi (oslobađa uređaj)
             p = (o.get('info') or {}).get('props') or {}
             if p.get('media.class') == 'Audio/Device' and p.get('api.alsa.card.name') == 'vc4-hdmi':
                 if any(x.get('name') != 'off' for x in (o['info'].get('params') or {}).get('Profile', [])):
                     await self._run('wpctl', 'set-profile', str(o['id']), '0', timeout=5)
         props = ('{ factory.name=api.alsa.pcm.sink node.name=%s node.description="HDMI (ekran)" node.nick=HDMI media.class=Audio/Sink '
-                 'api.alsa.path="hdmi:CARD=vc4hdmi,DEV=0" api.alsa.pcm.card=%s audio.channels=2 audio.position=[FL FR] object.linger=true }') % (self.HDMI_SINK, card)
+                 'api.alsa.path="hdmi:CARD=vc4hdmi,DEV=0" api.alsa.pcm.card=%s audio.channels=2 audio.position=[FL FR] object.linger=true '
+                 # bez gašenja u mirovanju: ekranu posle buđenja HDMI zvuka treba ~1 s da ga uhvati (prvi sekund izobličen)
+                 'session.suspend-timeout-seconds=0 node.pause-on-idle=false }') % (self.HDMI_SINK, card)
         await self._run('pw-cli', 'create-node', 'adapter', props, timeout=8)
+        self._hdmi_ok = True
         log.info('HDMI zvuk: izlaz napravljen')
+        try:   # kratka tišina: otvori izlaz odmah (posle ostaje otvoren), da ni prvo zvono ne bude izobličeno
+            sil = EVENTS_DIR / '.silence.wav'
+            if not sil.exists():
+                import wave
+                with wave.open(str(sil), 'wb') as w:
+                    w.setnchannels(1), w.setsampwidth(2), w.setframerate(48000), w.writeframes(b'\0\0' * 9600)
+            await asyncio.sleep(1)
+            await self.play_sound(sil)
+        except Exception as e:
+            log.warning('HDMI tišina: %s', e)
         if (self.st.get('audio_out') == 'hdmi'):   # bio je izabran pre restarta zvuka / Pi-ja
             await asyncio.sleep(1)
             await self._run('pw-metadata', '0', 'default.configured.audio.sink', '{ "name": "%s" }' % self.HDMI_SINK, 'Spa:String:JSON', timeout=5)
@@ -5080,12 +5463,157 @@ class Teco:
             fails[d['id']] = fails.get(d['id'], 0) + 1
             if fails[d['id']] < 3:
                 return
+        prev = self.dev_state.get(d['id'])
+        if d.get('type') == 'tv' and st.get('on') and prev is not None and prev.get('ok') and not prev.get('on') and hasattr(self, 'mpv_kick'):
+            self.mpv_kick.set()   # TV se upravo upalio: proveri da li se plejer zamrznuo
         if self.dev_state.get(d['id']) != st:
             self.dev_state[d['id']] = st
             self.mark()
 
+    # ---------- Tajmer: zvono (odbrojavanje isteklo / alarm u HH:MM) — melodija preko zvuka Teco.Pi-ja (TV)
+    ALARM_WAV = DATA / 'alarm.wav'
+
+    def timer_wav(self):
+        """Kratka melodija (C-E-G-C, dva puta, pauza) kao WAV; pravi se jednom."""
+        if self.ALARM_WAV.exists():
+            return str(self.ALARM_WAV)
+        import math
+        import struct
+        import wave
+        sr, out = 22050, bytearray()
+        for f, d in [(523, .16), (659, .16), (784, .16), (1047, .32), (0, .1)] * 2 + [(0, .5)]:
+            n = int(sr * d)
+            for i in range(n):
+                env = min(1, i / 300, (n - i) / 900) if f else 0
+                out += struct.pack('<h', int(9000 * env * (math.sin(2 * math.pi * f * i / sr) + 0.3 * math.sin(4 * math.pi * f * i / sr))))
+        DATA.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(self.ALARM_WAV), 'wb') as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(sr)
+            w.writeframes(bytes(out))
+        return str(self.ALARM_WAV)
+
+    def timer_sound(self, on):
+        t = getattr(self, 'timer_snd', None)
+        if t and not t.done():
+            t.cancel()
+        self.timer_snd = None
+        if not on:
+            return
+
+        async def play():   # melodija se ponavlja do 2 min ili dok se ne ugasi
+            wav = await asyncio.get_running_loop().run_in_executor(None, self.timer_wav)
+            end = time.time() + 120
+            while time.time() < end:
+                p = await asyncio.create_subprocess_exec('pw-play', wav, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                try:
+                    await p.wait()
+                except asyncio.CancelledError:
+                    p.kill()
+                    raise
+                await asyncio.sleep(0.3)
+        self.timer_snd = asyncio.get_running_loop().create_task(play())
+
+    async def timer_loop(self):
+        """Na 1 s: isteklo odbrojavanje ili došlo vreme alarma → zvono (melodija + „ALARM“ na stranici i TV-u)."""
+        while True:
+            await asyncio.sleep(1)
+            try:
+                c = self.tool_cfg('timer')
+                now, ring = time.time(), None
+                if c['run'] and 0 < c['end'] <= now and c.get('cd_rang') != c['end']:
+                    ring, c['cd_rang'] = 'cd', c['end']
+                if c.get('al_on'):
+                    lt = time.localtime(now)
+                    key = time.strftime('%Y-%m-%d ', lt) + c['al_at']
+                    if time.strftime('%H:%M', lt) == c['al_at'] and c.get('al_last') != key:
+                        ring, c['al_last'] = 'al', key
+                if ring:
+                    c['ring'] = now
+                    c['ring_kind'] = ring
+                    self.st.setdefault('tools', {})['timer'] = c
+                    save_state(self.st)
+                    self.tool_write('timer')
+                    self.timer_sound(True)
+                    log.info('tajmer: %s', 'isteklo odbrojavanje' if ring == 'cd' else 'alarm ' + c['al_at'])
+                    self.mark()
+            except Exception:
+                log.exception('tajmer')
+
+    @staticmethod
+    async def mpv_probe(timeout=5):
+        """Nova veza na mpv socket + komanda koja ide kroz jezgro; True ako odgovori na vreme."""
+        try:
+            r, w = await asyncio.wait_for(asyncio.open_unix_connection('/tmp/mpvsocket'), timeout)
+        except (OSError, asyncio.TimeoutError):
+            return None
+        try:
+            w.write(b'{"command":["show-text","",1],"request_id":424242}\n')
+            await asyncio.wait_for(w.drain(), timeout)
+            end = time.monotonic() + timeout
+            while time.monotonic() < end:
+                line = await asyncio.wait_for(r.readline(), max(0.1, end - time.monotonic()))
+                if not line:
+                    return None
+                if b'"request_id":424242' in line:
+                    return True
+            return False
+        except asyncio.TimeoutError:
+            return False
+        except OSError:
+            return None
+        finally:
+            w.close()
+
+    async def mpv_guard(self):
+        """Plejer (mpv) se posle gašenja/paljenja TV-a ume zamrznuti: slika stoji, alati i video se ne vide.
+        Na 15 s (i odmah kad se TV upali) proveri da li odgovara; dva puta zaredom ne → restart plejera."""
+        self.mpv_kick = asyncio.Event()
+        fails = 0
+        log.info('nadzor plejera pokrenut')
+        while True:
+            try:
+                await asyncio.wait_for(self.mpv_kick.wait(), 15)
+                self.mpv_kick.clear()
+                # TV se upravo upalio: plejer posle gašenja TV-a ostane zamrznut (slika stoji, alati se ne vide),
+                # a provera to ne vidi uvek — zato ga posle paljenja TV-a uvek osveži (sem kad radi Arcade)
+                await asyncio.sleep(3)
+                if not self.arc_running():
+                    log.info('TV upaljen: osvežavam plejer (mpv)')
+                    await self._run('systemctl', '--user', 'restart', 'teco-player', timeout=30)
+                    await asyncio.sleep(10)
+                continue
+            except asyncio.TimeoutError:
+                pass
+            try:
+                if self.arc_running():   # Arcade: plejer je namerno ugašen
+                    fails = 0
+                    continue
+                ok = await self.mpv_probe() if self.mpv.connected else None   # nova veza, kao što se alati povezuju
+                fails = fails + 1 if ok is False else 0
+                if ok is not True:
+                    log.info('nadzor plejera: %s (%d)', 'ne odgovara' if ok is False else 'nije povezan', fails)
+                if fails >= 2:
+                    fails = 0
+                    log.warning('plejer (mpv) ne odgovara — verovatno posle gašenja TV-a; restartujem ga')
+                    await self._run('systemctl', '--user', 'restart', 'teco-player', timeout=30)
+                    await asyncio.sleep(20)
+            except Exception:
+                log.exception('mpv_guard')
+
     async def dev_loop(self):
         """Stanje uređaja na 5 s; komanda sa stranice osveži odmah."""
+        old = DATA / 'lgtv-key.json'   # LG TV iz ranije verzije (posebna strana): sada je običan uređaj
+        if old.exists():
+            ip = (self.st.get('lgtv') or {}).get('ip') or '172.10.10.140'
+            os.replace(old, LgTvDriver.key_file(ip))
+            devs = self.st.setdefault('devices', [])
+            if not any(x['ip'] == ip for x in devs):
+                devs.append({'id': secrets.token_hex(4), 'type': 'tv', 'proto': 'lgwebos', 'ip': ip,
+                             'mac': (self.st.get('lgtv') or {}).get('mac') or '74:e6:b8:a3:dc:46', 'name': 'TV', 'room': '', 'pi_in': 'HDMI_1'})
+            self.st.pop('lgtv', None)
+            save_state(self.st)
         while True:
             for d in list(self.st.get('devices', [])):
                 try:
@@ -5302,6 +5830,12 @@ class Teco:
             save_state(self.st)
             self.mark()
             return {'ok': 'Uklonjeno: ' + d['name']}
+        if c == 'dev_set' and d.get('type') == 'tv' and a.get('k'):   # TV: jačina, kanal, ulaz, YouTube
+            err = await DEV_DRIVERS[d['proto']].remote(d, str(a['k']), a.get('v'))
+            if err:
+                return {'err': '%s: %s' % (d['name'], err)}
+            await self.dev_poll(d)
+            return {}
         if c == 'dev_set':
             drv = DEV_DRIVERS.get(d.get('proto'))
             if not drv or not drv.ready:
@@ -5428,7 +5962,14 @@ class Teco:
         return p.returncode, out.decode(errors='replace').strip()
 
     def smb_cfg(self):
-        return self.st.setdefault('smb', {'on': False, 'usb': True})
+        cfg = self.st.setdefault('smb', {'on': False, 'usb': True})
+        if 'users' not in cfg:   # ranije jedan korisnik (user/pw/pass) -> spisak; lozinka se više ne čuva kod nas, samo u Sambi
+            u = cfg.get('user')
+            cfg['users'] = [u] if cfg.get('pw') and u else []
+            cfg['sysusers'] = [u] if cfg['users'] and u not in (USER, 'wds') else []
+            cfg.pop('pass', None)
+        cfg.pop('guest', None)   # gost (bez lozinke) više ne postoji
+        return cfg
 
     async def usb_scan(self):
         """USB particije sa fajl sistemom (lsblk). id = UUID (ili uređaj), n = ime deljenja."""
@@ -5501,7 +6042,10 @@ class Teco:
 
     async def _smb_refresh(self, force):
         cfg = self.smb_cfg()
-        auto = cfg['on'] and cfg.get('usb', True)
+        wds = self.wds_path()   # WDS (Alati): ISO sa flash-a deljen kao \\TECOPI\WDS, i kad je obično deljenje isključeno
+        share_usb = cfg['on']
+        auto = share_usb or self.wds_cfg().get('on') or time.time() - getattr(self, 'wds_peek', 0) < 300 \
+            or time.time() - getattr(self, 'stor_peek', 0) < 300   # WDS traži ISO na flash-u; Skladište je otvoreno
         parts = await self.usb_scan()
         ids = {p['id'] for p in parts}
         self.usb_skip = {k: v for k, v in getattr(self, 'usb_skip', {}).items() if k in ids}   # izvađen disk: zaboravi grešku/izbacivanje
@@ -5522,26 +6066,26 @@ class Teco:
                         if err:
                             self.usb_skip[p['id']] = err
         self.usb = parts
-        names = cfg.get('names') or {}   # imena koja je korisnik dao ('sd' = folder na SD kartici, inače UUID diska)
-        shares = []
-        if cfg.get('sd'):   # folder na SD kartici: za sada isključen (igrice su na flash-u)
-            SHARE.mkdir(exist_ok=True)
-            shares.append({'n': names.get('sd') or 'Teco', 'id': 'sd', 'path': str(SHARE), 'usb': False, 'fs': 'sd'})
-        dirs = cfg.setdefault('dirs', {})   # {UUID diska: folder na disku koji se deli}, prazno = ceo disk
-        for p in parts:
-            if p['mnt'] and auto:
+        if 'shares' not in cfg:   # ranije: svaki USB disk sam po sebi deljen (imena i folderi po disku) -> spisak share-ova
+            names, dirs, old = cfg.pop('names', {}) or {}, cfg.pop('dirs', {}) or {}, []
+            for p in parts:
                 rel = dirs.get(p['id'], '')
-                path = Path(p['mnt']) / rel
-                if rel and not path.is_dir():   # folder obrisan ili preimenovan: deli ceo disk
-                    path, rel = Path(p['mnt']), ''
-                n = p['n']
-                if rel:   # deljenje se zove kao folder (npr. ps2share), pa OPL ne treba prepodešavati
-                    n = re.sub(r'[^A-Za-z0-9_-]', '', Path(rel).name.replace(' ', '_'))[:20] or n
-                n = names.get(p['id']) or n
-                base_n, i = n, 2
-                while n.lower() in {s['n'].lower() for s in shares}:
-                    n, i = '%s%d' % (base_n, i), i + 1
-                shares.append({'n': n, 'id': p['id'], 'path': str(path), 'dir': rel, 'usb': True, 'dev': p['dev'], 'fs': p['fs'], 'label': p['label']})
+                n = names.get(p['id']) or (re.sub(r'[^A-Za-z0-9_-]', '', Path(rel).name.replace(' ', '_'))[:20] if rel else '') or p['n']
+                old.append({'id': secrets.token_hex(4), 'n': n, 'disk': p['id'], 'dir': rel,
+                            'game': (cfg.get('proto') or 'NT1') == 'NT1', 'label': p['label'] or p['n']})
+            cfg['shares'] = old
+            cfg.pop('usb', None), cfg.pop('proto', None), cfg.pop('sd', None)
+            save_state(self.st)
+        shares = []
+        for d in cfg['shares']:   # {id, n, disk (UUID), dir (folder na disku, prazno = ceo disk), game (PS2/OPL: SMB1)}
+            p = next((p for p in parts if p['id'] == d['disk']), None)
+            if not (p and p['mnt'] and share_usb):
+                continue
+            path = Path(p['mnt']) / d['dir']
+            if not path.is_dir():   # folder obrisan ili preimenovan na računaru
+                continue
+            shares.append({'n': d['n'], 'id': d['id'], 'path': str(path), 'dir': d['dir'], 'usb': True, 'game': d.get('game', False),
+                           'dev': p['dev'], 'fs': p['fs'], 'label': p['label']})
         for s in shares:
             try:
                 du = shutil.disk_usage(s['path'])
@@ -5551,7 +6095,8 @@ class Teco:
             s['opl'] = os.path.isdir(os.path.join(s['path'], 'DVD'))
             s['games'] = self.share_games(s['path'])
         self.smb_shares = shares
-        conf = self.smb_conf_text(shares, cfg)
+        conf = self.smb_conf_text(shares, cfg, wds)
+        want = cfg['on'] or bool(wds)
         if force or conf != getattr(self, 'smb_conf', None):
             try:
                 same = SMB_CONF.read_text() == conf
@@ -5561,84 +6106,132 @@ class Teco:
                 p = await asyncio.create_subprocess_exec('sudo', '-n', 'tee', str(SMB_CONF), stdin=asyncio.subprocess.PIPE,
                                                          stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
                 await p.communicate(conf.encode())
-                if not p.returncode and cfg['on'] and getattr(self, 'smb_run', False):
-                    await self._rc('sudo', '-n', 'systemctl', 'reload', 'smbd', timeout=15)
+                if not p.returncode and want and getattr(self, 'smb_run', False):
+                    # NetBIOS (port 139) se uključuje/isključuje samo restartom
+                    await self._rc('sudo', '-n', 'systemctl', 'restart' if ('smb ports = 445 139' in conf) != ('smb ports = 445 139' in (getattr(self, 'smb_conf', None) or '')) else 'reload', 'smbd', timeout=30)
             self.smb_conf = conf
         run = (await self._run('systemctl', 'is-active', 'smbd', timeout=5)).strip() == 'active'
-        if cfg['on'] and not run:
+        if want and not run:
             await self._rc('sudo', '-n', 'systemctl', 'enable', '--now', 'smbd', timeout=30)
-        elif not cfg['on'] and (run or force):
+        elif not want and (run or force):
             await self._rc('sudo', '-n', 'systemctl', 'disable', '--now', 'smbd', 'nmbd', timeout=30)
+        nmb = (await self._run('systemctl', 'is-active', 'nmbd', timeout=5)).strip() == 'active'
+        if wds and not nmb:   # WDS: Teco.Pi vidljiv u „Mreža“ na Windows-u (NetBIOS ime TECOPI)
+            await self._rc('sudo', '-n', 'systemctl', 'start', 'nmbd', timeout=30)
+        elif not wds and nmb:
+            await self._rc('sudo', '-n', 'systemctl', 'stop', 'nmbd', timeout=30)
         self.smb_run = (await self._run('systemctl', 'is-active', 'smbd', timeout=5)).strip() == 'active'
         self.mark()
 
     @staticmethod
-    def smb_conf_text(shares, cfg):
-        proto = cfg.get('proto') or 'NT1'
-        guest = cfg.get('guest', True)
-        g = ['# Teco.Pi: ovaj fajl pravi server.py (Admin > Deljenje fajlova); ručne izmene se gube.',
+    def smb_conf_text(shares, cfg, wds=None):
+        """Uvek sa lozinkom (bez gosta). SMB1 (i NTLMv1) samo dok postoji game share: PS2 Open PS2 Loader zna samo SMB1,
+        a Samba protokol podešava za ceo server, ne po share-u."""
+        game = any(s.get('game') for s in shares)
+        users = ' '.join(cfg.get('users') or []) or 'nobody'
+        g = ['# Teco.Pi: ovaj fajl pravi server.py (Ekstenzije > SMB share); ručne izmene se gube.',
              '[global]',
              '   workgroup = WORKGROUP', '   server string = Teco.Pi', '   netbios name = TECOPI',
-             '   server role = standalone server', '   map to guest = ' + ('Bad User' if guest else 'Never'), '   guest account = ' + USER,
-             '   server min protocol = ' + SMB_PROTOS[proto][0],
-             '   ntlm auth = ' + ('ntlmv1-permitted' if proto == 'NT1' else 'ntlmv2-only'),   # PS2 Open PS2 Loader zna samo SMB1
-             '   disable netbios = yes', '   smb ports = 445',
+             '   server role = standalone server', '   map to guest = Never', '   restrict anonymous = 2',
+             '   server min protocol = ' + ('NT1' if game else 'SMB2_10'),
+             '   ntlm auth = ' + ('ntlmv1-permitted' if game else 'ntlmv2-only'),
+             *(('   disable netbios = no', '   smb ports = 445 139') if wds else ('   disable netbios = yes', '   smb ports = 445')),
              '   load printers = no', '   printing = bsd', '   printcap name = /dev/null', '   disable spoolss = yes',
              '   logging = systemd', '   log level = 1', '   strict sync = no', '   use sendfile = yes']
         for s in shares:
-            g += ['', '[%s]' % s['n'], '   path = ' + s['path'], '   read only = no',
-                  '   guest ok = yes' if guest else '   valid users = ' + (cfg.get('user') or USER),
+            g += ['', '[%s]' % s['n'], '   path = ' + s['path'], '   read only = no', '   guest ok = no', '   valid users = ' + users,
                   '   force user = ' + USER, '   create mask = 0664', '   directory mask = 0775']
+        if wds:   # Windows instalacija (ISO, samo čitanje): korisnik wds (WinPE se prijavljuje njim) ili korisnici share-a
+            g += ['', '[WDS]', '   comment = Windows instalacija (Teco.Pi)', '   path = ' + wds, '   read only = yes', '   guest ok = no',
+                  '   valid users = wds ' + (' '.join(cfg.get('users') or [])), '   force user = ' + USER]
         return '\n'.join(g) + '\n'
 
-    async def smb_opt(self, a):
-        """Protokol (najstariji dozvoljeni) i pristup bez lozinke."""
-        cfg = self.smb_cfg()
-        if 'proto' in a:
-            if a['proto'] not in SMB_PROTOS:
-                return {'err': 'Nepoznat protokol.'}
-            cfg['proto'] = a['proto']
-        if 'guest' in a:
-            if not a['guest'] and not cfg.get('pw'):
-                return {'err': 'Prvo postavi lozinku, pa isključi pristup bez lozinke.'}
-            cfg['guest'] = bool(a['guest'])
-        save_state(self.st)
-        await self.smb_refresh(force=True)
-        if 'proto' in a:
-            return {'ok': 'Protokol: ' + SMB_PROTOS[cfg['proto']][1]}
-        return {'ok': 'Pristup bez lozinke je ' + ('dozvoljen' if cfg['guest'] else 'isključen: prijava korisnikom ' + USER)}
+    @staticmethod
+    def smb_name_ok(name):
+        return re.fullmatch(r'[A-Za-z0-9_-]{1,20}', name) and name.lower() not in ('global', 'homes', 'printers', 'ipc$', 'wds')
 
-    async def smb_rename(self, a):
-        s = next((s for s in getattr(self, 'smb_shares', []) if s['n'] == a.get('share')), None)
-        if not s:
-            return {'err': 'Deljenje nije pronađeno.'}
-        name = str(a.get('name') or '').strip()
-        names = self.smb_cfg().setdefault('names', {})
-        if not name:   # prazno = podrazumevano ime (Teco, ime foldera ili diska)
-            names.pop(s['id'], None)
-        else:
-            if not re.fullmatch(r'[A-Za-z0-9_-]{1,20}', name) or name.lower() in ('global', 'homes', 'printers', 'ipc$'):
-                return {'err': 'Ime: do 20 slova, brojeva, - ili _ (bez razmaka i naših slova).'}
-            if any(o['n'].lower() == name.lower() and o is not s for o in self.smb_shares):
-                return {'err': 'Već postoji deljenje ' + name + '.'}
-            names[s['id']] = name
+    async def smb_share_add(self, a):
+        """Novi share: ime, disk (uređaj), folder na disku (prazno = ceo disk), game = PS2/OPL (uključuje SMB1)."""
+        cfg = self.smb_cfg()
+        name = str(a.get('n') or '').strip()
+        if not self.smb_name_ok(name):
+            return {'err': 'Ime: do 20 slova, brojeva, - ili _ (bez razmaka i naših slova).'}
+        if any(d['n'].lower() == name.lower() for d in cfg['shares']):
+            return {'err': 'Već postoji share ' + name + '.'}
+        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == a.get('dev') and p['mnt']), None)
+        if not p:
+            return {'err': 'Izaberi priključen disk.'}
+        d = self.inside(Path(p['mnt']), a.get('dir'))
+        if not d or not d.is_dir():
+            return {'err': 'Folder ne postoji.'}
+        rel = '' if d == Path(p['mnt']).resolve() else str(d.relative_to(Path(p['mnt']).resolve()))
+        game = bool(a.get('game'))
+        if game:   # OPL očekuje svoje foldere u korenu share-a
+            for x in OPL_DIRS:
+                try:
+                    (d / x).mkdir(exist_ok=True)
+                except OSError:
+                    pass
+        cfg['shares'].append({'id': secrets.token_hex(4), 'n': name, 'disk': p['id'], 'dir': rel, 'game': game, 'label': p['label'] or p['n']})
+        cfg['on'] = True
         save_state(self.st)
         await self.smb_refresh(force=True)
-        return {'ok': 'Ime deljenja: ' + (name or 'podrazumevano')}
+        return {'ok': 'Napravljen share %s%s' % (name, ' (game share · SMB1)' if game else '')}
+
+    async def smb_share_set(self, a):
+        """Izmena share-a: ime, folder ili game."""
+        cfg = self.smb_cfg()
+        d = next((d for d in cfg['shares'] if d['id'] == a.get('id')), None)
+        if not d:
+            return {'err': 'Share nije pronađen.'}
+        if 'n' in a:
+            name = str(a['n'] or '').strip()
+            if not self.smb_name_ok(name):
+                return {'err': 'Ime: do 20 slova, brojeva, - ili _ (bez razmaka i naših slova).'}
+            if any(o['n'].lower() == name.lower() and o is not d for o in cfg['shares']):
+                return {'err': 'Već postoji share ' + name + '.'}
+            d['n'] = name
+        if 'dir' in a:
+            p = next((p for p in getattr(self, 'usb', []) if p['id'] == d['disk'] and p['mnt']), None)
+            x = self.inside(Path(p['mnt']), a['dir']) if p else None
+            if not x or not x.is_dir():
+                return {'err': 'Folder ne postoji (disk priključen?).'}
+            d['dir'] = '' if x == Path(p['mnt']).resolve() else str(x.relative_to(Path(p['mnt']).resolve()))
+        if 'game' in a:
+            d['game'] = bool(a['game'])
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        return {'ok': 'Share %s je sačuvan' % d['n']}
+
+    async def smb_share_del(self, a):
+        """Briše samo share (podešavanje), fajlovi na disku ostaju."""
+        cfg = self.smb_cfg()
+        d = next((d for d in cfg['shares'] if d['id'] == a.get('id')), None)
+        if not d:
+            return {'err': 'Share nije pronađen.'}
+        cfg['shares'].remove(d)
+        await self._rc('sudo', '-n', 'smbcontrol', 'smbd', 'close-share', d['n'], timeout=10)
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        return {'ok': 'Share %s je uklonjen (fajlovi su ostali na disku)' % d['n']}
 
     def smb_snapshot(self):
         cfg = self.smb_cfg()
-        shown = {s.get('dev') for s in getattr(self, 'smb_shares', [])}
-        skip = getattr(self, 'usb_skip', {})
+        live = {s['id']: s for s in getattr(self, 'smb_shares', [])}
+        parts = {p['id']: p for p in getattr(self, 'usb', [])}
+        defs = []
+        for d in cfg.get('shares', []):
+            s, p = live.get(d['id']), parts.get(d['disk'])
+            defs.append({**(s or {}), 'id': d['id'], 'n': d['n'], 'dir': d['dir'], 'game': d.get('game', False), 'label': d.get('label', ''),
+                         'dev': p['dev'] if p else None, 'off': '' if s else ('isključeno' if not cfg['on'] else 'disk nije priključen' if not p or not p['mnt'] else 'folder ne postoji')})
         return {'inst': SMB_BIN.exists(), 'installing': bool(getattr(self, 'smb_installing', False)),
-                'err': getattr(self, 'smb_err', None), 'on': cfg['on'], 'usb': cfg.get('usb', True), 'pw': bool(cfg.get('pw')),
-                'proto': cfg.get('proto') or 'NT1', 'guest': cfg.get('guest', True),
-                'user': cfg.get('user') or USER, 'run': bool(getattr(self, 'smb_run', False)),
+                'err': getattr(self, 'smb_err', None), 'on': cfg['on'],
+                'proto': 'SMB1 + SMB2/3' if any(s.get('game') for s in live.values()) else 'SMB2/3',
+                'users': cfg.get('users') or [], 'run': bool(getattr(self, 'smb_run', False)),
                 'direct': bool(self.st.get('net_direct')),
-                'shares': getattr(self, 'smb_shares', []) if cfg['on'] else [],
-                'disks': [{'dev': p['dev'], 'n': p['label'] or p['n'], 'fs': p['fs'], 'size': p['size'],
-                           'msg': skip.get(p['id']) or ('' if cfg['on'] and cfg.get('usb', True) else 'nije deljen')}
-                          for p in getattr(self, 'usb', []) if p['dev'] not in shown]}
+                'shares': defs,
+                'disks': [{'dev': p['dev'], 'n': p['label'] or p['n'], 'fs': p['fs'], 'size': p['size'], 'mnt': bool(p['mnt'])}
+                          for p in getattr(self, 'usb', [])]}
 
     async def smb_set(self, c, v):
         cfg = self.smb_cfg()
@@ -5675,13 +6268,945 @@ class Teco:
         asyncio.get_running_loop().create_task(job())
         return {'ok': 'Instaliram Samba, traje par minuta…'}
 
-    async def smb_password(self, pw, user=None):
-        """Korisnik i lozinka za prijavu (Windows 10/11 ne puštaju gosta; OPL može i sa korisnikom, npr. ps2).
-        Korisnik koji nije Teco.Pi nalog dobija sistemski nalog bez prijave (samo za Sambu); fajlovi su i dalje Teco.Pi-jevi (force user)."""
+    # ---------- WDS (Alati): Windows instalacija preko mreže
+    # ISO sa flash-a se montira (samo čitanje) i deli kao \\TECOPI\WDS (NetBIOS); računar bez sistema se butuje sa
+    # mreže: ruter i dalje deli adrese, dnsmasq je samo „proxy DHCP“ + TFTP (iPXE) -> iPXE preko HTTP-a vuče wimboot i
+    # boot.wim sa ISO-a -> WinPE se poveže na \\<ip>\WDS (korisnik wds) i pokrene setup.exe.
+    WDS_MNT = Path('/media/teco-wds')
+    WDS_SRV = Path('/srv/teco-wds')        # TFTP: iPXE i boot.ipxe (čita ga dnsmasq kao root/nobody)
+    WDS_BOOT = DATA / 'wds'                # wimboot (preuzet sa github.com/ipxe/wimboot)
+    WDS_IPXE = ('undionly.kpxe', 'snponly.efi', 'ipxe.efi')
+    WIMBOOT_URL = 'https://github.com/ipxe/wimboot/releases/latest/download/wimboot'
+
+    def wds_cfg(self):
+        return self.st.setdefault('wds', {'on': False, 'iso': ''})
+
+    def wds_path(self):
+        """Mesto montiranog ISO-a (za Sambu), ili None."""
+        w = getattr(self, 'wds_rt', None) or {}
+        return str(self.WDS_MNT) if w.get('mounted') else None
+
+    def wds_ready(self):
+        return {'samba': SMB_BIN.exists(), 'ipxe': os.path.exists('/usr/lib/ipxe/undionly.kpxe'),
+                'dnsmasq': bool(shutil.which('dnsmasq') or os.path.exists('/usr/sbin/dnsmasq')), 'wimboot': (self.WDS_BOOT / 'wimboot').exists()}
+
+    def wds_lan(self):
+        """(interfejs, IP, mreža) na kojoj je ruter — tu se odgovara na PXE."""
+        gw, best = self.net.get('gw'), None
+        for i in self.net.get('ifs', []):
+            if i['n'] in ('lo', 'tun0'):
+                continue
+            for a in i.get('ip') or []:
+                try:
+                    itf = ipaddress.ip_interface(a)
+                except ValueError:
+                    continue
+                if itf.version != 4:
+                    continue
+                cand = (i['n'], str(itf.ip), itf.network)
+                if gw and ipaddress.ip_address(gw) in itf.network:
+                    return cand
+                best = best or cand
+        return best
+
+    def wds_isos(self):
+        """Windows ISO (≥ 100 MB) iz Skladišta: folder ISOs (i podfolderi) na priključenim flash diskovima."""
+        out = []
+        for p in getattr(self, 'usb', []):
+            if not p.get('mnt'):
+                continue
+            root = os.path.join(p['mnt'], self.STOR_DIRS['iso'])
+            for d, subs, files in os.walk(root):
+                subs[:] = [s for s in subs if not s.startswith(('.', '$'))]
+                for f in files:
+                    if f.lower().endswith('.iso'):
+                        fp = os.path.join(d, f)
+                        try:
+                            sz = os.path.getsize(fp)
+                        except OSError:
+                            continue
+                        if sz >= 100 * 2**20:
+                            out.append({'path': fp, 'n': f, 'dir': os.path.relpath(d, p['mnt']),
+                                        'size': sz, 'disk': p['label'] or p['n']})
+        return sorted(out, key=lambda x: x['n'].lower())
+
+    @staticmethod
+    def wds_find(root, rel):
+        """Putanja u ISO-u bez obzira na velika/mala slova (boot/BCD, Sources/boot.wim…)."""
+        cur = root
+        for part in [x for x in rel.split('/') if x]:
+            if part in ('.', '..'):
+                return None
+            try:
+                names = os.listdir(cur)
+            except OSError:
+                return None
+            m = part if part in names else next((n for n in names if n.lower() == part.lower()), None)
+            if m is None:
+                return None
+            cur = os.path.join(cur, m)
+        return cur
+
+    def wds_view(self):
+        cfg, w = self.wds_cfg(), getattr(self, 'wds_rt', None) or {}
+        lan = self.wds_lan()
+        return {'on': bool(cfg.get('on')), 'iso': cfg.get('iso') or '', 'mounted': bool(w.get('mounted')), 'pxe': bool(w.get('proc') and w['proc'].returncode is None),
+                'err': w.get('err'), 'win': w.get('win'), 'ready': self.wds_ready(), 'installing': bool(getattr(self, 'wds_installing', False)),
+                'ip': lan[1] if lan else None, 'log': list(w.get('log') or [])[-14:], 'isos': getattr(self, 'wds_iso_list', [])}
+
+    def wds_note(self, txt):
+        w = self.wds_rt = getattr(self, 'wds_rt', None) or {}
+        lg = w.setdefault('log', [])
+        if lg and lg[-1]['m'] == txt:
+            lg[-1]['t'] = time.time()
+        else:
+            lg.append({'t': time.time(), 'm': txt})
+            del lg[:-40]
+        self.mark()
+
+    async def wds_list(self):
+        self.wds_peek = time.time()   # alat otvoren: flash diskovi se montiraju (samo radi traženja ISO-a)
+        await self.smb_refresh()
+        self.wds_iso_list = await asyncio.get_running_loop().run_in_executor(None, self.wds_isos)
+        self.mark()
+        return {}
+
+    async def wds_install(self):
+        if getattr(self, 'wds_installing', False):
+            return {'ok': 'Instalacija je već u toku…'}
+        self.wds_installing = True
+        self.mark()
+
+        async def job():
+            err = None
+            try:
+                pk = [x for x, ok in (('samba', SMB_BIN.exists()), ('ipxe', self.wds_ready()['ipxe']), ('dnsmasq-base', self.wds_ready()['dnsmasq'])) if not ok]
+                if pk:
+                    await self._rc('sudo', '-n', 'apt-get', 'update', timeout=600)
+                    rc, out = await self._rc('sudo', '-n', 'env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '--no-install-recommends', *pk, timeout=1800)
+                    if rc:
+                        err = 'Instalacija nije uspela: ' + (out.splitlines() or [''])[-1][:160]
+                        log.warning('wds apt: %s', out[-2000:])
+                    elif 'samba' in pk:   # paket sam pokreće smbd/nmbd: Teco.Pi ih pali kad treba
+                        await self._rc('sudo', '-n', 'systemctl', 'disable', '--now', 'smbd', 'nmbd', 'samba-ad-dc', timeout=60)
+                if not err and not self.wds_ready()['wimboot']:
+                    self.WDS_BOOT.mkdir(parents=True, exist_ok=True)
+                    tmp = self.WDS_BOOT / 'wimboot.tmp'
+                    rc, out = await self._rc('curl', '-fsSL', '--max-time', '120', '-o', str(tmp), self.WIMBOOT_URL, timeout=150)
+                    if rc or tmp.stat().st_size < 30000:   # wimboot je ~75 KB
+                        err = 'wimboot nije preuzet: ' + (out[:120] or 'prazan fajl')
+                    else:
+                        os.replace(tmp, self.WDS_BOOT / 'wimboot')
+            except OSError as e:
+                err = str(e)
+            finally:
+                self.wds_installing = False
+            if err:
+                self.wds_note(err)
+            else:
+                self.wds_note('Paketi za WDS su instalirani')
+            await self.smb_refresh(force=True)
+            self.mark()
+        asyncio.get_running_loop().create_task(job())
+        return {'ok': 'Instaliram (Samba, iPXE, dnsmasq, wimboot) — par minuta…'}
+
+    async def wds_start(self, iso=None):
+        cfg = self.wds_cfg()
+        iso = iso or cfg.get('iso')
+        rd = self.wds_ready()
+        if not all(rd.values()):
+            return {'err': 'Prvo instaliraj potrebne pakete (dugme „Instaliraj“).'}
+        if not iso or not os.path.isfile(iso) or not any(x['path'] == iso for x in self.wds_isos()):
+            return {'err': 'ISO nije pronađen na flash disku.'}
+        lan = self.wds_lan()
+        if not lan:
+            return {'err': 'Teco.Pi nije na mreži.'}
+        await self.wds_stop(keep=True)
+        w = self.wds_rt = getattr(self, 'wds_rt', None) or {}
+        w['err'] = None
+        await self._rc('sudo', '-n', 'mkdir', '-p', str(self.WDS_MNT), timeout=5)
+        rc, out = await self._rc('sudo', '-n', 'mount', '-o', 'loop,ro', iso, str(self.WDS_MNT), timeout=60)
+        if rc:
+            w['err'] = 'ISO se ne otvara: ' + (out.splitlines() or [''])[-1][:120]
+            return {'err': w['err']}
+        root = str(self.WDS_MNT)
+        if not (self.wds_find(root, 'sources/boot.wim') and self.wds_find(root, 'setup.exe')
+                and (self.wds_find(root, 'sources/install.wim') or self.wds_find(root, 'sources/install.esd') or self.wds_find(root, 'sources/install.swm'))):
+            await self._rc('sudo', '-n', 'umount', root, timeout=30)
+            w['err'] = 'To nije Windows instalacioni ISO (nema sources/boot.wim i install.wim/esd).'
+            return {'err': w['err']}
+        w['mounted'] = True
+        w['win'] = await asyncio.get_running_loop().run_in_executor(None, self.wds_win_name, root)
+        cfg.update(on=True, iso=iso)
+        save_state(self.st)
+        # Samba korisnik wds/wds: WinPE (Windows Setup) ne sme kao gost
+        if not cfg.get('user_ok'):
+            try:
+                pwd.getpwnam('wds')
+            except KeyError:
+                await self._rc('sudo', '-n', 'useradd', '--system', '--no-create-home', '--shell', '/usr/sbin/nologin', 'wds', timeout=15)
+            rc, _ = await self._rc('sudo', '-n', 'smbpasswd', '-s', '-a', 'wds', inp='wds\nwds\n', timeout=15)
+            cfg['user_ok'] = not rc
+            save_state(self.st)
+        await self.smb_refresh(force=True)
+        err = await self.wds_pxe(lan)
+        self.wds_note('Deli se %s · \\\\TECOPI\\WDS · PXE %s' % (os.path.basename(iso), 'radi' if not err else 'ne radi'))
+        self.mark()
+        return {'err': err} if err else {'ok': 'WDS radi'}
+
+    @staticmethod
+    def wds_win_name(root):
+        """Ime izdanja iz sources/idwbinfo.txt ili cversion.ini (gruba oznaka, npr. Windows 11 · amd64)."""
+        info = Teco.wds_find(root, 'sources/idwbinfo.txt')
+        arch = ''
+        try:
+            txt = open(info, encoding='utf-8', errors='replace').read() if info else ''
+            m = re.search(r'BuildArch=(\w+)', txt)
+            arch = m.group(1) if m else ''
+            m = re.search(r'BuildBranch=(\S+)', txt)
+            br = m.group(1) if m else ''
+        except OSError:
+            br = ''
+        v = 'Windows'
+        ver = Teco.wds_find(root, 'sources/cversion.ini')
+        try:
+            m = re.search(r'MinServer=(\d+)', open(ver, errors='replace').read()) if ver else None
+            if m:
+                b = int(m.group(1))
+                v = 'Windows 11' if b >= 22000 else 'Windows 10' if b >= 10240 else 'Windows'
+        except OSError:
+            pass
+        return ' · '.join(x for x in (v, arch, br) if x)
+
+    async def wds_pxe(self, lan):
+        """dnsmasq kao proxy DHCP + TFTP (ruter i dalje deli adrese)."""
+        ifn, ip, netw = lan
+        srv = self.WDS_SRV
+        await self._rc('sudo', '-n', 'install', '-d', '-m', '755', '-o', USER, str(srv), str(srv / 'tftp'), timeout=10)
+        for f in self.WDS_IPXE:
+            src = Path('/usr/lib/ipxe') / f
+            if src.exists():
+                shutil.copyfile(src, srv / 'tftp' / f)
+        efi = 'snponly.efi' if (srv / 'tftp' / 'snponly.efi').exists() else 'ipxe.efi'
+        base = 'http://%s%s/wds' % (ip, '' if PORT == 80 else ':%d' % PORT)
+        (srv / 'tftp' / 'boot.ipxe').write_text(
+            '#!ipxe\n'
+            'echo Teco.Pi WDS: Windows instalacija preko mreze\n'
+            'set base %s\n'
+            'iseq ${platform} efi && set bcd efi/microsoft/boot/bcd || set bcd boot/bcd\n'
+            'kernel ${base}/wimboot gui || goto fail\n'
+            'initrd ${base}/winpeshl.ini winpeshl.ini\n'
+            'initrd ${base}/install.bat install.bat\n'
+            'initrd ${base}/iso/${bcd} BCD || goto fail\n'
+            'initrd ${base}/iso/boot/boot.sdi boot.sdi || goto fail\n'
+            'initrd ${base}/iso/sources/boot.wim boot.wim || goto fail\n'
+            'boot || goto fail\n'
+            ':fail\n'
+            'echo Greska pri ucitavanju sa Teco.Pi. Komandna linija iPXE-a:\n'
+            'shell\n' % base)
+        conf = ['# Teco.Pi WDS: pravi ga server.py', 'port=0', 'log-dhcp', 'log-facility=-', 'interface=' + ifn, 'bind-dynamic',
+                'dhcp-range=%s,proxy,%s' % (netw.network_address, netw.netmask),
+                'enable-tftp', 'tftp-root=' + str(srv / 'tftp'), 'tftp-max=50',
+                'dhcp-match=set:ipxe,175',
+                'pxe-prompt="Teco.Pi WDS",2',
+                'pxe-service=tag:!ipxe,x86PC,"Teco.Pi WDS - Windows instalacija",undionly.kpxe',
+                'pxe-service=tag:!ipxe,X86-64_EFI,"Teco.Pi WDS - Windows instalacija",' + efi,
+                'pxe-service=tag:!ipxe,BC_EFI,"Teco.Pi WDS - Windows instalacija",' + efi,
+                'dhcp-boot=tag:ipxe,boot.ipxe']
+        (srv / 'dnsmasq.conf').write_text('\n'.join(conf) + '\n')
+        w = self.wds_rt
+        try:
+            proc = await asyncio.create_subprocess_exec('sudo', '-n', 'dnsmasq', '-k', '-C', str(srv / 'dnsmasq.conf'), '--pid-file=',
+                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        except OSError as e:
+            return 'dnsmasq se ne pokreće: %s' % e
+        w['proc'] = proc
+
+        async def read():
+            async for line in proc.stdout:
+                t = line.decode(errors='replace').strip()
+                m = re.search(r'PXE\(\S+\) (\S+) proxy', t)
+                if m:
+                    self.wds_note('Računar %s traži mrežno butovanje' % m.group(1).upper())
+                m = re.search(r'sent (\S+) to (\S+)', t)
+                if m:
+                    self.wds_note('%s preuzeo %s' % (m.group(2), os.path.basename(m.group(1))))
+                if 'failed' in t or 'Address already in use' in t or 'illegal' in t:
+                    w['err'] = t.split(': ', 1)[-1][:160]
+                    self.wds_note('PXE: ' + w['err'])
+            await proc.wait()
+            if w.get('proc') is proc and not w.get('stopping'):
+                w['proc'] = None
+                w['err'] = w.get('err') or 'PXE (dnsmasq) se ugasio'
+                self.mark()
+        asyncio.get_running_loop().create_task(read())
+        await asyncio.sleep(1.5)
+        return w.get('err') if proc.returncode is not None else None
+
+    async def wds_stop(self, keep=False):
+        w = self.wds_rt = getattr(self, 'wds_rt', None) or {}
+        p = w.get('proc')
+        if p and p.returncode is None:
+            w['stopping'] = True
+            await self._rc('sudo', '-n', 'pkill', '-f', 'dnsmasq -k -C ' + str(self.WDS_SRV / 'dnsmasq.conf'), timeout=10)
+            try:
+                await asyncio.wait_for(p.wait(), 5)
+            except asyncio.TimeoutError:
+                pass
+            w['stopping'] = False
+        w['proc'] = None
+        if w.get('mounted') or os.path.ismount(str(self.WDS_MNT)):
+            w['mounted'] = False
+            await self.smb_refresh(force=True)   # prvo skini deljenje, pa ISO
+            rc, _ = await self._rc('sudo', '-n', 'umount', str(self.WDS_MNT), timeout=30)
+            if rc:
+                await self._rc('sudo', '-n', 'umount', '-l', str(self.WDS_MNT), timeout=30)
+        if not keep:
+            self.wds_cfg()['on'] = False
+            save_state(self.st)
+            w['err'] = None
+            self.wds_note('WDS zaustavljen')
+        self.mark()
+        return {} if keep else {'ok': 'WDS zaustavljen'}
+
+    async def wds_loop(self):
+        """Posle paljenja Teco.Pi-ja (ili kad se flash vrati) WDS se sam podigne; ako ISO nestane, gasi se deljenje."""
+        await asyncio.sleep(25)   # da se mreža i USB montiraju
+        while True:
+            try:
+                cfg, w = self.wds_cfg(), getattr(self, 'wds_rt', None) or {}
+                if cfg.get('on'):
+                    if w.get('mounted') and not os.path.isfile(cfg.get('iso') or ''):
+                        await self.wds_stop(keep=True)
+                        self.wds_rt['err'] = 'Flash disk sa ISO-om je izvađen'
+                        self.mark()
+                    elif not w.get('mounted') and os.path.isfile(cfg.get('iso') or ''):
+                        await self.wds_start()
+                    elif w.get('mounted') and not (w.get('proc') and w['proc'].returncode is None):
+                        lan = self.wds_lan()
+                        if lan:
+                            await self.wds_pxe(lan)
+            except Exception:
+                log.exception('wds')
+            await asyncio.sleep(20)
+
+    # ---------- Logički analizator: PICkit 2 kao izvor (pickit2.py, USB HID)
+    LA_PK2_FILE = DATA / 'logic-pk2.json'
+
+    def la_pk2_view(self):
+        s = getattr(self, 'la_pk2', None) or {}
+        return {'busy': bool(s.get('busy')), 'err': s.get('err'), 't': s.get('t', 0), 'conn': 'pickit2' in self.prog_usb()['progs']}
+
+    async def la_pk2_capture(self):
+        import threading
+        import pickit2
+        s = self.la_pk2 = getattr(self, 'la_pk2', None) or {}
+        if s.get('busy'):
+            return {'err': 'Snimanje je već u toku.'}
+        p = self.prog_rt()
+        if p['busy'] and p['tool'] in ('pic', 'avr'):
+            return {'err': 'PICkit 2 je zauzet programiranjem.'}
+        cfg = self.tool_cfg('logic')['pk2']
+        self.la_pk2_cancel = ev = threading.Event()
+        s.update(busy=True, err=None)
+        self.mark()
+
+        def job():
+            dev = pickit2.PK2()
+            try:
+                return dev.capture(cfg['rate'], cfg['trig_ch'], cfg['trig'], cfg['win'], timeout=30, cancel=ev)
+            finally:
+                dev.close()
+        try:
+            cap = await asyncio.get_running_loop().run_in_executor(None, job)
+            tmp = self.LA_PK2_FILE.with_suffix('.tmp')
+            tmp.write_text(json.dumps(cap))
+            os.replace(tmp, self.LA_PK2_FILE)
+            s.update(busy=False, err=None, t=cap['t'])
+            log.info('PICkit 2: snimak %s, okidanje %s %s, odgovor %s', cap['rate'], cap['trig_ch'], cap['trig'], cap['resp'])
+            if self.tool_running() == 'logic':
+                self.tool_write('logic')   # TV: logic.py vidi nov snimak
+                os.utime(self.LA_PK2_FILE)
+            self.mark()
+            return {'ok': 'Snimljeno 1024 uzorka po kanalu'}
+        except (pickit2.PK2Error, OSError) as e:
+            s.update(busy=False, err=str(e))
+            self.mark()
+            return {'err': str(e)}
+
+    # ---------- Programatori (Alati → Elektronika): ESP32/ESP8266 (esptool) i AVR (avrdude)
+    # Firmware: .bin/.hex sa flash-a ili poslat sa stranice (data/fw). Jedan posao u isto vreme; izlaz alata ide u log.
+    FW_DIR = DATA / 'fw'
+    ESPTOOL_VENV = DATA / 'esptool-venv'
+    AVR_MCU = {'m328p': 'ATmega328P', 'm168': 'ATmega168', 'm8': 'ATmega8', 'm2560': 'ATmega2560', 'm32u4': 'ATmega32U4',
+               't85': 'ATtiny85', 't45': 'ATtiny45', 't13': 'ATtiny13', 't2313': 'ATtiny2313'}
+    AVR_PROG = {'arduino': 'Arduino bootloader (USB)', 'usbasp': 'USBasp', 'pickit2': 'PICkit 2 (ISP)', 'avrisp': 'Arduino kao ISP'}
+    AVR_USB = ('usbasp', 'pickit2')   # USB programatori: bez porta, avrdude ih nalazi sam
+    PK2CMD, PK2DIR = '/usr/local/bin/pk2cmd', '/usr/share/pk2/'   # PIC: Microchip pk2cmd (preveden na Pi-ju) + PK2DeviceFile.dat
+
+    def prog_rt(self):
+        if not hasattr(self, 'prog'):
+            self.prog = {'busy': False, 'tool': '', 'what': '', 'log': [], 'pct': None, 'ok': None, 'proc': None, 'installing': False, 't': 0}
+        return self.prog
+
+    USB_PROGS = {('04d8', '0033'): 'pickit2', ('16c0', '05dc'): 'usbasp', ('04d8', '9012'): 'pickit4', ('03eb', '2104'): 'avrispmk2'}
+
+    def prog_usb(self):
+        """Priključeni programatori (USB VID:PID iz sysfs-a) i USB-serijski adapteri — za oznaku „priključen“ na stranici."""
+        import serterm
+        c = getattr(self, '_prog_usb_c', None)
+        if c and time.time() - c[0] < 2:   # poziva se na svaki snimak stanja; sysfs je dovoljno čitati na 2 s
+            return c[1]
+        found = set()
+        for d in glob.glob('/sys/bus/usb/devices/*/idVendor'):
+            try:
+                v = Path(d).read_text().strip()
+                p = (Path(d).parent / 'idProduct').read_text().strip()
+            except OSError:
+                continue
+            if (v, p) in self.USB_PROGS:
+                found.add(self.USB_PROGS[(v, p)])
+        r = {'progs': sorted(found), 'serial': [x['dev'] for x in serterm.ports()]}
+        self._prog_usb_c = (time.time(), r)
+        return r
+
+    def esptool_cmd(self):
+        py = self.ESPTOOL_VENV / 'bin' / 'python'
+        if py.exists():
+            return [str(py), '-m', 'esptool']
+        for n in ('esptool', 'esptool.py'):
+            p = shutil.which(n)
+            if p:
+                return [p]
+        return None
+
+    def prog_view(self):
+        p = self.prog_rt()
+        return {'busy': p['busy'], 'tool': p['tool'], 'what': p['what'], 'pct': p['pct'], 'ok': p['ok'], 'log': p['log'][-80:], 't': p['t'],
+                'offer': {k: v for k, v in (p.get('offer') or {}).items() if k != 'path'} or None,
+                'installing': p['installing'], 'esp': bool(self.esptool_cmd()), 'avr': bool(shutil.which('avrdude')), 'pic': os.path.exists(self.PK2CMD),
+                'usb': self.prog_usb(), 'mode': getattr(self, 'prog_tvmode', ''),
+                'mcu': self.AVR_MCU, 'progs': self.AVR_PROG}
+
+    def prog_scan(self):
+        """Firmware galerija: Firmware/<ESP|AVR|PIC>/<čip>/ na flash diskovima (oznaka = folder) + poslato sa stranice (data/fw)
+        i fajlovi direktno u Firmware/ (bez oznake)."""
+        out = []
+        try:
+            for f in sorted(self.FW_DIR.iterdir(), key=lambda x: -x.stat().st_mtime):
+                if f.suffix.lower() in ('.bin', '.hex'):
+                    out.append({'path': str(f), 'n': f.name, 'src': 'poslato', 'size': f.stat().st_size, 'fam': '', 'chip': ''})
+        except OSError:
+            pass
+        for p in getattr(self, 'usb', []):
+            if not p.get('mnt'):
+                continue
+            root = os.path.join(p['mnt'], self.STOR_DIRS['fw'])
+            for d, subs, files in os.walk(root):
+                subs[:] = [s for s in subs if not s.startswith('.')]
+                rel = Path(os.path.relpath(d, root)).parts if d != root else ()
+                fam = rel[0].upper() if rel and rel[0].upper() in self.FW_FAMS else ''
+                chip = rel[1] if fam and len(rel) > 1 else ''
+                for f in files:
+                    if f.lower().endswith(('.bin', '.hex')) and not f.startswith('.'):
+                        fp = os.path.join(d, f)
+                        try:
+                            sz = os.path.getsize(fp)
+                        except OSError:
+                            continue
+                        if sz <= 16 * 2**20:
+                            out.append({'path': fp, 'n': f, 'src': (p['label'] or p['n']) + '/Firmware' + ('/' + '/'.join(rel) if rel else ''),
+                                        'size': sz, 'fam': fam, 'chip': chip})
+                if len(out) > 1000:
+                    break
+        return out
+
+    async def prog_list(self):
+        import serterm
+        self.wds_peek = time.time()   # flash diskovi se montiraju (samo za čitanje fajlova)
+        await self.smb_refresh()
+        self.prog_files = await asyncio.get_running_loop().run_in_executor(None, self.prog_scan)
+        return {'files': [{'i': i, 'n': x['n'], 'src': x['src'], 'size': x['size'], 'fam': x['fam'], 'chip': x['chip']} for i, x in enumerate(self.prog_files)],
+                'ports': serterm.ports()}
+
+    def prog_log(self, line):
+        p = self.prog_rt()
+        line = line.rstrip()
+        if not line:
+            return
+        m = re.search(r'\((\d{1,3}) ?%\)|\|\s*(\d{1,3})%|(\d{1,3}) ?%', line)
+        if m:
+            p['pct'] = int(next(g for g in m.groups() if g))
+            if p['log'] and re.search(r'%', p['log'][-1]) and re.sub(r'[\d.%#\s|()]+', '', p['log'][-1])[:20] == re.sub(r'[\d.%#\s|()]+', '', line)[:20]:
+                p['log'][-1] = line   # napredak u istom redu (Writing at …  (35 %))
+                return
+        p['log'].append(line)
+        del p['log'][:-400]
+
+    async def prog_run(self, tool, what, cmd, dev=None, save=None):
+        """save: {path, fam, chip} — posle uspešnog upisa ponudi čuvanje u galeriju (Skladište → Firmware) ako ga tamo nema."""
+        p = self.prog_rt()
+        if p['busy']:
+            return {'err': 'Već radi: ' + p['what']}
+        if dev and getattr(self, 'term', None) and self.term.ser is not None and self.term.cfg.get('dev') == dev:
+            self.term.close()   # serijski terminal je držao isti port
+            self.term._status_all()
+        p.update(busy=True, tool=tool, what=what, log=['$ ' + ' '.join(cmd)], pct=None, ok=None, t=time.time(), offer=None)
+        self.mark()
+        try:
+            proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        except OSError as e:
+            p.update(busy=False, ok=False)
+            p['log'].append(str(e))
+            self.mark()
+            return {'err': str(e)}
+        p['proc'] = proc
+
+        async def read():
+            buf, last = b'', 0
+            while True:
+                ch = await proc.stdout.read(256)
+                if not ch:
+                    break
+                buf += ch
+                parts = re.split(rb'[\r\n]', buf)
+                buf = parts.pop()
+                for ln in parts:
+                    self.prog_log(ln.decode(errors='replace'))
+                if time.monotonic() - last > 0.3:
+                    last = time.monotonic()
+                    self.mark()
+                    if self.tool_running() == 'prog':
+                        self.tool_write('prog')   # TV: napredak uživo
+            if buf:
+                self.prog_log(buf.decode(errors='replace'))
+            rc = await proc.wait()
+            p.update(busy=False, ok=rc == 0, proc=None)
+            if rc == 0 and p['pct'] is not None:
+                p['pct'] = 100
+            p['log'].append('✔ Gotovo.' if rc == 0 else '✖ Greška (kod %d).' % rc)
+            if rc == 0 and save:
+                p['offer'] = await asyncio.get_running_loop().run_in_executor(None, self.fw_offer, save, list(p['log']))
+            log.info('programator %s %s: %s', tool, what, 'ok' if rc == 0 else rc)
+            if self.tool_running() == 'prog':
+                self.tool_write('prog')
+            self.mark()
+        asyncio.get_running_loop().create_task(read())
+        return {'ok': what + '…'}
+
+    def fw_offer(self, save, lines):
+        """Upisani firmware: ponuda za galeriju samo ako na diskovima već nema istog fajla (isti sadržaj) za tu porodicu."""
+        import hashlib
+        disk = next((p for p in getattr(self, 'usb', []) if p.get('mnt')), None)
+        if not disk:
+            return None
+        fam, chip = save['fam'], save['chip']
+        if fam == 'ESP' and not chip:   # esptool: „Chip is ESP32-D0WD…“ / „Chip type: ESP32-S3…“
+            m = re.search(r'Chip (?:is|type:)\s+(ESP\w+(?:-[SC]\d)?)', '\n'.join(lines))
+            chip = m.group(1) if m else 'ESP32'
+        try:
+            h = hashlib.sha1(Path(save['path']).read_bytes()).hexdigest()
+        except OSError:
+            return None
+        for p in getattr(self, 'usb', []):
+            root = Path(p['mnt']) / self.STOR_DIRS['fw'] / fam if p.get('mnt') else None
+            for x in (root.rglob('*') if root and root.is_dir() else []):
+                try:
+                    if x.is_file() and x.stat().st_size < 16 * 2**20 and hashlib.sha1(x.read_bytes()).hexdigest() == h:
+                        return None   # već je u galeriji
+                except OSError:
+                    pass
+        return {'path': save['path'], 'n': os.path.basename(save['path']), 'fam': fam, 'chip': chip, 'disk': disk['label'] or disk['n']}
+
+    async def prog_save(self, a):
+        """Ponuda posle upisa: v = sačuvaj (u Firmware/<porodica>/<čip>/ na prvom flash disku) ili odbij."""
+        p = self.prog_rt()
+        o, p['offer'] = p.get('offer'), None
+        self.mark()
+        if not a.get('v') or not o:
+            return {}
+        disk = next((x for x in getattr(self, 'usb', []) if x.get('mnt')), None)
+        if not disk:
+            return {'err': 'Nema priključenog flash diska.'}
+        chip = re.sub(r'[\\/:*?"<>|]', '', str(a.get('chip') or o['chip'])).strip() or o['chip']
+        d = Path(disk['mnt']) / self.STOR_DIRS['fw'] / o['fam'] / chip
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            dest = self.free_name(d / o['n'])
+            shutil.copyfile(o['path'], dest)
+        except OSError as e:
+            return {'err': 'Nije sačuvano: %s' % e.strerror}
+        return {'ok': 'Sačuvano u galeriju: Firmware/%s/%s/%s' % (o['fam'], chip, dest.name)}
+
+    def prog_file(self, i):
+        try:
+            return (getattr(self, 'prog_files', None) or [])[int(i)]['path']
+        except (TypeError, ValueError, IndexError):
+            return None
+
+    async def prog_cmd(self, c, a):
+        import serterm
+        p = self.prog_rt()
+        if c == 'prog_list':
+            return await self.prog_list()
+        if c == 'prog_stop':
+            if p.get('proc') and p['proc'].returncode is None:
+                p['proc'].terminate()
+                return {'ok': 'Prekinuto'}
+            return {}
+        if c == 'prog_install':
+            return await self.prog_install()
+        if c == 'prog_save':
+            return await self.prog_save(a)
+        dev = str(a.get('dev') or '')
+        if c == 'prog_esp':
+            cmd0 = self.esptool_cmd()
+            if not cmd0:
+                return {'err': 'esptool nije instaliran (dugme „Instaliraj“).'}
+            if dev not in [x['dev'] for x in serterm.ports()]:
+                return {'err': 'Izaberi USB-serijski port.'}
+            baud = str(int(a.get('baud') or 460800))
+            base = cmd0 + ['--port', dev, '--baud', baud]
+            new = '-m' in cmd0   # esptool 5 (venv): komande sa crticom; stari iz apt-a: sa donjom crtom
+            sub = lambda s: s.replace('_', '-') if new else s
+            act = a.get('act')
+            if act == 'id':
+                return await self.prog_run('esp', 'Prepoznavanje čipa', base + [sub('flash_id')], dev)
+            if act == 'erase':
+                return await self.prog_run('esp', 'Brisanje flash-a', base + [sub('erase_flash')], dev)
+            if act == 'flash':
+                f = self.prog_file(a.get('file'))
+                if not f or not f.lower().endswith('.bin'):
+                    return {'err': 'Izaberi .bin fajl.'}
+                off = str(a.get('offset') or '0x0').strip().lower()
+                if not re.fullmatch(r'0x[0-9a-f]{1,8}|\d{1,9}', off):
+                    return {'err': 'Adresa: npr. 0x0 ili 0x10000.'}
+                return await self.prog_run('esp', 'Upis ' + os.path.basename(f), base + [sub('write_flash'), '-z', off, f], dev, save={'path': f, 'fam': 'ESP', 'chip': ''})
+            return {'err': 'Nepoznata radnja.'}
+        if c == 'prog_pic':   # PICkit 2 + pk2cmd: PIC10/12/16/18 (i dsPIC/PIC24/PIC32 iz liste uređaja)
+            if not os.path.exists(self.PK2CMD):
+                return {'err': 'pk2cmd nije instaliran.'}
+            part = re.sub(r'[^A-Za-z0-9]', '', str(a.get('part') or '')).upper()
+            base = ['sudo', '-n', self.PK2CMD, '-B' + self.PK2DIR]   # USB (HID) uređaj: root
+            pw = (['-W'] if a.get('ext') else []) + (['-T'] if a.get('hold') else []) + (['-R'] if a.get('run') else [])
+            act = a.get('act')
+            if act == 'id':
+                return await self.prog_run('pic', 'Prepoznavanje čipa', base + ['-P'] + (['-W'] if a.get('ext') else []))
+            if not part:
+                return {'err': 'Upiši čip (npr. PIC16F628A) ili prvo „Prepoznaj čip“.'}
+            pp = base + ['-P' + part]
+            if act == 'blank':
+                return await self.prog_run('pic', 'Provera da li je prazan', pp + ['-C'] + pw)
+            if act == 'erase':
+                return await self.prog_run('pic', 'Brisanje čipa', pp + ['-E'] + pw)
+            if act == 'flash':
+                f = self.prog_file(a.get('file'))
+                if not f or not f.lower().endswith('.hex'):
+                    return {'err': 'Izaberi .hex fajl.'}
+                return await self.prog_run('pic', 'Upis ' + os.path.basename(f), pp + ['-F' + f, '-M', '-Y'] + pw, save={'path': f, 'fam': 'PIC', 'chip': part})
+            if act == 'read':
+                self.FW_DIR.mkdir(parents=True, exist_ok=True)
+                out = self.FW_DIR / ('procitano_%s_%s.hex' % (part, time.strftime('%Y%m%d_%H%M%S')))
+                return await self.prog_run('pic', 'Čitanje u ' + out.name, pp + ['-GF' + str(out)] + pw)
+            return {'err': 'Nepoznata radnja.'}
+        if c == 'prog_avr':
+            if not shutil.which('avrdude'):
+                return {'err': 'avrdude nije instaliran (dugme „Instaliraj“).'}
+            mcu, prg = a.get('mcu'), a.get('prog')
+            if mcu not in self.AVR_MCU or prg not in self.AVR_PROG:
+                return {'err': 'Izaberi čip i programator.'}
+            cmd = ['avrdude', '-p', mcu]
+            if prg in self.AVR_USB:
+                cmd = ['sudo', '-n'] + cmd + ['-c', prg]   # USB uređaj: bez udev pravila samo root
+            else:
+                if dev not in [x['dev'] for x in serterm.ports()]:
+                    return {'err': 'Izaberi USB-serijski port.'}
+                if prg == 'arduino':
+                    cmd += ['-c', {'m2560': 'wiring', 'm32u4': 'avr109'}.get(mcu, 'arduino'), '-P', dev, '-b', str(int(a.get('baud') or 115200)), '-D']
+                else:
+                    cmd += ['-c', 'stk500v1', '-P', dev, '-b', '19200']
+            if a.get('slow') and prg != 'arduino':   # nov čip iz fabrike radi na 1 MHz: sporiji ISP takt
+                cmd += ['-B', '125kHz']
+            act = a.get('act')
+            if act == 'sig':
+                return await self.prog_run('avr', 'Provera veze', cmd + ['-n'], dev)
+            if act == 'fuse':
+                return await self.prog_run('avr', 'Čitanje fuse bitova', cmd + ['-n', '-U', 'lfuse:r:-:h', '-U', 'hfuse:r:-:h', '-U', 'efuse:r:-:h'], dev)
+            if act == 'erase':
+                if prg == 'arduino':
+                    return {'err': 'Preko bootloader-a se ne briše ceo čip (treba ISP).'}
+                return await self.prog_run('avr', 'Brisanje čipa', cmd + ['-e'], dev)
+            if act == 'flash':
+                f = self.prog_file(a.get('file'))
+                if not f:
+                    return {'err': 'Izaberi .hex fajl.'}
+                fmt = 'i' if f.lower().endswith('.hex') else 'r'
+                return await self.prog_run('avr', 'Upis ' + os.path.basename(f), cmd + ['-U', 'flash:w:%s:%s' % (f, fmt)], dev, save={'path': f, 'fam': 'AVR', 'chip': self.AVR_MCU[mcu]})
+            return {'err': 'Nepoznata radnja.'}
+        return {'err': 'Nepoznata komanda.'}
+
+    async def prog_install(self):
+        p = self.prog_rt()
+        if p['installing']:
+            return {'ok': 'Instalacija je već u toku…'}
+        p['installing'] = True
+        self.mark()
+
+        async def job():
+            msgs = []
+            try:
+                venv_ok = self.ESPTOOL_VENV.exists() or any(Path('/usr/lib').glob('python3*/ensurepip'))
+                pk = [x for x, ok in (('avrdude', shutil.which('avrdude')), ('python3-venv', venv_ok)) if not ok]
+                if pk:
+                    await self._rc('sudo', '-n', 'apt-get', 'update', timeout=600)
+                    rc, out = await self._rc('sudo', '-n', 'env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '--no-install-recommends', *pk, timeout=1800)
+                    msgs.append('apt %s: %s' % (' '.join(pk), 'ok' if not rc else (out.splitlines() or [''])[-1][:120]))
+                if not (self.ESPTOOL_VENV / 'bin' / 'python').exists():
+                    rc, out = await self._rc('python3', '-m', 'venv', str(self.ESPTOOL_VENV), timeout=300)
+                    if rc:
+                        msgs.append('venv: ' + out[-160:])
+                rc, out = await self._rc(str(self.ESPTOOL_VENV / 'bin' / 'pip'), 'install', '--upgrade', 'esptool', timeout=1200)
+                msgs.append('esptool: ' + ('ok' if not rc else (out.splitlines() or [''])[-1][:160]))
+            except OSError as e:
+                msgs.append(str(e))
+            finally:
+                p['installing'] = False
+            p['log'] = ['Instalacija: ' + ' · '.join(msgs)]
+            self.mark()
+        asyncio.get_running_loop().create_task(job())
+        return {'ok': 'Instaliram esptool i avrdude — par minuta…'}
+
+    # ---------- Pinout i datasheet (Alati → Elektronika): PDF-ovi sa flash-a
+    def ds_scan(self):
+        """PDF-ovi iz Skladišta: folderi Datasheets i Dokumenti na priključenim flash diskovima (najviše 3000)."""
+        out = []
+        for p in getattr(self, 'usb', []):
+            if not p.get('mnt'):
+                continue
+            for root in (os.path.join(p['mnt'], self.STOR_DIRS['ds']), os.path.join(p['mnt'], self.STOR_DIRS['doc'])):
+              for d, subs, files in os.walk(root):
+                subs[:] = [s for s in subs if not s.startswith(('.', '$'))]
+                for f in files:
+                    if f.lower().endswith('.pdf') and not f.startswith('._'):
+                        fp = os.path.join(d, f)
+                        try:
+                            sz = os.path.getsize(fp)
+                        except OSError:
+                            continue
+                        out.append({'path': fp, 'n': f, 'dir': os.path.relpath(d, p['mnt']), 'size': sz, 'disk': p['label'] or p['n']})
+                        if len(out) >= 3000:
+                            return out
+        return sorted(out, key=lambda x: x['n'].lower())
+
+    async def ds_list(self):
+        self.wds_peek = time.time()   # flash diskovi se montiraju (samo za čitanje fajlova), kao kod WDS-a
+        await self.smb_refresh()
+        self.ds_files = await asyncio.get_running_loop().run_in_executor(None, self.ds_scan)
+        return {'files': [{'i': i, 'n': x['n'], 'dir': x['dir'], 'size': x['size'], 'disk': x['disk']} for i, x in enumerate(self.ds_files)],
+                'usb': len([p for p in getattr(self, 'usb', []) if p.get('mnt')])}
+
+    # ---------- DNS resolver (Alati → Network): Teco.Pi kao mali DNS server sa kešom (dnsmasq, poseban proces)
+    # Uređaji (ili ruter u DHCP-u) kao DNS upišu IP Teco.Pi-ja. Lokalna imena: tecopi, wds (WDS server) + svoja.
+    DNSR_SRV = Path('/srv/teco-dns')
+    DNSR_UP = {'router': 'Ruter', '1.1.1.1': 'Cloudflare', '8.8.8.8': 'Google', '9.9.9.9': 'Quad9'}
+
+    def dnsr_cfg(self):
+        c = self.st.setdefault('dnsr', {})
+        c.setdefault('on', False)
+        c.setdefault('up', ['1.1.1.1', '8.8.8.8'])
+        c.setdefault('cache', 1000)
+        c.setdefault('hosts', [])   # [{'n': ime, 'ip': adresa}]
+        c.setdefault('domain', 'lan')
+        c.setdefault('vpn', True)   # odgovara i klijentima preko VPN-a (tun0)
+        return c
+
+    def dnsr_rt(self):
+        if not hasattr(self, 'dnsr_st'):
+            self.dnsr_st = {'proc': None, 'err': None, 'log': [], 'n': 0, 'cached': 0, 'fwd': 0, 'local': 0, 'blocked': 0,
+                            'top': {}, 'clients': {}, 'since': 0, 'pend': {}}
+        return self.dnsr_st
+
+    def dnsr_view(self):
+        c, r = self.dnsr_cfg(), self.dnsr_rt()
+        lan = self.wds_lan()
+        top = sorted(r['top'].items(), key=lambda x: -x[1])[:8]
+        cl = sorted(r['clients'].items(), key=lambda x: -x[1])[:6]
+        return {'on': c['on'], 'run': bool(r['proc'] and r['proc'].returncode is None), 'err': r['err'], 'ip': lan[1] if lan else None,
+                'up': c['up'], 'ups': self.DNSR_UP, 'cache': c['cache'], 'domain': c['domain'], 'vpn': c['vpn'],
+                'hosts': c['hosts'], 'auto': [{'n': n, 'ip': lan[1]} for n in ('tecopi', 'wds')] if lan else [],
+                'n': r['n'], 'cached': r['cached'], 'fwd': r['fwd'], 'local': r['local'], 'since': r['since'],
+                'top': top, 'clients': cl, 'log': r['log'][-40:], 'ready': bool(shutil.which('dnsmasq') or os.path.exists('/usr/sbin/dnsmasq'))}
+
+    def dnsr_conf(self, lan):
+        c = self.dnsr_cfg()
+        ifn, ip, _ = lan
+        ups = [(self.net.get('gw') if u == 'router' else u) for u in c['up']]
+        g = ['# Teco.Pi DNS resolver: pravi ga server.py', 'port=53', 'bind-dynamic', 'interface=lo', 'interface=' + ifn,
+             'no-resolv', 'no-hosts', 'domain-needed', 'bogus-priv', 'cache-size=%d' % c['cache'], 'log-queries', 'log-facility=-',
+             'local=/%s/' % c['domain'], 'domain=%s' % c['domain']]
+        if c['vpn'] and any(i['n'] == 'tun0' for i in self.net.get('ifs', [])):
+            g.append('interface=tun0')
+        g += ['server=' + u for u in ups if u]
+        for n in ('tecopi', 'wds'):   # Teco.Pi i WDS (\\wds\WDS, http://tecopi)
+            g.append('host-record=%s,%s.%s,%s' % (n, n, c['domain'], ip))
+        for h in c['hosts']:
+            g.append('host-record=%s,%s.%s,%s' % (h['n'], h['n'], c['domain'], h['ip']))
+        return '\n'.join(g) + '\n'
+
+    async def dnsr_start(self):
+        r, c = self.dnsr_rt(), self.dnsr_cfg()
+        await self.dnsr_stop(keep=True)
+        lan = self.wds_lan()
+        if not lan:
+            r['err'] = 'Teco.Pi nije na mreži.'
+            return r['err']
+        await self._rc('sudo', '-n', 'install', '-d', '-m', '755', '-o', USER, str(self.DNSR_SRV), timeout=10)
+        (self.DNSR_SRV / 'dnsmasq.conf').write_text(self.dnsr_conf(lan))
+        try:
+            proc = await asyncio.create_subprocess_exec('sudo', '-n', '/usr/sbin/dnsmasq', '-k', '-C', str(self.DNSR_SRV / 'dnsmasq.conf'), '--pid-file=',
+                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        except OSError as e:
+            r['err'] = 'dnsmasq se ne pokreće: %s' % e
+            return r['err']
+        r.update(proc=proc, err=None)
+        if not r['since']:
+            r['since'] = time.time()
+        asyncio.get_running_loop().create_task(self._dnsr_read(proc))
+        await asyncio.sleep(1)
+        if proc.returncode is not None:
+            r['err'] = r['err'] or 'DNS resolver se ugasio (port 53 zauzet?)'
+        self.mark()
+        return r['err']
+
+    async def _dnsr_read(self, proc):
+        """dnsmasq log-queries: upit, odgovor iz keša / sa servera / lokalno. Pamti poslednjih 200 i brojače."""
+        r = self.dnsr_rt()
+        last_mark = 0
+        async for line in proc.stdout:
+            t = line.decode(errors='replace').strip()
+            m = re.search(r'(query)\[(\w+)\] (\S+) from (\S+)', t)
+            if m:
+                typ, name, cli = m.group(2), m.group(3), m.group(4)
+                r['n'] += 1
+                r['top'][name] = r['top'].get(name, 0) + 1
+                r['clients'][cli] = r['clients'].get(cli, 0) + 1
+                if len(r['top']) > 2000:
+                    r['top'] = dict(sorted(r['top'].items(), key=lambda x: -x[1])[:500])
+                r['log'].append({'t': time.time(), 'q': name, 'ty': typ, 'c': cli, 'a': '', 'k': ''})
+                del r['log'][:-200]
+            else:
+                m = re.search(r'(cached|reply|config|forwarded) (\S+) (?:is|to) (\S+)', t)
+                if m:
+                    kind, name, ans = m.groups()
+                    e = next((x for x in reversed(r['log'][-20:]) if x['q'] == name), None)
+                    if kind == 'forwarded':
+                        r['fwd'] += 1
+                        if e:
+                            e['k'] = 'fwd'
+                    elif e and not e['a']:
+                        e['a'] = ans
+                        if kind == 'cached':
+                            r['cached'] += 1
+                            e['k'] = 'cache'
+                        elif kind == 'config':
+                            r['local'] += 1
+                            e['k'] = 'local'
+                        elif not e['k']:
+                            e['k'] = 'fwd'
+                elif 'failed' in t or 'Address already in use' in t or 'illegal' in t or 'bad ' in t:
+                    r['err'] = t.split(': ', 1)[-1][:160]
+            if time.monotonic() - last_mark > 1:   # stranici najviše jednom u sekundi
+                last_mark = time.monotonic()
+                self.mark()
+        await proc.wait()
+        if r.get('proc') is proc and not r.get('stopping'):
+            r['proc'] = None
+            r['err'] = r['err'] or 'DNS resolver se ugasio'
+            self.mark()
+
+    async def dnsr_stop(self, keep=False):
+        r = self.dnsr_rt()
+        p = r.get('proc')
+        if p and p.returncode is None:
+            r['stopping'] = True
+            await self._rc('sudo', '-n', 'pkill', '-f', 'dnsmasq -k -C ' + str(self.DNSR_SRV / 'dnsmasq.conf'), timeout=10)
+            try:
+                await asyncio.wait_for(p.wait(), 5)
+            except asyncio.TimeoutError:
+                pass
+            r['stopping'] = False
+        r['proc'] = None
+        if not keep:
+            self.dnsr_cfg()['on'] = False
+            save_state(self.st)
+            r['err'] = None
+        self.mark()
+
+    async def dnsr_cmd(self, c, a):
+        cfg = self.dnsr_cfg()
+        if c == 'dnsr_on':
+            cfg['on'] = bool(a.get('on'))
+            save_state(self.st)
+            if not cfg['on']:
+                await self.dnsr_stop()
+                return {'ok': 'DNS resolver isključen'}
+            err = await self.dnsr_start()
+            return {'err': err} if err else {'ok': 'DNS resolver radi'}
+        if c == 'dnsr_set':
+            up = [u for u in (a.get('up') or []) if u in self.DNSR_UP or re.fullmatch(r'\d{1,3}(\.\d{1,3}){3}', str(u))]
+            if not up:
+                return {'err': 'Izaberi bar jedan DNS server.'}
+            cfg['up'] = up[:4]
+            try:
+                cfg['cache'] = max(150, min(10000, int(a.get('cache') or cfg['cache'])))
+            except (TypeError, ValueError):
+                return {'err': 'Keš je broj.'}
+            cfg['vpn'] = bool(a.get('vpn', cfg['vpn']))
+        elif c == 'dnsr_host':   # dodaj / ukloni lokalno ime (npr. nas -> 172.10.10.20)
+            n = str(a.get('n') or '').strip().lower()
+            if a.get('del'):
+                cfg['hosts'] = [h for h in cfg['hosts'] if h['n'] != n]
+            else:
+                if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?', n) or n in ('tecopi', 'wds'):
+                    return {'err': 'Ime: mala slova, brojevi i crtica (npr. nas, kamera-1).'}
+                try:
+                    ip = str(ipaddress.ip_address(str(a.get('ip') or '').strip()))
+                except ValueError:
+                    return {'err': 'Neispravna IP adresa.'}
+                cfg['hosts'] = [h for h in cfg['hosts'] if h['n'] != n] + [{'n': n, 'ip': ip}]
+                cfg['hosts'].sort(key=lambda h: h['n'])
+        elif c == 'dnsr_clear':
+            r = self.dnsr_rt()
+            r.update(log=[], n=0, cached=0, fwd=0, local=0, top={}, clients={}, since=time.time())
+            self.mark()
+            return {}
+        save_state(self.st)
+        if cfg['on']:
+            err = await self.dnsr_start()
+            if err:
+                return {'err': err}
+        self.mark()
+        return {'ok': 'Sačuvano'}
+
+    async def dnsr_loop(self):
+        """Posle paljenja Teco.Pi-ja resolver se sam podigne; ako se ugasi, ponovo za 20 s."""
+        await asyncio.sleep(20)
+        while True:
+            try:
+                r = self.dnsr_rt()
+                if self.dnsr_cfg()['on'] and not (r['proc'] and r['proc'].returncode is None):
+                    await self.dnsr_start()
+            except Exception:
+                log.exception('dns resolver')
+            await asyncio.sleep(20)
+
+    async def smb_user_add(self, user, pw):
+        """Novi korisnik (ili nova lozinka postojećem). Windows 10/11 ne puštaju gosta; OPL može i sa korisnikom (npr. ps2).
+        Svako ime dobija sistemski nalog bez prijave (samo za Sambu); svi korisnici čitaju, pišu i brišu,
+        a fajlovi ostaju Teco.Pi-jevi (force user). Lozinku zna samo Samba (ne čuva se u stanju)."""
         cfg = self.smb_cfg()
-        pw = str(pw or '')
-        user = str(user or cfg.get('user') or USER).strip()
-        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', user):
+        user, pw = str(user or '').strip(), str(pw or '')
+        if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', user) or user in ('root', 'wds'):
             return {'err': 'Korisnik: mala slova, brojevi, - ili _ (npr. ps2).'}
         if not 4 <= len(pw) <= 64:
             return {'err': 'Lozinka treba da ima 4 do 64 znaka.'}
@@ -5691,16 +7216,31 @@ class Teco:
             rc, out = await self._rc('sudo', '-n', 'useradd', '--system', '--no-create-home', '--shell', '/usr/sbin/nologin', user, timeout=15)
             if rc:
                 return {'err': 'Korisnik nije napravljen: ' + out[:120]}
+            cfg.setdefault('sysusers', []).append(user)
         rc, out = await self._rc('sudo', '-n', 'smbpasswd', '-s', '-a', user, inp='%s\n%s\n' % (pw, pw), timeout=15)
         if rc:
             return {'err': 'Lozinka nije sačuvana: ' + out[:120]}
-        old = cfg.get('user') or USER
-        if old != user:   # stari Samba korisnik više ne važi
-            await self._rc('sudo', '-n', 'smbpasswd', '-x', old, timeout=15)
-        cfg['user'], cfg['pw'], cfg['pass'] = user, True, pw   # pass: da se vidi u Adminu (smb_pw_get), ne ide u stanje za sve
+        new = user not in cfg['users']
+        if new:
+            cfg['users'].append(user)
         save_state(self.st)
         await self.smb_refresh(force=True)
-        return {'ok': 'Sačuvano. Korisnik: %s' % user}
+        return {'ok': ('Dodat korisnik %s' if new else 'Nova lozinka za %s') % user}
+
+    async def smb_user_del(self, user):
+        cfg = self.smb_cfg()
+        if user not in cfg['users']:
+            return {'err': 'Korisnik ne postoji.'}
+        if len(cfg['users']) == 1 and cfg.get('shares'):
+            return {'err': 'Poslednji korisnik: bez njega share-ovima niko ne može da pristupi. Prvo dodaj drugog.'}
+        await self._rc('sudo', '-n', 'smbpasswd', '-x', user, timeout=15)
+        if user in cfg.get('sysusers', []):   # nalog je napravio Teco.Pi samo za Sambu
+            await self._rc('sudo', '-n', 'userdel', user, timeout=15)
+            cfg['sysusers'].remove(user)
+        cfg['users'].remove(user)
+        save_state(self.st)
+        await self.smb_refresh(force=True)
+        return {'ok': 'Obrisan korisnik ' + user}
 
     async def usb_eject(self, dev):
         p = next((p for p in getattr(self, 'usb', []) if p['dev'] == dev), None)
@@ -5760,19 +7300,6 @@ class Teco:
         root = Path(p['mnt']).resolve()
         return {'path': '' if d == root else str(d.relative_to(root)), 'dirs': dirs[:300]}
 
-    async def smb_dir(self, a):
-        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == a.get('dev') and p['mnt']), None)
-        if not p:
-            return {'err': 'Disk nije priključen.'}
-        d = self.inside(Path(p['mnt']), a.get('path'))
-        if not d or not d.is_dir():
-            return {'err': 'Folder ne postoji.'}
-        rel = '' if d == Path(p['mnt']).resolve() else str(d.relative_to(Path(p['mnt']).resolve()))
-        self.smb_cfg().setdefault('dirs', {})[p['id']] = rel
-        save_state(self.st)
-        await self.smb_refresh(force=True)
-        return {'ok': '%s deli %s' % (p['n'], rel or 'ceo disk')}
-
     async def smb_opl(self, a):
         base, _ = self.share_base(a.get('share'))
         if not base:
@@ -5794,93 +7321,805 @@ class Teco:
         await self.smb_refresh()
         return {'ok': 'Obrisano: ' + f.name}
 
-    # ---------- Paradox alarm (proof of concept): stanje sa mosta, uključi/isključi particije
-    def alarm_cfg(self):
+    # ---------- Skladište (Ekstenzije): sadržaj USB diskova po vrsti (igrice, ISO, video…), brisanje, slanje igrica
+    STOR_KIND = {**{e: 'video' for e in ('.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.ts', '.mpg', '.mpeg', '.wmv')},
+                 **{e: 'music' for e in ('.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.opus', '.wma')},
+                 **{e: 'img' for e in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.bmp', '.tif', '.tiff')},
+                 **{e: 'doc' for e in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.md', '.csv', '.odt', '.ods', '.rtf')},
+                 **{e: 'iso' for e in ('.iso', '.img', '.wim', '.esd', '.vhd', '.vhdx', '.dmg')},
+                 **{e: 'fw' for e in ('.hex', '.bin', '.elf', '.eep', '.uf2')}}
+    STOR_SKIP = {'System Volume Information', '$RECYCLE.BIN', 'lost+found', '.Trashes', '.Spotlight-V100', '.fseventsd'}
+    # gde se na disku čuva svaka vrsta (slanje iz Skladišta); igrice idu u OPL foldere (DVD/CD/POPS) game share-a
+    STOR_DIRS = {'iso': 'ISOs', 'fw': 'Firmware', 'ds': 'Datasheets', 'video': 'Media/Filmovi', 'music': 'Media/Muzika', 'img': 'Media/Slike', 'doc': 'Dokumenti', 'data': 'Data'}
+    STOR_NAMES = {'games': 'igrica', 'iso': 'ISO image', 'fw': 'firmware (.hex / .bin)', 'ds': 'datasheet (.pdf)', 'video': 'video', 'music': 'muzika', 'img': 'slika', 'doc': 'dokument', 'data': 'fajl'}
+    FW_FAMS = ('ESP', 'AVR', 'PIC')   # Firmware/<porodica>/<čip>/fajl: oznaka za koji procesor je fajl (programatori prikazuju samo svoje)
+
+    @staticmethod
+    def free_name(dest):
+        """Isto ime već postoji: „ime (2).ext“, „ime (3).ext“…"""
+        if not dest.exists():
+            return dest
+        for i in range(2, 1000):
+            d = dest.with_name('%s (%d)%s' % (dest.stem, i, dest.suffix))
+            if not d.exists():
+                return d
+        return dest.with_name('%s (%s)%s' % (dest.stem, secrets.token_hex(3), dest.suffix))
+
+    def stor_base(self, dev):
+        """Gde idu igrice na disku: game share na tom disku (OPL ga vidi), inače koren diska."""
+        sh = next((s for s in getattr(self, 'smb_shares', []) if s.get('dev') == dev and s.get('game')), None)
+        if sh:
+            return Path(sh['path'])
+        p = next((p for p in getattr(self, 'usb', []) if p['dev'] == dev and p['mnt']), None)
+        return Path(p['mnt']) if p else None
+
+    def _stor_games(self, mnt, bases):
+        """Igrice samo iz OPL foldera (DVD, CD, POPS) game share-a i korena diska; PS1 (.cue + .bin, .chd, .pbp) i u podfolderima CD-a."""
+        out, seen = [], set()
+        for base in bases:
+            for top in ('DVD', 'CD', 'POPS'):
+                root = Path(base) / top
+                if not root.is_dir() or str(root.resolve()) in seen:
+                    continue
+                seen.add(str(root.resolve()))
+                for cur, dirs, names in os.walk(root):
+                    dirs[:] = [x for x in dirs if not x.startswith('.')]
+                    cues = [n for n in names if n.lower().endswith('.cue')]
+                    bins = sum(os.path.getsize(os.path.join(cur, n)) for n in names if n.lower().endswith('.bin')) if cues else 0
+                    for n in names:
+                        ext = os.path.splitext(n)[1].lower()
+                        if n.startswith('.') or not (ext in GAME_EXT or ext in ('.cue', '.chd', '.pbp')):
+                            continue
+                        try:
+                            size = os.path.getsize(os.path.join(cur, n))
+                        except OSError:
+                            continue
+                        it = {'f': os.path.relpath(os.path.join(cur, n), mnt).replace(os.sep, '/'), 'size': size,
+                              'kind': 'PS2' if ext in ('.iso', '.zso') and top != 'POPS' else 'PS1'}
+                        if ext == '.cue':
+                            it['size'] += bins // len(cues)
+                        if ext == '.pbp' and cur != str(root):   # EBOOT.PBP: ime igre je ime foldera
+                            it['name'] = os.path.basename(cur)
+                        out.append(it)
+        return sorted(out, key=lambda x: (x.get('name') or x['f'].rsplit('/', 1)[-1]).lower())
+
+    def _stor_counts(self, mnt, bases):
+        """Broj fajlova i zauzeće po vrsti: igrice + folderi Skladišta (ISOs, Media/…, Dokumenti, Data)."""
+        games = self._stor_games(mnt, bases)
+        cats = {'games': {'n': len(games), 'size': sum(g['size'] for g in games)}}
+        for k, rel in self.STOR_DIRS.items():
+            n = size = 0
+            for cur, dirs, names in os.walk(os.path.join(mnt, rel)):
+                dirs[:] = [x for x in dirs if not x.startswith('.')]
+                for x in names:
+                    if not x.startswith('.'):
+                        try:
+                            size += os.path.getsize(os.path.join(cur, x))
+                            n += 1
+                        except OSError:
+                            pass
+            cats[k] = {'n': n, 'size': size}
+        return cats, games
+
+    def stor_disk(self, dev):
+        return next((p for p in getattr(self, 'usb', []) if p['dev'] == dev and p['mnt']), None)
+
+    async def stor_scan(self, force=False, dev=None):
+        """Diskovi + brojevi po vrsti za izabrani disk (prvi priključen ako nije izabran)."""
+        self.stor_peek = time.time()   # dok je Skladište otvoreno, diskovi ostaju montirani
+        if not any(p['mnt'] for p in getattr(self, 'usb', [])) or force:
+            await self.smb_refresh()
+        disks = []
+        for p in getattr(self, 'usb', []):
+            d = {'dev': p['dev'], 'n': p['label'] or p['n'], 'fs': p['fs'], 'size': p['size'], 'mnt': bool(p['mnt']),
+                 'msg': getattr(self, 'usb_skip', {}).get(p['id'], '')}
+            if p['mnt']:
+                try:
+                    du = shutil.disk_usage(p['mnt'])
+                    d['size'], d['free'] = du.total, du.free
+                except OSError:
+                    pass
+            disks.append(d)
+        p = self.stor_disk(dev) or next((p for p in getattr(self, 'usb', []) if p['mnt']), None)
+        if not p:
+            return {'disks': disks, 'dev': None, 'cats': {}, 'dirs': self.STOR_DIRS}
+        bases = [p['mnt']] + [s['path'] for s in getattr(self, 'smb_shares', []) if s.get('dev') == p['dev'] and s.get('game')]
+        cats, games = await asyncio.get_running_loop().run_in_executor(None, self._stor_counts, p['mnt'], bases)
+        self.stor_games = (p['dev'], games)
+        return {'disks': disks, 'dev': p['dev'], 'cats': cats, 'dirs': self.STOR_DIRS}
+
+    async def stor_ls(self, a):
+        """Sadržaj foldera jedne vrste (kao u pregledaču fajlova); igrice = spisak igara iz OPL foldera."""
+        p = self.stor_disk(a.get('dev'))
+        cat = a.get('cat')
+        if not p:
+            return {'err': 'Disk nije priključen.'}
+        if cat == 'games':
+            g = getattr(self, 'stor_games', None)
+            if not g or g[0] != p['dev']:
+                bases = [p['mnt']] + [s['path'] for s in getattr(self, 'smb_shares', []) if s.get('dev') == p['dev'] and s.get('game')]
+                g = (p['dev'], await asyncio.get_running_loop().run_in_executor(None, self._stor_games, p['mnt'], bases))
+            return {'games': g[1][:1000]}
+        if cat not in self.STOR_DIRS:
+            return {'err': 'Nepoznata vrsta.'}
+        root = Path(p['mnt']) / self.STOR_DIRS[cat]
+        if cat == 'fw':   # galerija: folder po porodici procesora uvek postoji
+            for fam in self.FW_FAMS:
+                try:
+                    (root / fam).mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    break
+        d = self.inside(root, a.get('path')) if root.is_dir() else None
+        if root.is_dir() and (not d or not d.is_dir()):
+            d = root.resolve()
+        out = {'path': '' if not d or d == root.resolve() else str(d.relative_to(root.resolve())).replace(os.sep, '/'), 'dirs': [], 'files': [],
+               'root': self.STOR_DIRS[cat]}
+        if not d:
+            return out   # folder još ne postoji: napravi se pri prvom slanju
         try:
-            return json.loads(ALARM_CFG.read_text())
+            for e in sorted(os.scandir(d), key=lambda e: e.name.lower()):
+                if e.name.startswith('.'):
+                    continue
+                if e.is_dir():
+                    out['dirs'].append({'n': e.name})
+                elif e.is_file():
+                    out['files'].append({'n': e.name, 'size': e.stat().st_size, 't': int(e.stat().st_mtime)})
+        except OSError as e:
+            return {'err': 'Ne mogu da pročitam folder: %s' % e.strerror}
+        out['files'] = out['files'][:2000]
+        return out
+
+    def stor_target(self, a):
+        """Fajl ili folder unutar foldera Skladišta (vrsta + putanja) ili unutar OPL foldera (igrice: f od korena diska)."""
+        p = self.stor_disk(a.get('dev'))
+        if not p:
+            return None, None
+        if a.get('cat') == 'games':
+            f = self.inside(Path(p['mnt']), a.get('f'))
+            ok = f and f.is_file() and any(x in ('DVD', 'CD', 'POPS') for x in f.relative_to(Path(p['mnt']).resolve()).parts[:-1])
+            return (f if ok else None), p
+        if a.get('cat') not in self.STOR_DIRS:
+            return None, p
+        root = (Path(p['mnt']) / self.STOR_DIRS[a['cat']]).resolve()
+        f = self.inside(root, a.get('f'))
+        return (f if f and f != root and f.exists() else None), p
+
+    async def stor_del(self, a):
+        f, p = self.stor_target(a)
+        if not f:
+            return {'err': 'Fajl nije pronađen.'}
+        try:
+            if f.is_dir():
+                await asyncio.get_running_loop().run_in_executor(None, shutil.rmtree, f)
+            else:
+                f.unlink()
+                if f.suffix.lower() == '.cue':   # PS1: i .bin delovi iste igrice
+                    for b in f.parent.glob('*.bin'):
+                        b.unlink()
+        except OSError as e:
+            return {'err': 'Nije obrisano: %s' % e.strerror}
+        await self.smb_refresh()
+        return {'ok': 'Obrisano: ' + f.name}
+
+    # ---------- Ekstenzije: glavni prekidač na vrhu svake (osim Skladišta; DNS resolver ima svoj)
+    def ext_state(self):
+        return {'pbx': bool(self.pbx_cfg().get('on')), 'sms': bool(self.phone_cfg()['gsm'].get('on')), 'mail': bool(self.mail_cfg().get('on')),
+                'wds': bool(self.wds_cfg().get('on')), 'smb': bool(self.smb_cfg().get('on')), 'web': bool(self.web_cfg().get('on', True))}
+
+    async def ext_on(self, ext, on):
+        if ext == 'pbx':   # centrala: i Asterisk servis (ne troši ništa kad je isključena, ne kreće pri paljenju)
+            r = self.pbx_set({'on': on})
+            if isinstance(r, dict) and r.get('err'):
+                return r
+            await self._rc('sudo', '-n', 'systemctl', 'enable' if on else 'disable', '--now', 'asterisk', timeout=60)
+            k = getattr(self, '_pbx_kick', None)
+            if k:
+                k.set()
+            msg = 'VoIP / FXS je ' + ('uključen' if on else 'isključen')
+        elif ext == 'sms':
+            r = self.phone_set({'gsm': {'on': on}})
+            if isinstance(r, dict) and r.get('err'):
+                return r
+            k = getattr(self, '_sms_kick', None)
+            if k:
+                k.set()
+            msg = 'Modem (SMS) je ' + ('uključen' if on else 'isključen')
+        elif ext == 'mail':
+            m = self.mail_cfg()
+            m['on'] = on
+            save_state(self.st)
+            msg = 'Email je ' + ('uključen' if on else 'isključen') + ('' if not on or (m['host'] and m['from'] and m['to']) else ' · upiši nalog i klikni Sačuvaj')
+        elif ext == 'wds':
+            if not on:
+                return await self.wds_stop()
+            cfg = self.wds_cfg()
+            if cfg.get('iso') and os.path.isfile(cfg['iso']):
+                r = await self.wds_start()
+                if not r.get('err'):
+                    return r
+            cfg['on'] = True   # čeka izbor ISO-a (ili flash disk)
+            save_state(self.st)
+            msg = 'WDS je uključen · izaberi ISO ispod'
+        elif ext == 'smb':
+            r = await self.smb_set('smb', on)
+            if r.get('err') and on and SMB_BIN.exists():
+                self.mark()
+                return {'ok': 'SMB je uključen · ' + r['err']}
+            return r
+        elif ext == 'web':
+            self.web_cfg()['on'] = on
+            save_state(self.st)
+            msg = 'Web monitor ' + ('prati sajtove' if on else 'je pauziran')
+        else:
+            return {'err': 'Nepoznata ekstenzija.'}
+        self.mark()
+        return {'ok': msg}
+
+    # ---------- Email (Ekstenzije): SMTP nalog za obaveštenja (mailer.py). Lozinka se ne šalje nazad stranici.
+    def mail_cfg(self):
+        return self.st.setdefault('mail', {'on': False, 'notify': True, 'host': '', 'port': 587, 'sec': 'starttls', 'user': '', 'pw': '',
+                                           'from': '', 'from_name': 'Teco.Pi', 'to': []})
+
+    def mail_view(self):
+        c = self.mail_cfg()
+        return {**{k: v for k, v in c.items() if k != 'pw'}, 'pw_set': bool(c.get('pw')), 'log': (getattr(self, 'mail_log', None) or [])[-10:]}
+
+    async def mail_send(self, subject, body, to=None):
+        import mailer
+        c = self.mail_cfg()
+        to = to or c.get('to') or []
+        if not (c.get('host') and c.get('from') and to):
+            return 'Email nije podešen (server, pošiljalac, primaoci).'
+        err = await asyncio.get_running_loop().run_in_executor(None, mailer.send, c, to, subject, body)
+        lg = self.__dict__.setdefault('mail_log', [])
+        lg.append({'t': time.time(), 's': subject[:80], 'to': ', '.join(to), 'err': err})
+        del lg[:-30]
+        if err:
+            log.warning('email: %s', err)
+        self.mark()
+        return err
+
+    async def mail_cmd(self, c, a):
+        import mailer
+        m = self.mail_cfg()
+        if c == 'mail_set':
+            if a.get('preset') in mailer.PRESETS:
+                m.update(mailer.PRESETS[a['preset']])
+            for k in ('host', 'user', 'from', 'from_name'):
+                if k in a:
+                    m[k] = str(a[k] or '').strip()[:120]
+            if a.get('pw'):   # prazno = zadrži sačuvanu lozinku
+                m['pw'] = str(a['pw'])[:200]
+            if 'port' in a:
+                try:
+                    m['port'] = max(1, min(65535, int(a['port'])))
+                except (TypeError, ValueError):
+                    return {'err': 'Port nije ispravan.'}
+            if a.get('sec') in ('starttls', 'ssl', 'none'):
+                m['sec'] = a['sec']
+            if 'to' in a:
+                to = [x.strip() for x in re.split(r'[,;\s]+', str(a['to'])) if x.strip()]
+                bad = [x for x in to if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', x)]
+                if bad:
+                    return {'err': 'Neispravna adresa: ' + bad[0]}
+                m['to'] = to[:10]
+            if m.get('from') and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', m['from']):
+                return {'err': 'Neispravna adresa pošiljaoca.'}
+            for k in ('on', 'notify'):
+                if k in a:
+                    m[k] = bool(a[k])
+            if m['on'] and not (m['host'] and m['from'] and m['to']):
+                return {'err': 'Popuni SMTP server, adresu pošiljaoca i bar jednog primaoca.'}
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Email podešavanje sačuvano'}
+        err = await self.mail_send('Teco.Pi: probni mail', 'Ovo je probni mail sa Teco.Pi-ja.\nAko si ga dobio, obaveštenja e-mailom rade.\n\n— Teco.Pi, ' + time.strftime('%d.%m.%Y %H:%M'))
+        return {'err': err} if err else {'ok': 'Probni mail poslat na ' + ', '.join(m['to'])}
+
+    # ---------- Web monitor (Ekstenzije): da li javne web aplikacije rade (kao updown.io) — webmon.py
+    # Pad se potvrđuje drugim pokušajem posle 2 s (bez lažnih uzbuna); SSL ističe -> obaveštenje (jednom dnevno).
+    WEB_EVERY = (5, 10, 30, 60, 300)
+
+    def web_cfg(self):
+        return self.st.setdefault('web', {'mons': []})
+
+    WEB_HIST = DATA / 'webmon.json'   # istorija (uptime po minutima, događaji, poslednje provere) — preživi restart
+
+    def web_rt(self, mid):
+        rts = self.__dict__.get('_web_rt')
+        if rts is None:
+            rts = self._web_rt = {}
+            try:
+                for k, v in json.loads(self.WEB_HIST.read_text()).items():
+                    v['mins'] = {int(m): b for m, b in v.get('mins', {}).items()}
+                    v['days'] = {int(d): b for d, b in v.get('days', {}).items()}
+                    rts[k] = {'st': v.get('st'), 'since': v.get('since', 0), 'last': 0, 'ms': v.get('ms'), 'code': None, 'err': v.get('err'),
+                              'hist': [h if isinstance(h, list) else [0, h] for h in v.get('hist', [])], 'mins': v['mins'], 'days': v['days'], 'events': v.get('events', []), 'ssl': v.get('ssl'), 'ssl_t': 0, 'busy': False}
+            except (OSError, ValueError, AttributeError):
+                pass
+        return rts.setdefault(mid, {'st': None, 'since': 0, 'last': 0, 'ms': None, 'code': None, 'err': None, 'hist': [],
+                                    'mins': {}, 'days': {}, 'events': [], 'ssl': None, 'ssl_t': 0, 'busy': False})
+
+    def web_save(self):
+        ids = {m['id'] for m in self.web_cfg()['mons']}
+        data = {k: {x: v.get(x) for x in ('st', 'since', 'ms', 'err', 'hist', 'mins', 'days', 'events', 'ssl')} for k, v in (self.__dict__.get('_web_rt') or {}).items() if k in ids}
+        try:
+            tmp = self.WEB_HIST.with_suffix('.tmp')
+            tmp.write_text(json.dumps(data))
+            os.replace(tmp, self.WEB_HIST)
+        except OSError as e:
+            log.warning('web monitor istorija: %s', e)
+
+    async def web_inet(self):
+        """Da li Teco.Pi ima internet (pad sajta ili pad naše veze?). Keš 10 s."""
+        c = getattr(self, '_web_inet', None)
+        if c and time.time() - c[0] < 10:
+            return c[1]
+
+        async def tcp(host, port):
+            try:
+                _, w = await asyncio.wait_for(asyncio.open_connection(host, port), 3)
+                w.close()
+                return True
+            except (OSError, asyncio.TimeoutError):
+                return False
+        ok = any(await asyncio.gather(tcp('1.1.1.1', 443), tcp('8.8.8.8', 53), tcp('9.9.9.9', 443)))
+        self._web_inet = (time.time(), ok)
+        return ok
+
+    def web_view(self):
+        out, now = [], time.time()
+        for m in self.web_cfg()['mons']:
+            r = self.web_rt(m['id'])
+            mins = [v for k, v in r['mins'].items() if k >= int(now // 60) - 1440]   # 24 h po minutima: [ok, ukupno]
+            tot = sum(v[1] for v in mins)
+            days = r.get('days') or {}
+            dks = sorted(days)[-30:]
+
+            def upd(n):
+                sel = [days[d] for d in sorted(days)[-n:]]
+                t = sum(x[1] for x in sel)
+                return round(100 * sum(x[0] for x in sel) / t, 2) if t else None
+            out.append({**m, 'st': r['st'], 'since': r['since'], 'last': r['last'], 'ms': r['ms'], 'code': r['code'], 'err': r['err'],
+                        'hist': r['hist'][-60:], 'up24': round(100 * sum(v[0] for v in mins) / tot, 2) if tot else None,
+                        'up7': upd(7), 'up30': upd(30), 'days': [[d * 86400, round(100 * days[d][0] / days[d][1], 2) if days[d][1] else None] for d in dks],
+                        'events': r['events'][-8:], 'ssl': r['ssl'], 'busy': r['busy']})
+        return out
+
+    def web_valid(self, a, m):
+        from urllib.parse import urlsplit
+        url = str(a.get('url', m.get('url', ''))).strip()
+        if url and '://' not in url:
+            url = 'https://' + url
+        u = urlsplit(url)
+        if u.scheme not in ('http', 'https') or not u.hostname:
+            return 'Upiši adresu, npr. https://primer.rs'
+        try:
+            every = int(a.get('every', m.get('every', 30)))
+            days = int(a.get('ssl_days', m.get('ssl_days', 14)))
+        except (TypeError, ValueError):
+            return 'Neispravan broj.'
+        if every not in self.WEB_EVERY or not 1 <= days <= 90:
+            return 'Neispravan interval ili broj dana.'
+        m.update(url=url[:300], every=every, ssl_days=days, n=(str(a.get('n', m.get('n', ''))).strip() or u.hostname)[:40],
+                 kw=str(a.get('kw', m.get('kw', ''))).strip()[:100], kw_not=bool(a.get('kw_not', m.get('kw_not', False))),
+                 ssl=bool(a.get('ssl', m.get('ssl', u.scheme == 'https'))) and u.scheme == 'https', on=bool(a.get('on', m.get('on', True))))
+        return None
+
+    async def web_cmd(self, c, a):
+        mons = self.web_cfg()['mons']
+        if c == 'web_add':
+            if len(mons) >= 30:
+                return {'err': 'Najviše 30 sajtova.'}
+            m = {'id': secrets.token_hex(4)}
+            err = self.web_valid(a, m)
+            if err:
+                return {'err': err}
+            mons.append(m)
+            save_state(self.st)
+            asyncio.get_running_loop().create_task(self.web_check(m, force_ssl=True))
+            self.mark()
+            return {'ok': 'Prati se ' + m['n']}
+        m = next((x for x in mons if x['id'] == a.get('id')), None)
+        if not m:
+            return {'err': 'Sajt nije pronađen.'}
+        if c == 'web_del':
+            mons.remove(m)
+            self.__dict__.get('_web_rt', {}).pop(m['id'], None)
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Više se ne prati ' + m['n']}
+        if c == 'web_set':
+            err = self.web_valid(a, m)
+            if err:
+                return {'err': err}
+            save_state(self.st)
+            self.web_rt(m['id'])['ssl_t'] = 0   # nova adresa: SSL ponovo
+        await self.web_check(m, force_ssl=True)
+        r = self.web_rt(m['id'])
+        return {'ok': '%s: %s' % (m['n'], 'radi · %d ms' % r['ms'] if r['st'] == 'up' else 'NE RADI · ' + (r['err'] or ''))}
+
+    async def web_check(self, m, force_ssl=False):
+        import webmon
+        r = self.web_rt(m['id'])
+        if r['busy']:
+            return
+        r['busy'] = True
+        try:
+            if not getattr(self, '_web_http', None) or self._web_http.closed:
+                import aiohttp
+                self._web_http = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=8, ttl_dns_cache=60, force_close=True))
+            res = await webmon.check(self._web_http, m['url'], m.get('kw', ''), m.get('kw_not', False))
+            if not res['ok'] and r['st'] != 'down':   # potvrda pada: još jedan pokušaj posle 2 s
+                await asyncio.sleep(2)
+                res = await webmon.check(self._web_http, m['url'], m.get('kw', ''), m.get('kw_not', False))
+            now = time.time()
+            st = 'up' if res['ok'] else 'down'
+            if not res['ok'] and not await self.web_inet():   # problem je naša veza, ne sajt
+                st, res = 'net', {**res, 'err': 'Teco.Pi nema internet'}
+            if st != r['st']:
+                if r['st'] is not None and st != 'net' and not (st == 'up' and r['st'] == 'net'):   # bez interneta se ne javlja
+                    msg = '%s %s' % (m['n'], 'ponovo radi.' if st == 'up' else 'NE RADI: ' + (res['err'] or '') + '.')
+                    if st == 'up' and r['since']:
+                        msg += ' (bio dole %s)' % self.web_dur(now - r['since'])
+                    self.notify('web', msg, key='web:%s:%s' % (m['id'], st))
+                    log.info('web monitor: %s', msg)
+                r['events'] = (r['events'] + [{'t': now, 'st': st, 'err': res['err']}])[-30:]
+                r['st'], r['since'] = st, now
+                self._web_dirty = True
+            r.update(last=now, ms=res['ms'], code=res['code'], err=res['err'])
+            r['hist'] = (r['hist'] + [[int(now), res['ms'] if res['ok'] else -2 if st == 'net' else -1]])[-120:]
+            if st != 'net':   # bez interneta: ne zna se da li sajt radi — ne računa se u uptime
+                k = int(now // 60)
+                b = r['mins'].setdefault(k, [0, 0])
+                b[0] += res['ok']
+                b[1] += 1
+                lt = time.localtime(now)   # po danima (lokalno): 90 dana
+                dk = int(time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1)) // 86400)
+                db = r.setdefault('days', {}).setdefault(dk, [0, 0])
+                db[0] += res['ok']
+                db[1] += 1
+                if len(r['days']) > 95:
+                    for old in sorted(r['days'])[:-90]:
+                        del r['days'][old]
+            if len(r['mins']) > 1500:
+                for old in sorted(r['mins'])[:-1440]:
+                    del r['mins'][old]
+            if m.get('ssl') and (force_ssl or now - r['ssl_t'] > 6 * 3600):
+                r['ssl_t'] = now
+                r['ssl'] = await asyncio.get_running_loop().run_in_executor(None, webmon.cert_info, m['url'])
+                sl = r['ssl']
+                if sl.get('err'):
+                    self.notify('web', '%s: %s' % (m['n'], sl['err']), key='web:%s:sslerr:%s' % (m['id'], time.strftime('%Y%m%d')))
+                elif sl['days'] <= m.get('ssl_days', 14):
+                    self.notify('web', '%s: SSL sertifikat ističe za %d dana (%s).' % (m['n'], sl['days'], time.strftime('%d.%m.%Y', time.localtime(sl['until']))),
+                                key='web:%s:ssl:%s' % (m['id'], time.strftime('%Y%m%d')))
+        except Exception:
+            log.exception('web monitor %s', m.get('url'))
+        finally:
+            r['busy'] = False
+            self.mark()
+
+    @staticmethod
+    def web_dur(sec):
+        sec = int(sec)
+        return '%d s' % sec if sec < 60 else '%d min' % (sec // 60) if sec < 3600 else '%d h %d min' % (sec // 3600, sec % 3600 // 60)
+
+    async def web_loop(self):
+        """Na 1 s: koji sajt je na redu (svaki ima svoj interval)."""
+        await asyncio.sleep(5)
+        saved = time.time()
+        while True:
+            try:
+                now = time.time()
+                if now - saved > 300 or getattr(self, '_web_dirty', False):
+                    saved, self._web_dirty = now, False
+                    await asyncio.get_running_loop().run_in_executor(None, self.web_save)
+                for m in (list(self.web_cfg()['mons']) if self.web_cfg().get('on', True) else []):   # glavni prekidač
+                    r = self.web_rt(m['id'])
+                    if m.get('on', True) and not r['busy'] and now - r['last'] >= m.get('every', 30):
+                        r['last'] = now   # da se ne pokrene dvaput dok traje
+                        asyncio.get_running_loop().create_task(self.web_check(m))
+            except Exception:
+                log.exception('web monitor petlja')
+            await asyncio.sleep(1)
+
+    # ---------- Generator signala (Alati → Elektronika): 2 kanala na p3/p4 proširenja osciloskopa (siggen.py, pigpio)
+    def gen_cfg(self):
+        c = self.st.setdefault('gen', {})
+        for ch, d in (('ch1', {'on': True, 'wave': 'square', 'freq': 1000.0, 'duty': 50.0}),
+                      ('ch2', {'on': True, 'wave': 'tri', 'freq': 100.0, 'duty': 50.0})):
+            c[ch] = {**d, **c.get(ch, {})}
+        return c
+
+    def gen_pins(self):
+        from pins import PINS
+        exp = self.tool_cfg('scope').get('exp') or 'exp2'
+        return exp, PINS.get(exp, 'p3'), PINS.get(exp, 'p4')
+
+    def gen_view(self):
+        g = getattr(self, 'gen_rt', None) or {}
+        exp, p1, p2 = self.gen_pins()
+        return {**self.gen_cfg(), 'run': bool(g.get('run')), 'err': g.get('err'), 'freqs': g.get('freqs') or {},
+                'exp': exp, 'pins': {'ch1': p1, 'ch2': p2}}
+
+    async def gen_set(self, a):
+        c = self.gen_cfg()
+        for ch in ('ch1', 'ch2'):
+            x = a.get(ch)
+            if not isinstance(x, dict):
+                continue
+            if 'on' in x:
+                c[ch]['on'] = bool(x['on'])
+            if x.get('wave') in ('square', 'tri'):
+                c[ch]['wave'] = x['wave']
+            for k, lo, hi in (('freq', 1.0, 100000.0), ('duty', 1.0, 99.0)):
+                if k in x:
+                    try:
+                        c[ch][k] = max(lo, min(hi, float(x[k])))
+                    except (TypeError, ValueError):
+                        return {'err': 'Neispravna vrednost: ' + k}
+        save_state(self.st)
+        if (getattr(self, 'gen_rt', None) or {}).get('run'):   # radi: novi talas odmah
+            return await self.gen_run(True)
+        if self.tool_running() == 'gen':
+            self.tool_write('gen')
+        self.mark()
+        return {'ok': 'Sačuvano'}
+
+    async def gen_run(self, on):
+        import siggen
+        rt = self.gen_rt = getattr(self, 'gen_rt', None) or {'gen': siggen.Gen()}
+        loop = asyncio.get_running_loop()
+        if not on:
+            await loop.run_in_executor(None, rt['gen'].stop)
+            await self._rc('sudo', '-n', 'systemctl', 'stop', 'pigpiod', timeout=15)   # servis ne troši procesor kad generator ne radi
+            await self._rc('sudo', '-n', 'systemctl', 'reset-failed', 'pigpiod', timeout=10)   # pigpiod na SIGTERM izlazi sa greškom
+            rt.update(run=False, err=None, freqs={})
+            if self.tool_running() == 'gen':
+                self.tool_write('gen')
+            self.mark()
+            return {'ok': 'Generator je isključen'}
+        c = self.gen_cfg()
+        _, p1, p2 = self.gen_pins()
+        chs = [{'name': ch.upper(), 'gpio': g, 'wave': c[ch]['wave'], 'freq': c[ch]['freq'], 'duty': c[ch]['duty'], 'ch': ch}
+               for ch, g in (('ch1', p1), ('ch2', p2)) if c[ch]['on'] and g]
+        try:
+            siggen.build(chs)   # proveri pre pokretanja servisa
+        except siggen.GenError as e:
+            rt.update(err=str(e))
+            self.mark()
+            return {'err': str(e)}
+        if (await self._run('systemctl', 'is-active', 'pigpiod', timeout=5)).strip() != 'active':
+            await self._rc('sudo', '-n', 'systemctl', 'start', 'pigpiod', timeout=20)
+            await asyncio.sleep(1)
+        try:
+            freqs = await loop.run_in_executor(None, rt['gen'].start, chs)
+        except Exception as e:
+            rt.update(run=False, err=str(e))
+            self.mark()
+            return {'err': 'Generator: %s' % e}
+        rt.update(run=True, err=None, freqs={x['ch']: f for x, f in zip(chs, freqs)})
+        if self.tool_running() == 'gen':
+            self.tool_write('gen')
+        self.mark()
+        return {'ok': 'Generator radi: ' + ', '.join('%s %s %s' % (x['name'], 'pravougaoni' if x['wave'] == 'square' else 'trougaoni', fmt_hz(f)) for x, f in zip(chs, freqs))}
+
+    async def stor_mkdir(self, a):
+        p = self.stor_disk(a.get('dev'))
+        if not p or a.get('cat') not in self.STOR_DIRS:
+            return {'err': 'Disk nije priključen.'}
+        name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', '_', str(a.get('n') or '')).strip(' .')[:80]
+        if not name:
+            return {'err': 'Upiši ime foldera.'}
+        root = Path(p['mnt']) / self.STOR_DIRS[a['cat']]
+        root.mkdir(parents=True, exist_ok=True)
+        d = self.inside(root, a.get('path'))
+        if not d or not d.is_dir():
+            return {'err': 'Folder ne postoji.'}
+        if (d / name).exists():
+            return {'err': 'Već postoji: ' + name}
+        try:
+            (d / name).mkdir()
+        except OSError as e:
+            return {'err': 'Folder nije napravljen: %s' % e.strerror}
+        return {'ok': 'Napravljen folder ' + name}
+
+    # ---------- Alarmi (Smart Home): više centrala — Paradox (IP150, PAI most) i DSC (EnvisaLink, dsc_bridge.py).
+    # Svaka centrala: data/alarm[-<id>].json (lozinke, chmod 600), svoj most (systemd korisnički servis) na 127.0.0.1:<port>.
+    ALARM_MODELS = {'paradox': 'Paradox (IP150)', 'dsc': 'DSC (EnvisaLink)'}
+    PARADOX_MODULES = ('IP150', 'IP100')   # isti protokol na portu 10000 (PAI, CONNECTION_TYPE IP), razlika je samo u nazivu
+    ALARM_PANELS = {'paradox': ['EVO48', 'EVO96', 'EVO192', 'EVOHD', 'SP4000', 'SP5500', 'SP6000', 'SP65', 'SP7000', 'MG5000', 'MG5050'],
+                    'dsc': ['PC1616', 'PC1832', 'PC1864', 'PC5010', 'PC5020', 'HS2016', 'HS2032', 'HS2064', 'HS2128']}
+
+    @staticmethod
+    def alarm_hash(code, salt):
+        import hashlib
+        return hashlib.pbkdf2_hmac('sha256', str(code).encode(), bytes.fromhex(salt), 100000).hex()
+
+    def alarm_code_ok(self, aid, code):
+        """Šifra za uključivanje/isključivanje sa stranice (ako je postavljena za taj alarm)."""
+        c = self.alarm_cfg(aid)
+        if not c.get('ui_hash'):
+            return True
+        import hmac
+        return bool(code) and hmac.compare_digest(self.alarm_hash(code, c['ui_salt']), c['ui_hash'])
+
+    def alarm_list(self):
+        if 'alarms' not in self.st:   # ranije jedan Paradox (alarm.json) -> prvi u listi
+            self.st['alarms'] = [{'id': 'a1', 'model': 'paradox'}] if ALARM_CFG.exists() else []
+        return self.st['alarms']
+
+    @staticmethod
+    def alarm_file(aid):
+        return ALARM_CFG if aid == 'a1' else DATA / ('alarm-%s.json' % aid)
+
+    def alarm_model(self, aid):
+        return next((x['model'] for x in self.alarm_list() if x['id'] == aid), 'paradox')
+
+    def alarm_unit(self, aid):
+        if self.alarm_model(aid) == 'dsc':
+            return 'teco-dsc@%s.service' % aid
+        return ALARM_UNIT if aid == 'a1' else 'teco-alarm@%s.service' % aid
+
+    @staticmethod
+    def alarm_port(aid):
+        return 8098 if aid == 'a1' else 8110 + int(re.sub(r'\D', '', aid) or 0)
+
+    def alarm_cfg(self, aid='a1'):
+        try:
+            return json.loads(self.alarm_file(aid).read_text())
         except (OSError, ValueError):
             return {}
 
+    def alarm_write(self, aid, c):
+        f = self.alarm_file(aid)
+        f.write_text(json.dumps(c))
+        os.chmod(f, 0o600)
+
     async def alarm_cfg_set(self, a):
-        """Admin: podešavanje IP modula. Prazna lozinka = zadrži staru. Lozinke se nikad ne šalju nazad."""
-        c = self.alarm_cfg()
+        """Podešavanje centrale (stranica Alarm). Prazna lozinka/kod = zadrži sačuvano. Lozinke se nikad ne šalju nazad."""
+        aid = str(a.get('id') or 'a1')
+        if not any(x['id'] == aid for x in self.alarm_list()):
+            return {'err': 'Alarm ne postoji.'}
+        model, c = self.alarm_model(aid), self.alarm_cfg(aid)
+        if model == 'paradox' and a.get('module') in self.PARADOX_MODULES:
+            c['module'] = a['module']
         host = str(a.get('host') or '').strip()
         if a.get('enabled') and not re.fullmatch(r'[A-Za-z0-9.\-]{1,253}', host):
-            return {'err': 'Upiši IP adresu IP150 modula (npr. 172.10.10.50).'}
+            return {'err': 'Upiši IP adresu %s (npr. 172.10.10.50).' % ('EnvisaLink-a' if model == 'dsc' else c.get('module', 'IP150') + ' modula')}
         try:
-            port = int(a.get('port') or 10000)
+            port = int(a.get('port') or (4025 if model == 'dsc' else 10000))
             assert 1 <= port <= 65535
         except (ValueError, AssertionError):
-            return {'err': 'Port nije ispravan (obično 10000).'}
-        c.update(host=host, port=port, enabled=bool(a.get('enabled')), name=str(a.get('name') or '').strip()[:40])
-        for k in ('ip_password', 'pc_password'):
+            return {'err': 'Port nije ispravan (Paradox 10000, DSC 4025).'}
+        c.update(host=host, port=port, enabled=bool(a.get('enabled')), name=str(a.get('name') or '').strip()[:40], api_port=self.alarm_port(aid))
+        keys = ('tpi_password', 'code') if model == 'dsc' else ('ip_password', 'pc_password')
+        for k in keys:
             if a.get(k):
                 c[k] = str(a[k])[:32]
-        ALARM_CFG.write_text(json.dumps(c))
-        os.chmod(ALARM_CFG, 0o600)
-        await self._run('systemctl', '--user', 'restart' if c['enabled'] else 'stop', ALARM_UNIT, timeout=20)
-        self.alarm = {}
+        if 'panel' in a:
+            c['panel'] = str(a.get('panel') or '')[:20]
+        if a.get('ui_code_clear'):   # šifra za stranicu: ukloni
+            c.pop('ui_hash', None), c.pop('ui_salt', None)
+        elif a.get('ui_code'):
+            code = str(a['ui_code']).strip()
+            if not re.fullmatch(r'\d{4,8}', code):
+                return {'err': 'Šifra za stranicu: 4 do 8 cifara.'}
+            c['ui_salt'] = secrets.token_hex(16)
+            c['ui_hash'] = self.alarm_hash(code, c['ui_salt'])
+        if model == 'dsc':
+            for k, lo, hi in (('partitions', 1, 8), ('zones', 1, 64)):
+                try:
+                    c[k] = max(lo, min(hi, int(a.get(k) or c.get(k) or (1 if k == 'partitions' else 8))))
+                except (TypeError, ValueError):
+                    return {'err': 'Neispravan broj: ' + k}
+        self.alarm_write(aid, c)
+        unit = self.alarm_unit(aid)
+        if c['enabled']:
+            await self._run('systemctl', '--user', 'enable', unit, timeout=20)
+            await self._run('systemctl', '--user', 'restart', unit, timeout=20)
+        else:
+            await self._run('systemctl', '--user', 'disable', '--now', unit, timeout=20)
+        self.__dict__.setdefault('alarms_st', {})[aid] = {}
         self.mark()
         return {'ok': 'Alarm: podešavanje sačuvano' + (', povezujem se…' if c['enabled'] else ' (isključen).')}
 
-    async def alarm_post(self, path, body):
+    async def alarm_add(self, a):
+        model = a.get('model')
+        if model not in self.ALARM_MODELS:
+            return {'err': 'Izaberi model (Paradox ili DSC).'}
+        lst = self.alarm_list()
+        n = max([int(re.sub(r'\D', '', x['id']) or 0) for x in lst] + [1]) + 1 if lst else 1
+        aid = 'a%d' % n
+        lst.append({'id': aid, 'model': model})
+        self.alarm_write(aid, {'enabled': False, 'name': str(a.get('name') or '').strip()[:40], 'api_port': self.alarm_port(aid),
+                               'port': 4025 if model == 'dsc' else 10000})
+        save_state(self.st)
+        self.mark()
+        return {'ok': 'Dodat alarm (%s) — upiši adresu i lozinke' % self.ALARM_MODELS[model], 'id': aid}
+
+    async def alarm_del(self, aid):
+        lst = self.alarm_list()
+        x = next((x for x in lst if x['id'] == aid), None)
+        if not x:
+            return {'err': 'Alarm ne postoji.'}
+        await self._run('systemctl', '--user', 'disable', '--now', self.alarm_unit(aid), timeout=20)
+        lst.remove(x)
+        save_state(self.st)
+        if aid != 'a1':   # a1: podešavanje i dnevnik ostaju (stari fajlovi), ostali se brišu
+            for f in (self.alarm_file(aid), DATA / ('alarm-events-%s.json' % aid), DATA / ('pai-config-%s.json' % aid)):
+                f.unlink(missing_ok=True)
+        self.__dict__.setdefault('alarms_st', {}).pop(aid, None)
+        self.mark()
+        return {'ok': 'Alarm je uklonjen'}
+
+    async def alarm_post(self, path, body, aid='a1'):
         import aiohttp
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25)) as s:
-                async with s.post(ALARM_API + path, json=body) as r:
+                async with s.post('http://127.0.0.1:%d%s' % (self.alarm_port(aid), path), json=body) as r:
                     return await r.json()
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
             return {'err': 'Alarm servis ne odgovara.'}
 
     async def alarm_extra(self, c, a):
         """Monitor zone (dnevnik), brisanje memorije alarma, brisanje dnevnika."""
+        aid = str(a.get('id') or 'a1')
         if c == 'alarm_monitor':
-            cfg = self.alarm_cfg()
+            cfg = self.alarm_cfg(aid)
             mon = {int(x) for x in cfg.get('monitor', [])}
             z = int(a.get('zone'))
             (mon.add if a.get('on') else mon.discard)(z)
             cfg['monitor'] = sorted(mon)
-            ALARM_CFG.write_text(json.dumps(cfg))
-            os.chmod(ALARM_CFG, 0o600)
+            self.alarm_write(aid, cfg)
             self.mark()
             return {'ok': 'Zona se ' + ('prati: događaji se čuvaju' if a.get('on') else 'više ne prati')}
         if c == 'alarm_mem_clear':
-            r = await self.alarm_post('/zone', {'p': 'all', 'cmd': 'clear_alarm_memory'})
+            r = await self.alarm_post('/zone', {'p': 'all', 'cmd': 'clear_alarm_memory'}, aid)
             return {'ok': 'Memorija alarma je obrisana'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
+        if c == 'alarm_panic' and not self.alarm_code_ok(aid, a.get('code')):
+            await asyncio.sleep(1)
+            return {'err': 'Pogrešna šifra alarma.', 'code_req': True}
         if c == 'alarm_panic':   # panic (kao 1+3 / 4+6 / 7+9 na šifratoru)
             t = a.get('type') if a.get('type') in ('emergency', 'medical', 'fire') else 'emergency'
             log.warning('PANIC sa stranice: %s', t)
-            r = await self.alarm_post('/panic', {'type': t, 'p': a.get('p') or 1})
+            r = await self.alarm_post('/panic', {'type': t, 'p': a.get('p') or 1}, aid)
             return {'ok': 'PANIC poslat centrali'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
         if c == 'alarm_time':   # sat centrale = sat Teco.Pi-ja
-            r = await self.alarm_post('/time', {})
+            r = await self.alarm_post('/time', {}, aid)
             if not r.get('ok'):
                 return {'err': r.get('err') or 'Nije uspelo.'}
             d = r.get('drift')
             return {'ok': 'Sat centrale podešen: ' + r['time'] + ('' if d is None or abs(d) < 60 else ' (kasnio je %d min)' % (d // 60) if d > 0 else ' (žurio je %d min)' % (-d // 60))}
         if c == 'alarm_ev_clear':
-            r = await self.alarm_post('/events/clear', {})
+            r = await self.alarm_post('/events/clear', {}, aid)
             return {'ok': 'Dnevnik događaja je obrisan'} if r.get('ok') else {'err': r.get('err') or 'Nije uspelo.'}
         if c == 'alarm_events':   # dnevnik za izabrani period (ceo dnevnik na mostu, ne samo poslednjih 100)
             try:
                 t0, t1 = int(a.get('from') or 0), int(a.get('to') or 0)
             except (TypeError, ValueError):
                 return {'err': 'Neispravan period.'}
-            r = await self.alarm_post('/events/range', {'from': t0, 'to': t1})
+            r = await self.alarm_post('/events/range', {'from': t0, 'to': t1}, aid)
             return {'events': r.get('events') or []} if 'events' in r else {'err': r.get('err') or 'Nije uspelo.'}
 
-    async def alarm_do(self, a):
+    async def alarm_do(self, a, trusted=False):
         """Particija (uključi u režimu Regular/Stay/Instant/Force, isključi) ili PGM izlaz (a['pgm'])."""
         cmd = str(a.get('cmd') or '')
         pgm = a.get('pgm') is not None
         if cmd not in (PGM_CMDS if pgm else ALARM_CMDS):
             return {'err': 'Nepoznata komanda.'}
+        if not pgm and not trusted and not self.alarm_code_ok(str(a.get('id') or 'a1'), a.get('code')):
+            await asyncio.sleep(1)   # uspori pogađanje
+            log.warning('alarm %s: pogrešna šifra (%s)', a.get('id'), cmd)
+            return {'err': 'Pogrešna šifra alarma.', 'code_req': True}
         import aiohttp
         path, target = ('/pgm', str(a.get('pgm'))) if pgm else ('/partition', str(a.get('p') or 'all'))
+        api = 'http://127.0.0.1:%d' % self.alarm_port(str(a.get('id') or 'a1'))
 
         async def post(c):
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as s:
-                async with s.post(ALARM_API + path, json={'p': target, 'cmd': c}) as r:
+                async with s.post(api + path, json={'p': target, 'cmd': c}) as r:
                     return await r.json()
         try:
             res = await post('on' if cmd == 'pulse' else cmd)
@@ -5904,31 +8143,54 @@ class Teco:
         return {'ok': ('PGM ' + target + ': ' + PGM_CMDS[cmd]) if pgm else 'Alarm: ' + ALARM_CMDS[cmd]}
 
     async def alarm_loop(self):
-        """Dugo čekanje na most (/wait?v=): čim se na centrali nešto promeni (zona, particija, smetnja,
-        događaj), most odmah odgovori novim stanjem i stranica ga dobija za delić sekunde."""
+        """Za svaku centralu: dugo čekanje na njen most (/wait?v=) — promena (zona, particija, smetnja) stiže odmah."""
+        self.alarm, self.alarms_st = {}, {}
+        tasks = {}
+        while True:
+            ids = [x['id'] for x in self.alarm_list()]
+            for aid in ids:
+                if aid not in tasks or tasks[aid].done():
+                    tasks[aid] = asyncio.get_running_loop().create_task(self.alarm_watch(aid))
+            for aid in [k for k in tasks if k not in ids]:
+                tasks.pop(aid).cancel()
+                self.alarms_st.pop(aid, None)
+                self.mark()
+            prim = self.alarms_st.get(ids[0]) if ids else {}
+            if (prim or {}) is not self.alarm:
+                self.alarm = prim or {}
+            await asyncio.sleep(2)
+
+    async def alarm_watch(self, aid):
         import aiohttp
-        self.alarm = {}
         v = -1
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as s:
             while True:
-                if not self.alarm_cfg().get('enabled'):
-                    if self.alarm:
-                        self.alarm = {}
+                if not self.alarm_cfg(aid).get('enabled'):
+                    if self.alarms_st.get(aid):
+                        self.alarms_st[aid] = {}
                         self.mark()
                     v = -1
                     await asyncio.sleep(2)
                     continue
                 try:
-                    async with s.get(ALARM_API + '/wait', params={'v': v}) as r:
+                    async with s.get('http://127.0.0.1:%d/wait' % self.alarm_port(aid), params={'v': v}) as r:
                         st = await r.json()
                     v = st.pop('v', -1)
                 except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
                     st = {'run': 'down', 'err': 'Alarm servis se pokreće…', 'partitions': [], 'zones': []}
                     v = -1
                     await asyncio.sleep(2)
-                if st != self.alarm:
-                    self.alarm = st
-                    self.pgm_events(st)
+                if st != self.alarms_st.get(aid):
+                    self.alarms_st[aid] = st
+                    lst = self.alarm_list()
+                    if lst and lst[0]['id'] == aid:   # glavni alarm: interfoni, PGM obaveštenja, SMS status
+                        self.alarm = st
+                        self.pgm_events(st)
+                    elif st.get('run') == 'run':
+                        try:
+                            self.notify_alarm(st, aid)
+                        except Exception:
+                            log.exception('obaveštenje alarma %s', aid)
                     self.mark()
 
     def pgm_events(self, st):
@@ -5936,7 +8198,8 @@ class Teco:
         if st.get('run') != 'run':
             return
         try:
-            self.notify_alarm(st)   # SMS obaveštenja: alarm, uključen/isključen, struja
+            lst = self.alarm_list()
+            self.notify_alarm(st, lst[0]['id'] if lst else 'a1')   # SMS obaveštenja: alarm, uključen/isključen, struja
         except Exception:
             log.exception('obaveštenje alarma')
         # interfoni: zona alarma se otvori (zvoni) -> obaveštenje + zapamti vreme poziva
@@ -5957,19 +8220,12 @@ class Teco:
                     ev = ic.get('event') or ('zvono' if dv['type'] == 'bell' else 'interfon')
                     if self.st.get('events', {}).get(ev, {}).get('on', True):
                         asyncio.get_running_loop().create_task(self.fire_event(ev))
-        cur = {g.get('id'): bool(g.get('on')) for g in st.get('pgms', [])}
-        prev = getattr(self, '_pgm_prev', None)
-        self._pgm_prev = cur
-        if prev is None:   # prvo stanje posle pokretanja: samo zapamti
-            return
-        for eid, ev in self.st.get('events', {}).items():
-            p = ev.get('pgm')
-            if p and ev.get('on', True) and cur.get(p) and not prev.get(p):
-                log.info('obaveštenje %s: PGM %s uključen', eid, p)
-                asyncio.get_running_loop().create_task(self.fire_event(eid))
-    def alarm_snapshot(self):
-        c = self.alarm_cfg()
-        st = self.alarm or {}
+        # (ranije je i obaveštenje imalo svoj PGM okidač; sada okidač određuje samo uređaj — zvono/interfon i njegova zona)
+
+    def alarm_snapshot(self, aid='a1'):
+        c = self.alarm_cfg(aid)
+        st = (getattr(self, 'alarms_st', None) or {}).get(aid) or {}
+        model = self.alarm_model(aid)
         zk = ('id', 'key', 'label', 'open', 'bypassed', 'alarm', 'tamper', 'fire', 'low_battery', 'generated_alarm', 'was_in_alarm',
               'supervision_trouble', 'in_tx_delay', 'shutdown', 'fire_alarm')
         pk = ('id', 'key', 'label', 'arm', 'arm_stay', 'arm_away', 'arm_sleep', 'arm_no_entry', 'alarm', 'current_state', 'target_state', 'ready',
@@ -5979,11 +8235,14 @@ class Teco:
         tr = sysd.get('troubles') or {}
         parts = st.get('partitions', [])
         return {
-            'id': 'a1',   # za sada jedan alarm; lista (alarms) je spremna za više
+            'id': aid, 'model': model, 'model_n': 'Paradox (%s)' % c.get('module', 'IP150') if model == 'paradox' else self.ALARM_MODELS[model],
             'name': c.get('name') or (parts[0].get('label') if parts else '') or 'Alarm',
             'on': bool(c.get('enabled')),
-            'cfg': {'host': c.get('host', ''), 'port': c.get('port', 10000), 'name': c.get('name', ''),
-                    'ip_pw': bool(c.get('ip_password')), 'pc_pw': bool(c.get('pc_password'))},
+            'cfg': {'host': c.get('host', ''), 'port': c.get('port', 4025 if model == 'dsc' else 10000), 'name': c.get('name', ''),
+                    'ip_pw': bool(c.get('ip_password')), 'pc_pw': bool(c.get('pc_password')),
+                    'tpi_pw': bool(c.get('tpi_password')), 'code': bool(c.get('code')), 'partitions': c.get('partitions', 1), 'zones': c.get('zones', 8),
+                    'panel': c.get('panel', ''), 'ui_code': bool(c.get('ui_hash')), 'module': c.get('module', 'IP150')},
+            'panels': self.ALARM_PANELS[model],
             'troubles': sorted(k for k, v in tr.items() if v is True and not k.startswith('_')),
             'power': {k: sysd.get('power', {}).get(k) for k in ('vdc', 'battery', 'dc') if isinstance(sysd.get('power', {}).get(k), (int, float))},
             'events': (st.get('events') or [])[-100:],
@@ -6107,13 +8366,99 @@ class Teco:
             w.setframerate(rate)
             w.writeframes(bytes(out))
 
+    @staticmethod
+    def _tone_wav(path, key):
+        """Sistemska melodija: zvono (osnovni ton + harmonici, eksponencijalno gašenje)."""
+        import math
+        import struct
+        import wave
+        rate, lead = 48000, 0.12   # 48 kHz kao izlaz (bez preračunavanja); kratka tišina dok se izlaz (HDMI/BT) ne probudi
+        E4, G4, C5, D5, E5, G5, B5 = 329.63, 392.0, 523.25, 587.33, 659.25, 783.99, 987.77
+        notes = {   # (početak s, frekvencija, trajanje s)
+            'dingdong': [(0, E5, 1.6), (0.6, C5, 2.0)],
+            'seven': [(0, B5, 0.9), (0.32, G5, 1.6), (1.4, B5, 0.9), (1.72, G5, 1.8)],   # „ting-tong“ elektronsko zvono, dva puta
+            'westminster': [(i * 0.5, f, 1.6) for i, f in enumerate((E5, C5, D5, G4))] + [(2.4 + i * 0.5, f, 1.8 if i == 3 else 1.6) for i, f in enumerate((G4, D5, E5, C5))],
+            'trio': [(0, C5, 1.4), (0.35, E5, 1.4), (0.7, G5, 2.0)],
+        }[key]
+        notes = [(s + lead, f, d) for s, f, d in notes]
+        bright = key == 'seven'
+        n = int(rate * (max(s + d for s, _, d in notes) + 0.1))
+        buf = [0.0] * n
+        for s, f, d in notes:
+            i0, m = int(s * rate), int(d * rate)
+            parts = ((1, 1), (2, 0.08), (3, 0.03)) if bright else ((1, 1), (2, 0.35), (3, 0.12), (4.2, 0.06))
+            for i in range(min(m, n - i0)):
+                t = i / rate
+                env = min(1, i / 60) * math.exp(-t * (3.2 if bright else 2.4))
+                buf[i0 + i] += env * sum(a * math.sin(2 * math.pi * f * h * t) for h, a in parts)
+        peak = max(abs(x) for x in buf) or 1
+        with wave.open(str(path), 'wb') as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(b''.join(struct.pack('<h', int(26000 * x / peak)) for x in buf))
+
     def event_sound(self, eid):
+        """Zvuk u folderu događaja: kod alarma ugrađen alarm.wav (ranije i otpremljen zvuk zvona, prebacuje se u Zvukove)."""
         d = EVENTS_DIR / eid
         files = sorted(p for p in d.glob('*') if p.suffix.lower() in AUDIO_EXT) if d.exists() else []
         return files[0] if files else None
 
+    @staticmethod
+    def tones_list():
+        """Skladište → Zvukovi: ugrađene melodije prve, pa otpremljeni fajlovi."""
+        fs = [p for p in TONES_DIR.glob('*') if p.suffix.lower() in AUDIO_EXT and not p.name.startswith('.')] if TONES_DIR.exists() else []
+        sys_ = {k + '.wav': n for k, n in EVENT_TONES.items()}
+        fs.sort(key=lambda p: (p.name not in sys_, list(sys_).index(p.name) if p.name in sys_ else 0, p.name.lower()))
+        out = []
+        for p in fs:
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            out.append({'f': p.name, 'n': sys_.get(p.name, p.stem), 'sys': p.name in sys_, 'size': st.st_size, 't': int(st.st_mtime)})
+        return out
+
+    def event_tone(self, eid):
+        """Izabrana melodija (ime fajla u Zvukovima); nema je više → ding-dong."""
+        t = str((self.st['events'].get(eid) or {}).get('tone') or '')
+        if t in EVENT_TONES:   # ranije: ključ ugrađene melodije
+            t += '.wav'
+        return t if t and '/' not in t and (TONES_DIR / t).is_file() else 'dingdong.wav'
+
+    def event_play(self, eid, tone=None):
+        if eid in ALARMS:
+            return self.event_sound(eid)
+        p = TONES_DIR / (tone or self.event_tone(eid))
+        if not p.exists() and p.stem in EVENT_TONES:
+            TONES_DIR.mkdir(parents=True, exist_ok=True)
+            self._tone_wav(p, p.stem)
+        return p if p.exists() else None
+
+    async def play_sound(self, path, loop=False):
+        """Kratak zvuk preko PipeWire-a. pw-play je lagan (brz start, bez zastoja na Pi 3B); mpv samo za petlju i m4a/aac/opus."""
+        vol = max(int(self.mpv.props.get('volume') or 70), 60)
+        env = dict(os.environ, XDG_RUNTIME_DIR='/run/user/%d' % os.getuid())
+        if not loop and path.suffix.lower() in ('.wav', '.mp3', '.ogg', '.flac'):
+            cmd = ['pw-play', '--volume', '%.2f' % (vol / 100), str(path)]
+        else:
+            cmd = ['mpv', '--no-config', '--no-video', '--ao=pipewire', '--really-quiet', '--volume=%d' % vol, *(['--loop-file=inf'] if loop else []), str(path)]
+        return await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, env=env)
+
     async def events_assets(self):
         """Folder i slika (image.png, za web pregled) za svaki događaj; slika se osvežava kad se promeni naziv."""
+        TONES_DIR.mkdir(parents=True, exist_ok=True)
+        for t in EVENT_TONES:   # ugrađene melodije (jednom, u pozadini)
+            if not (TONES_DIR / (t + '.wav')).exists():
+                await asyncio.to_thread(self._tone_wav, TONES_DIR / (t + '.wav'), t)
+        for eid, ev in self.st['events'].items():   # ranije otpremljen zvuk zvona/interfona -> Zvukovi, ostaje izabran
+            old = self.event_sound(eid) if eid not in ALARMS else None
+            if old:
+                dest = self.free_name(TONES_DIR / ('%s%s' % (ev['n'], old.suffix.lower())))
+                shutil.move(str(old), dest)
+                if ev.get('tone') in (None, 'custom'):
+                    ev['tone'] = dest.name
+                save_state(self.st)
         for eid, ev in self.st['events'].items():
             d = EVENTS_DIR / eid
             d.mkdir(parents=True, exist_ok=True)
@@ -6144,13 +8489,9 @@ class Teco:
         if resume:
             await self.mpv.cmd('set_property', 'pause', True)
         await self._overlay(['ev', eid, ev['n'], when], lambda w, h: self._event_svg(eid, w, h, when), oid=2)
-        snd, proc = self.event_sound(eid), None
+        snd, proc = self.event_play(eid), None
         if snd:
-            vol = int(self.mpv.props.get('volume') or 70)
-            proc = await asyncio.create_subprocess_exec(
-                'mpv', '--no-config', '--no-video', '--ao=pipewire', '--really-quiet', '--volume=%d' % max(vol, 60), *(['--loop-file=inf'] if eid in ALARMS else []), str(snd),
-                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-                env=dict(os.environ, XDG_RUNTIME_DIR='/run/user/%d' % os.getuid()))
+            proc = await self.play_sound(snd, loop=eid in ALARMS)
 
         async def cleanup():
             if proc and proc.returncode is None:
@@ -6179,9 +8520,8 @@ class Teco:
     def events_snapshot(self):
         out = []
         for eid, ev in self.st['events'].items():
-            snd = self.event_sound(eid)
             out.append({'id': eid, 'n': ev['n'], 'on': ev.get('on', True), 'sec': ev['sec'], 'pause': ev.get('pause', True),
-                        'sound': snd.name if snd else None, 'dir': str(EVENTS_DIR / eid), 'alarm': eid in ALARMS, 'pgm': ev.get('pgm')})
+                        'dir': str(EVENTS_DIR / eid), 'alarm': eid in ALARMS, 'pgm': ev.get('pgm'), 'tone': self.event_tone(eid)})
         return out
 
     # ---------- mreža
@@ -6213,7 +8553,7 @@ class Teco:
         except OSError:
             pass
         # sat: NTP (systemd-timesyncd)
-        sync = (await self._run('timedatectl', 'show', '-p', 'NTPSynchronized', '--value', timeout=5)).strip()
+        sync = 'yes' if os.path.exists('/run/systemd/timesync/synchronized') else 'no'   # bez buđenja systemd-timedated na 30 s
         ts = dict(l.split('=', 1) for l in (await self._run('timedatectl', 'show-timesync', '-p', 'ServerName', '-p', 'ServerAddress', timeout=5)).splitlines() if '=' in l)
         try:
             m = re.search(r'^NTP=(.*)$', NTP_CONF.read_text(), re.M)
@@ -6221,7 +8561,7 @@ class Teco:
         except OSError:
             cfg_ntp = []
         net['ntp'] = {'sync': sync == 'yes', 'server': ts.get('ServerName') or '', 'addr': ts.get('ServerAddress') or '', 'servers': cfg_ntp}
-        wifi = await self._run('nmcli', '-t', '-f', 'ACTIVE,SSID,SIGNAL', 'dev', 'wifi', timeout=5)
+        wifi = await self._run('nmcli', '-t', '-f', 'ACTIVE,SSID,SIGNAL', 'dev', 'wifi', 'list', '--rescan', 'no', timeout=5)
         for line in wifi.splitlines():
             if line.startswith('yes:'):
                 _, net['ssid'], net['signal'] = line.split(':', 2)
@@ -6318,6 +8658,56 @@ class Teco:
     def _nm_split(line):
         """nmcli -t deli polja sa ':' a ':' u vrednosti piše kao '\\:'."""
         return [p.replace('\x00', ':') for p in line.replace('\\:', '\x00').split(':')]
+
+    async def wifi_an(self, rescan=True):
+        """Alati → Wi-Fi analizator: sve okolne pristupne tačke (i skrivene) sa kanalom, jačinom i proizvođačem,
+        plus preporuka kanala: 2,4 GHz samo 1/6/11 (ne preklapaju se), 5 GHz kanali bez DFS-a; težina = snaga signala."""
+        import netscan
+        if getattr(self, 'wifi_an_busy', False):
+            return {'err': 'Skeniranje je već u toku.'}
+        self.wifi_an_busy = True
+        try:
+            out = await self._run('nmcli', '-t', '-f', 'IN-USE,SSID,BSSID,CHAN,FREQ,RATE,SIGNAL,SECURITY', 'dev', 'wifi', 'list',
+                                  '--rescan', 'yes' if rescan else 'no', timeout=30)
+        finally:
+            self.wifi_an_busy = False
+        nets = []
+        for line in out.splitlines():
+            f = self._nm_split(line)
+            if len(f) < 8:
+                continue
+            freq = int(re.sub(r'\D', '', f[4]) or 0)
+            sig = int(f[6]) if f[6].isdigit() else 0
+            ch = int(f[3]) if f[3].isdigit() else 0
+            nets.append({'ssid': f[1], 'bssid': f[2].lower(), 'ch': ch, 'band': '5' if freq > 4000 else '2.4', 'freq': freq, 'rate': f[5],
+                         'sig': sig, 'dbm': round(sig / 2 - 100), 'sec': '' if f[7] in ('', '--') else f[7], 'on': f[0] == '*',
+                         'vendor': netscan.vendor(f[2]) or ''})
+        nets.sort(key=lambda n: (not n['on'], -n['sig']))
+        mine = {n['ssid'] for n in nets if n['on'] and n['ssid']}
+
+        def score(c, band):   # koliko tuđi signali smetaju kanalu c (linearna snaga, preklapanje po razmaku kanala)
+            s = 0.0
+            for n in nets:
+                if n['band'] != band or n['ssid'] in mine:
+                    continue
+                d = abs(n['ch'] - c)
+                ov = max(0.0, 1 - d / 5) if band == '2.4' else (1.0 if d == 0 else 0.5 if d <= 4 else 0.0)
+                s += ov * 10 ** (n['dbm'] / 10)
+            return s
+        rec = {}
+        for band, cands in (('2.4', [1, 6, 11]), ('5', [36, 40, 44, 48, 149, 153, 157, 161])):
+            if band == '5' and not any(n['band'] == '5' for n in nets):
+                continue
+            sc = {c: score(c, band) for c in cands}
+            mx = max(sc.values()) or 1
+            best = min(sc, key=sc.get)
+            rec[band] = {'best': best, 'load': {str(c): round(v / mx * 100) for c, v in sc.items()},
+                         'cnt': {str(c): sum(1 for n in nets if n['band'] == band and n['ssid'] not in mine and abs(n['ch'] - c) < (5 if band == '2.4' else 1)) for c in cands}}
+        cur = next((n for n in nets if n['on']), None)
+        self.wifi_last = {'nets': nets, 'rec': rec, 'cur': cur, 't': time.time(), 'radio': bool(self.net.get('radio', True))}
+        if self.tool_running() == 'wifi':
+            self.tool_write('wifi')   # TV prikaz se osveži
+        return self.wifi_last
 
     async def wifi_scan(self):
         self.wifi['scanning'] = True
@@ -6750,14 +9140,38 @@ class Teco:
                 ev['pause'] = bool(a['pause'])
             if 'pgm' in a:   # okida ga PGM alarma (kad se uključi), prazno = ne
                 ev['pgm'] = int(a['pgm']) if str(a['pgm']).strip() not in ('', '0', 'None') else None
+            if a.get('tone') and a['id'] not in ALARMS:   # ime fajla iz Skladište → Zvukovi
+                t = str(a['tone'])
+                if '/' in t or not (TONES_DIR / t).is_file():
+                    return {'err': 'Nema tog zvuka u Zvukovima.'}
+                ev['tone'] = t
             save_state(self.st)
             await self.events_assets()
         elif c == 'ev_test':
             return await self.fire_event(a.get('id'))
-        elif c == 'ev_sound_del':
-            snd = self.event_sound(str(a.get('id')))
-            if snd and a.get('id') not in ALARMS:
-                snd.unlink()
+        elif c == 'tone_play':   # samo melodija (bez slike na ekranu): izbor u Obaveštenjima, ▶ u Zvukovima
+            t = str(a.get('f') or '')
+            p = TONES_DIR / t
+            if not t or '/' in t or not p.is_file():
+                return {'err': 'Nema tog zvuka.'}
+            if getattr(self, 'tone_proc', None) and self.tone_proc.returncode is None:
+                self.tone_proc.terminate()
+            self.tone_proc = await self.play_sound(p)
+            return {'ok': '▶ ' + next((x['n'] for x in self.tones_list() if x['f'] == t), t)}
+        elif c == 'tone_del':
+            t = str(a.get('f') or '')
+            p = TONES_DIR / t
+            if not t or '/' in t or not p.is_file():
+                return {'err': 'Nema tog zvuka.'}
+            if p.stem in EVENT_TONES and p.suffix == '.wav':
+                return {'err': 'Ugrađena melodija se ne briše.'}
+            p.unlink()
+            for ev in self.st['events'].values():
+                if ev.get('tone') == t:
+                    ev.pop('tone')
+            save_state(self.st)
+            self.mark()
+            return {'ok': 'Obrisano: ' + t}
         elif c == 'net_set':
             return await self.net_set(a)
         elif c == 'dns_set':
@@ -6843,6 +9257,32 @@ class Teco:
             return await self.scan_run(a.get('ifs'))
         elif c == 'wol':   # Wake-on-LAN: "magični paket" za uređaj iz spiska
             return await self.wol(str(a.get('key') or ''))
+        elif c == 'logic_pk2':   # Logički analizator: snimak sa PICkit 2
+            return await self.la_pk2_capture()
+        elif c == 'logic_pk2_stop':
+            ev = getattr(self, 'la_pk2_cancel', None)
+            if ev:
+                ev.set()
+            return {}
+        elif c == 'logic_pk2_get':   # poslednji snimak (uzorci) za prikaz na stranici
+            try:
+                return {'cap': json.loads(self.LA_PK2_FILE.read_text())}
+            except (OSError, ValueError):
+                return {'cap': None}
+        elif c in ('prog_list', 'prog_esp', 'prog_avr', 'prog_pic', 'prog_stop', 'prog_install', 'prog_save'):   # Alati → ESP flasher / AVR programer
+            return await self.prog_cmd(c, a)
+        elif c == 'ds_list':   # Alati → Pinout: PDF-ovi (datasheet) sa flash-a
+            return await self.ds_list()
+        elif c in ('dnsr_on', 'dnsr_set', 'dnsr_host', 'dnsr_clear'):   # Alati → DNS resolver
+            return await self.dnsr_cmd(c, a)
+        elif c == 'wds_list':   # Alati → WDS: ISO fajlovi na flash-u
+            return await self.wds_list()
+        elif c == 'wds_install':
+            return await self.wds_install()
+        elif c == 'wds_start':
+            return await self.wds_start(str(a.get('iso') or ''))
+        elif c == 'wds_stop':
+            return await self.wds_stop()
         elif c == 'scan_add':   # ručno dodat uređaj (npr. ugašen računar za buđenje)
             mac = str(a.get('mac') or '').strip().lower().replace('-', ':')
             if re.fullmatch(r'[0-9a-f]{12}', mac):
@@ -6877,6 +9317,13 @@ class Teco:
             aq, k = self.aqua_cfg(), str(a.get('k') or '')
             if k not in aq['want']:
                 return {'err': 'Nepoznat izlaz.'}
+            if 'rgb' in a:   # boja RGB svetla
+                if k not in self.AQUA_RGB or not re.fullmatch(r'#[0-9a-fA-F]{6}', str(a['rgb'])):
+                    return {'err': 'Neispravna boja.'}
+                aq['rgb'][k] = str(a['rgb']).lower()
+                save_state(self.st)
+                self.mark()
+                return {'ok': dict(self.AQUA_OUTS)[k] + ': boja ' + aq['rgb'][k]}
             on = bool(a.get('on'))
             lv = (getattr(self, 'aqua_live', None) or {}).get('levels', {})
             if on and k == 'valve_in' and (lv.get('max') or lv.get('alarm')):
@@ -6930,21 +9377,26 @@ class Teco:
             return {'ok': 'Izlazim iz igre'}
         elif c in ('dev_add', 'dev_edit', 'dev_del', 'dev_set', 'dev_scan'):
             return await self.dev_cmd(c, a)
-        elif c == 'smb_opt':
-            return await self.smb_opt(a)
-        elif c == 'smb_name':
-            return await self.smb_rename(a)
-        elif c == 'alarm_cfg_get':   # samo Admin: lozinke IP modula i PC (za prikaz u formi, oko)
-            cfg = self.alarm_cfg()
-            return {'ip_password': cfg.get('ip_password') or '', 'pc_password': cfg.get('pc_password') or ''}
+        elif c == 'smb_share_add':
+            return await self.smb_share_add(a)
+        elif c == 'smb_share_set':
+            return await self.smb_share_set(a)
+        elif c == 'smb_share_del':
+            return await self.smb_share_del(a)
         elif c == 'alarm_cfg':
             return await self.alarm_cfg_set(a)
+        elif c == 'alarm_add':
+            return await self.alarm_add(a)
+        elif c == 'alarm_del':
+            return await self.alarm_del(str(a.get('id') or ''))
         elif c == 'alarm':   # uključi/isključi: dozvoljeno svima u mreži (izbor korisnika)
             return await self.alarm_do(a)
         elif c in ('alarm_monitor', 'alarm_mem_clear', 'alarm_ev_clear', 'alarm_events', 'alarm_time', 'alarm_panic'):
             return await self.alarm_extra(c, a)
         elif c == 'ntp_set':
             return await self.ntp_set(a)
+        elif c == 'wifi_an':   # Alati → Wi-Fi analizator
+            return await self.wifi_an(a.get('rescan', True) is not False)
         elif c == 'wifi_scan':
             await self.wifi_scan()
         elif c == 'wifi_connect':
@@ -6960,17 +9412,32 @@ class Teco:
             return await self.smb_install()
         elif c == 'smb_eject':
             return await self.usb_eject(str(a.get('dev') or ''))
-        elif c == 'smb_pw':
-            return await self.smb_password(a.get('pw'), a.get('user'))
-        elif c == 'smb_pw_get':
-            cfg = self.smb_cfg()
-            return {'user': cfg.get('user') or USER, 'pw': cfg.get('pass') or ''}
+        elif c == 'smb_user_add':
+            return await self.smb_user_add(a.get('user'), a.get('pw'))
+        elif c == 'smb_user_del':
+            return await self.smb_user_del(str(a.get('user') or ''))
+        elif c == 'stor_scan':
+            return await self.stor_scan(bool(a.get('force')), a.get('dev'))
+        elif c == 'ext_on':
+            return await self.ext_on(str(a.get('ext') or ''), bool(a.get('on')))
+        elif c in ('mail_set', 'mail_test'):
+            return await self.mail_cmd(c, a)
+        elif c in ('web_add', 'web_set', 'web_del', 'web_check'):
+            return await self.web_cmd(c, a)
+        elif c == 'gen_set':
+            return await self.gen_set(a)
+        elif c == 'gen_run':
+            return await self.gen_run(bool(a.get('v')))
+        elif c == 'stor_ls':
+            return await self.stor_ls(a)
+        elif c == 'stor_mkdir':
+            return await self.stor_mkdir(a)
+        elif c == 'stor_del':
+            return await self.stor_del(a)
         elif c == 'smb_direct':
             return await self.net_direct(bool(a.get('v')))
         elif c == 'smb_ls':
             return await self.smb_ls(a)
-        elif c == 'smb_dir':
-            return await self.smb_dir(a)
         elif c == 'smb_opl':
             return await self.smb_opl(a)
         elif c == 'game_del':
@@ -7326,9 +9793,9 @@ class Teco:
             'mpv': self.mpv.connected,
             'mode': self.mode,
             'source': self.source,
-            'title': p.get('media-title') if self.mode == 'yt' else None,
-            'pos': p.get('time-pos') or 0,
-            'dur': p.get('duration') or 0,
+            'title': p.get('media-title') if self.mode == 'yt' and not self.is_black() else None,
+            'pos': 0 if self.is_black() else p.get('time-pos') or 0,
+            'dur': 0 if self.is_black() else p.get('duration') or 0,
             'paused': bool(p.get('pause')),
             'vol': self.cur_vol(),
             'mute': self.cur_mute(),
@@ -7347,7 +9814,17 @@ class Teco:
                    'on': self.source == 'tv' and self.mode == 'tv', 'loading': self.tv_loading},
             'boot': self.st.get('boot', 'last'),
             'theme': self.st.get('theme', 'light'),   # podrazumevano: svetla (IQlogic izgled)
-            'alarm': self.alarm_snapshot(),   # (i kao lista 'alarms' na stranici: jedan za sada)
+            'wds': self.wds_view(),
+            'dnsr': self.dnsr_view(),
+            'prog': self.prog_view(),
+            'la_pk2': self.la_pk2_view(),
+            'gen': self.gen_view(),
+            'web': self.web_view(),
+            'mail': self.mail_view(),
+            'ext_on': self.ext_state(),
+            'alarms': [self.alarm_snapshot(x['id']) for x in self.alarm_list()],
+            'alarm_panels': self.ALARM_PANELS,   # za formu „Dodaj uređaj → Alarm“
+            'alarm': self.alarm_snapshot(self.alarm_list()[0]['id']) if self.alarm_list() else {},   # glavni (prvi) alarm
             'last_av': self.st.get('last_av', 'av2'),
             'radio_clock': int(self.st.get('radio_clock', 15) or 0),
             'yt_cookies': self.yt_cookie_state(),
@@ -7375,6 +9852,7 @@ class Teco:
             'pin_set': bool(self.st['pin']),
             'pin_required': self.st.get('pin_required', True),
             'events': self.events_snapshot(),
+            'tones': self.tones_list(),   # Skladište → Zvukovi (SD)
             'ev_now': self.ev_now,
             'cast': {'on': bool(self.st.get('cast')), 'run': bool(getattr(self, 'cast_run', False)),
                      'sender': self.cast_sender},
@@ -7384,7 +9862,7 @@ class Teco:
             'favs': self.st.get('favs', []),
             'scrbtn': {k: v for k, v in self.scr_cfg().items() if k != 'pin'},
             'aqua': self.aqua_snapshot(),
-            'tools': {'scope': self.tool_cfg('scope'), 'resistor': self.tool_cfg('resistor'), 'logic': self.tool_cfg('logic'), 'capacitor': self.tool_cfg('capacitor'), 'guest': self.tool_cfg('guest'), 'net': self.nt_view(), 'scan': self.scan_view(), 'phone': self.phone_view(), 'sms': self.sms_view(), 'pbx': self.pbx_view(), 'shown': self.tool_running()},
+            'tools': {'timer': dict(self.tool_cfg('timer'), now=time.time()), 'scope': self.tool_cfg('scope'), 'resistor': self.tool_cfg('resistor'), 'logic': self.tool_cfg('logic'), 'capacitor': self.tool_cfg('capacitor'), 'guest': self.tool_cfg('guest'), 'net': self.nt_view(), 'scan': self.scan_view(), 'phone': self.phone_view(), 'sms': self.sms_view(), 'pbx': self.pbx_view(), 'shown': self.tool_running()},
             'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
             'usbcams': UsbCamDriver.list_devices(),   # priključene USB kamere (izbor u Adminu)
             'sys': self.sys,
@@ -7418,8 +9896,23 @@ def make_app():
     teco = Teco()
     app = web.Application(client_max_size=25 * 2**20)
 
+    page = {}
+
     async def index(request):
-        return web.FileResponse(STATIC / 'index.html', headers={'Cache-Control': 'no-cache'})
+        """Stranica (~800 KB) gzip-ovana jednom po izmeni fajla (~5x manja preko Wi-Fi-ja/VPN-a); ista verzija -> 304."""
+        f = STATIC / 'index.html'
+        st = f.stat()
+        if page.get('key') != (st.st_mtime_ns, st.st_size):
+            import gzip
+            raw = f.read_bytes()
+            page.update(key=(st.st_mtime_ns, st.st_size), raw=raw, gz=gzip.compress(raw, 6),
+                        etag='"%x-%x"' % (st.st_mtime_ns, st.st_size))
+        h = {'Cache-Control': 'no-cache', 'ETag': page['etag'], 'Vary': 'Accept-Encoding'}
+        if request.headers.get('If-None-Match') == page['etag']:
+            return web.Response(status=304, headers=h)
+        if 'gzip' in request.headers.get('Accept-Encoding', ''):
+            return web.Response(body=page['gz'], content_type='text/html', charset='utf-8', headers={**h, 'Content-Encoding': 'gzip'})
+        return web.Response(body=page['raw'], content_type='text/html', charset='utf-8', headers=h)
 
     async def ws_handler(request):
         ws = web.WebSocketResponse(heartbeat=20)
@@ -7517,31 +10010,32 @@ def make_app():
             return web.json_response({'ok': False, 'err': str(e)})
 
     async def event_sound_upload(request):
-        """Zvuk za događaj: /api/event-sound?id=zvono (zamenjuje postojeći zvuk tog događaja)."""
+        """Zvuk u Skladište → Zvukovi: /api/event-sound[?id=zvono] (sa id-jem odmah postaje melodija tog događaja).
+        Isto ime dobija „(2)“, ništa se ne prepisuje."""
         if request.headers.get('X-Teco-Token') not in teco.tokens:
             return web.json_response({'err': 'Potreban je Admin režim.'}, status=403)
         eid = request.query.get('id', '')
-        if eid not in teco.st['events']:
+        if eid and (eid not in teco.st['events'] or eid in ALARMS):
             return web.json_response({'err': 'Nepoznat događaj.'}, status=400)
-        if eid in ALARMS:
-            return web.json_response({'err': 'Alarm ima ugrađen zvuk.'}, status=400)
         reader = await request.multipart()
         part = await reader.next()
-        ext = Path(part.filename or '').suffix.lower()
+        name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', '_', Path(part.filename or '').name).strip(' .')[:80]
+        ext = Path(name).suffix.lower()
         if ext not in AUDIO_EXT:
             return web.json_response({'err': 'Podržani su mp3, wav, ogg, m4a, flac.'}, status=400)
-        d = EVENTS_DIR / eid
-        d.mkdir(parents=True, exist_ok=True)
-        old = teco.event_sound(eid)
-        if old:
-            old.unlink()
-        (d / ('zvuk' + ext)).write_bytes(await part.read(decode=False))
+        data = await part.read(decode=False)
+        if len(data) > 20 * 2**20:
+            return web.json_response({'err': 'Zvuk je veći od 20 MB.'}, status=400)
+        TONES_DIR.mkdir(parents=True, exist_ok=True)
+        dest = teco.free_name(TONES_DIR / name)
+        dest.write_bytes(data)
+        if eid:
+            teco.st['events'][eid]['tone'] = dest.name
+            save_state(teco.st)
         teco.mark()
-        return web.json_response({'ok': 'Zvuk je sačuvan'})
+        return web.json_response({'ok': 'Sačuvano u Zvukovi: ' + dest.name})
 
-    async def upload(request):
-        if request.headers.get('X-Teco-Token') not in teco.tokens:
-            return web.json_response({'err': 'Potreban je Admin režim.'}, status=403)
+    async def upload(request):   # Skladište -> Čuvar ekrana: slike za ekran kad nema videa (SD kartica, images/)
         from PIL import Image, ImageOps
         IMAGES.mkdir(parents=True, exist_ok=True)
         reader = await request.multipart()
@@ -7576,29 +10070,47 @@ def make_app():
         return web.json_response({'saved': saved})
 
     async def game_upload(request):
-        """Igrica (ISO/ZSO/VCD) direktno u deljeni folder: POST /api/game?share=Teco&name=igra.iso, telo = fajl.
-        Piše se u delovima (bez ograničenja od 25 MB) u .part fajl, pa se preimenuje kad stigne ceo."""
-        if request.headers.get('X-Teco-Token') not in teco.tokens:
-            return web.json_response({'err': 'Potreban je Admin režim.'}, status=403)
-        base, sh = teco.share_base(request.query.get('share', ''))
-        if not base:
-            return web.json_response({'err': 'Deljenje nije uključeno ili disk nije priključen.'}, status=404)
+        """Fajl na USB disk (Skladište): POST /api/game?dev=/dev/sda1&cat=video&name=film.mkv, telo = fajl.
+        Igrice (ISO/ZSO/VCD) idu u OPL foldere game share-a (inače koren diska), ostalo u folder svoje vrste
+        (ISOs, Media/Filmovi…). Isto ime: dodaje se (2), (3)… Piše se u delovima u .part fajl, pa se preimenuje kad stigne ceo."""
+        dev, cat = request.query.get('dev', ''), request.query.get('cat', 'games')
+        sh = next((p for p in getattr(teco, 'usb', []) if p['dev'] == dev and p['mnt']), None)
+        if not sh or (cat != 'games' and cat not in teco.STOR_DIRS):
+            return web.json_response({'err': 'Disk nije priključen.'}, status=404)
+        sh = {**sh, 'n': sh['label'] or sh['n']}
         name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', '_', Path(request.query.get('name', '')).name).strip(' .')[:150]
         ext = Path(name).suffix.lower()
         size = request.content_length
-        if ext not in GAME_EXT:
-            return web.json_response({'err': 'Podržani su .iso, .zso (PS2) i .vcd (PS1/POPS).'}, status=400)
+        if not name or not ext and cat != 'data':
+            return web.json_response({'err': 'Fajl nema ime ili ekstenziju.'}, status=400)
+        if cat == 'games' and ext not in GAME_EXT:
+            return web.json_response({'err': '%s: igrice su .iso, .zso (PS2) i .vcd (PS1/POPS).' % name}, status=400)
+        kind = teco.STOR_KIND.get(ext, 'data')
+        if cat not in ('games', 'data') and kind != cat and not (cat == 'ds' and ext == '.pdf'):
+            return web.json_response({'err': '%s nije %s%s.' % (name, teco.STOR_NAMES[cat], ' (to je ' + teco.STOR_NAMES[kind] + ')' if kind != 'data' else '')}, status=400)
         if not size:
             return web.json_response({'err': 'Nepoznata veličina fajla.'}, status=411)
         if sh.get('fs') == 'vfat' and size >= 4 * 2**30:
             return web.json_response({'err': 'FAT32 ne prima fajl od 4 GB i više. Formatiraj disk kao exFAT.'}, status=400)
+        if cat == 'games':
+            base = teco.stor_base(dev)
+            folder = GAME_EXT[ext] or ('CD' if size <= CD_MAX else 'DVD')
+        else:   # u folder koji je otvoren u Skladištu (podfolder vrste)
+            base, folder = Path(sh['mnt']), teco.STOR_DIRS[cat]
+            sub = request.query.get('dir', '').strip('/')
+            if sub:
+                x = teco.inside(base / folder, sub)
+                if not x:
+                    return web.json_response({'err': 'Neispravan folder.'}, status=400)
+                folder = str(x.relative_to(base.resolve()))
         if shutil.disk_usage(base).free < size + 32 * 2**20:
             return web.json_response({'err': 'Nema dovoljno mesta na %s.' % sh['n']}, status=507)
-        folder = GAME_EXT[ext] or ('CD' if size <= CD_MAX else 'DVD')
-        dest = base / folder / name
-        if dest.exists():
-            return web.json_response({'err': '%s/%s već postoji.' % (folder, name)}, status=409)
-        dest.parent.mkdir(exist_ok=True)
+        try:
+            (base / folder).mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return web.json_response({'err': 'Folder %s nije napravljen: %s' % (folder, e.strerror)}, status=500)
+        dest = teco.free_name(base / folder / name)
+        name = dest.name
         tmp = dest.with_name('.' + name + '.part')
         loop = asyncio.get_running_loop()
         got, ok = 0, False
@@ -7693,11 +10205,16 @@ def make_app():
         if teco.st.get('cast'):
             await teco.cast_start()
         await teco.smb_refresh(force=True)   # smb.conf i smbd prema podešavanju (i posle instalacije)
-        if teco.alarm_cfg().get('enabled'):   # alarm usluga (ako je podešena) — ostaje da radi i kad se server restartuje
-            await teco._run('systemctl', '--user', 'start', ALARM_UNIT, timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop(), teco.sms_loop(), teco.notify_loop(), teco.pbx_loop())]
+        # generator signala posle restarta servera ne radi (stanje se ne pamti): pigpiod bi inače i dalje slao stari talas
+        await teco._rc('sudo', '-n', 'systemctl', 'stop', 'pigpiod', timeout=15)
+        await teco._rc('sudo', '-n', 'systemctl', 'reset-failed', 'pigpiod', timeout=10)
+        for x in teco.alarm_list():   # alarm mostovi (podešeni) — rade i kad se server restartuje
+            if teco.alarm_cfg(x['id']).get('enabled'):
+                await teco._run('systemctl', '--user', 'start', teco.alarm_unit(x['id']), timeout=20)
+        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop(), teco.sms_loop(), teco.notify_loop(), teco.pbx_loop(), teco.wds_loop(), teco.dnsr_loop(), teco.mpv_guard(), teco.timer_loop(), teco.web_loop())]
 
     async def on_stop(app):
+        teco.web_save()   # istorija web monitora
         await teco.fm_stop()
         await teco.stream_stop()   # cast (posebna usluga) ostaje da radi i kad se server restartuje
         for t in app['tasks']:
@@ -7707,16 +10224,132 @@ def make_app():
     app.router.add_get('/favicon.ico', lambda r: web.FileResponse(STATIC / 'favicon-64.png'))   # pregledači ga traže i bez linka
     app.router.add_get('/ws', ws_handler)
 
+    async def ws_serial(request):   # Alati → Serijski terminal: podaci idu ovim kanalom (binarno, bez snapshot-a)
+        import base64
+        import serterm
+        if not hasattr(teco, 'term'):
+            teco.term = serterm.Term()
+        term = teco.term
+        ws = web.WebSocketResponse(heartbeat=20, max_msg_size=4 * 2**20)
+        await ws.prepare(request)
+        await ws.send_str(json.dumps({'st': term.status()}))
+        for f in term.history():
+            await ws.send_bytes(f)
+        term.clients.add(ws)
+        try:
+            async for msg in ws:
+                if msg.type != WSMsgType.TEXT:
+                    continue
+                try:
+                    a = json.loads(msg.data)
+                except ValueError:
+                    continue
+                c, rep = a.get('c'), {}
+                try:
+                    if c == 'open':
+                        term.open(str(a.get('dev') or ''), a.get('baud') or 115200, str(a.get('fmt') or '8N1'), a.get('dtr', True), a.get('rts', True))
+                        log.info('serijski terminal: %s %s %s', term.cfg['dev'], term.cfg['baud'], term.cfg['fmt'])
+                    elif c == 'close':
+                        term.close()
+                    elif c == 'send':
+                        term.write(base64.b64decode(a.get('b64') or ''))
+                    elif c == 'lines':
+                        term.set_lines(a.get('dtr'), a.get('rts'), a.get('brk'))
+                    elif c == 'clear':
+                        term.hist, term.hist_n = [], 0
+                except (ValueError, OSError) as e:
+                    rep = {'err': str(e)}
+                if c != 'send' or rep:   # slanje: bez stanja posle svakog paketa (brzo), samo greška
+                    term._status_all()
+                    if rep:
+                        await ws.send_str(json.dumps(rep))
+        finally:
+            term.clients.discard(ws)
+        return ws
+    app.router.add_get('/ws/serial', ws_serial)
+
     async def guest_qr(request):   # Alati -> Wi-Fi za goste: QR kod za stranicu (isti kao na ekranu)
         import io
         import wifiqr
         cfg = teco.tool_cfg('guest')
         if not cfg.get('ssid'):
             return web.Response(status=404)
-        buf = io.BytesIO()
-        wifiqr.image(cfg, 360).save(buf, 'PNG')
-        return web.Response(body=buf.getvalue(), content_type='image/png', headers={'Cache-Control': 'no-store'})
+        key = json.dumps(cfg, sort_keys=True)
+        c = getattr(teco, 'guest_qr_cache', None)
+        if not c or c[0] != key:   # crtanje QR-a je skupo: samo kad se podaci promene
+            buf = io.BytesIO()
+            wifiqr.image(cfg, 360).save(buf, 'PNG')
+            c = teco.guest_qr_cache = (key, buf.getvalue())
+        return web.Response(body=c[1], content_type='image/png', headers={'Cache-Control': 'no-store'})
     app.router.add_get('/api/guest-qr.png', guest_qr)
+
+    async def wds_file(request):   # WDS: iPXE vuče wimboot, BCD, boot.sdi i boot.wim preko HTTP-a (brže od TFTP-a)
+        rel, peer = request.match_info['path'], request.remote
+        w = getattr(teco, 'wds_rt', None) or {}
+        if rel == 'winpeshl.ini':
+            return web.Response(text='[LaunchApps]\r\n"install.bat"\r\n')
+        if rel == 'install.bat':   # WinPE: mreža, \\<ip>\WDS kao Z:, pa Windows Setup sa mreže
+            lan = teco.wds_lan()
+            ip = lan[1] if lan else request.host.split(':')[0]
+            teco.wds_note('%s: WinPE pokrenut, povezuje se na \\\\%s\\WDS' % (peer, ip))
+            bat = ['@echo off', 'wpeinit', 'echo.', 'echo  Teco.Pi WDS: povezujem \\\\%s\\WDS ...' % ip, 'set n=0', ':retry',
+                   'net use Z: \\\\%s\\WDS /user:TECOPI\\wds wds >nul 2>&1 && goto ok' % ip, 'set /a n+=1', 'if %n% geq 20 goto fail',
+                   'ping -n 4 127.0.0.1 >nul', 'goto retry', ':ok', 'Z:\\setup.exe', 'exit', ':fail',
+                   'echo  Mreza nije dostupna (WinPE nema drajver za mreznu karticu?).', 'cmd']
+            return web.Response(text='\r\n'.join(bat) + '\r\n')
+        if rel == 'wimboot':
+            f = teco.WDS_BOOT / 'wimboot'
+        elif rel.startswith('iso/') and w.get('mounted'):
+            f = teco.wds_find(str(teco.WDS_MNT), rel[4:])
+            f = Path(f) if f else None
+        else:
+            f = None
+        if not f or not f.is_file():
+            return web.Response(status=404)
+        teco.wds_note('%s preuzima %s' % (peer, f.name))
+        return web.FileResponse(f)
+    app.router.add_get('/wds/{path:.+}', wds_file)
+
+    async def ds_file(request):   # Pinout: datasheet (PDF sa flash-a) po broju iz poslednjeg spiska
+        try:
+            x = (getattr(teco, 'ds_files', None) or [])[int(request.match_info['i'])]
+        except (ValueError, IndexError):
+            return web.Response(status=404)
+        f = Path(x['path'])
+        if not str(f.resolve()).startswith(str(USB_MNT) + '/') or not f.is_file():
+            return web.Response(status=404)
+        return web.FileResponse(f, headers={'Content-Type': 'application/pdf', 'Content-Disposition': 'inline'})
+    app.router.add_get('/api/ds/{i}/{name}', ds_file)
+
+    async def fw_upload(request):   # programatori: firmware (.bin / .hex) sa telefona/računara -> data/fw
+        reader = await request.multipart()
+        part = await reader.next()
+        if part is None or not part.filename:
+            return web.json_response({'err': 'Nema fajla.'})
+        name = re.sub(r'[^\w.\-]+', '_', os.path.basename(part.filename))[:80]
+        if not name.lower().endswith(('.bin', '.hex')):
+            return web.json_response({'err': 'Samo .bin ili .hex fajl.'})
+        teco.FW_DIR.mkdir(parents=True, exist_ok=True)
+        tmp, size = teco.FW_DIR / (name + '.part'), 0
+        with open(tmp, 'wb') as f:
+            while True:
+                ch = await part.read_chunk(65536)
+                if not ch:
+                    break
+                size += len(ch)
+                if size > 16 * 2**20:
+                    f.close()
+                    tmp.unlink(missing_ok=True)
+                    return web.json_response({'err': 'Fajl je veći od 16 MB.'})
+                f.write(ch)
+        os.replace(tmp, teco.FW_DIR / name)
+        old = sorted(teco.FW_DIR.glob('*'), key=lambda x: -x.stat().st_mtime)[20:]   # čuva poslednjih 20
+        for x in old:
+            x.unlink(missing_ok=True)
+        r = await teco.prog_list()
+        r['sel'] = next((x['i'] for x in r['files'] if x['n'] == name and x['src'] == 'poslato'), None)
+        return web.json_response(r)
+    app.router.add_post('/api/fw-upload', fw_upload)
 
     async def pbx_prompt_up(request):   # Centrala: najava (bilo koji zvuk sa telefona / snimak) -> 8 kHz mono WAV za Asterisk
         import pbx
@@ -7811,14 +10444,15 @@ def make_app():
         """ESP32 akvarijuma (Teco ESP protokol, samo lokalna mreža). Na 1-2 s:
         POST /api/aqua  {"id": "aqua1", "ph": 7.1, "temp": 25.4,
                          "levels": {"min": true, "q34": true, "max": false, "alarm": false},
-                         "outs": {"pump1": true, "heater1": false, "light1": true, "light2": false, "fan": false, "valve_in": false, "pump_out": false}}
-        odgovor: {"ok": true, "outs": {...željeno stanje...}} — ESP postavi releje po "outs".
+                         "outs": {"pump1": true, "air": true, "heater1": false, "light1": true, "light2": false, "fan": false, "valve_in": false, "pump_out": false}}
+        odgovor: {"ok": true, "outs": {...željeno stanje...}, "rgb": {"light2": [r, g, b]}} — ESP postavi releje po "outs",
+        a RGB traku (light2) na boju iz "rgb" kad je uključena.
         levels: true = senzor u vodi. GET /api/aqua samo vraća željeno stanje."""
         import ipaddress
         if not ipaddress.ip_address(request.remote).is_private:
             return web.json_response({'err': 'Samo iz lokalne mreže.'}, status=403)
         if request.method == 'GET':
-            return web.json_response({'ok': True, 'outs': dict(teco.aqua_cfg()['want'])})
+            return web.json_response({'ok': True, 'outs': dict(teco.aqua_cfg()['want']), 'rgb': teco.aqua_rgb_list()})
         try:
             q = await request.json()
             if not isinstance(q, dict):

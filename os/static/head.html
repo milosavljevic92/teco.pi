@@ -1,5 +1,6 @@
 <title>Teco.Pi</title>
-<script>try { const t = localStorage.getItem('teco-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+<script>document.documentElement.classList.add('boot');   // animacija otvaranja: sadržaj se pojavi kad stigne prvo stanje
+try { const t = localStorage.getItem('teco-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 (function () { const mq = matchMedia('(prefers-color-scheme: dark)'), f = () => { const d = document.documentElement, t = d.dataset.theme; d.classList.toggle('lt', t === 'light' || (t !== 'dark' && !mq.matches)); };
   f(); window.tecoLt = f; try { mq.addEventListener('change', f); } catch (e) { mq.addListener(f); } })();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -206,7 +207,8 @@ html.admin .viewer{display:none!important}
 .standby.holding .sbmsg,.standby.holding .rndbar{display:flex}
 .standby.holding .rndbar i{animation:rndfill 2s linear forwards}
 .ytck{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding:12px;border-radius:14px;background:var(--surface-2)}
-.ytck > div:first-child{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13.5px}
+.ytck > div:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:14px}
+.ytck > div:first-child b{white-space:nowrap}
 .ytck small{font-size:12px;color:var(--muted);font-weight:700}
 .ytck small.ok{color:#16a34a}
 .ytck p{margin:0;font-size:12.5px;line-height:1.4}
@@ -530,7 +532,6 @@ html:not(.admin) .relay:hover{background:none}
 .map .c code{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--text);color:var(--surface);padding:10px 16px;border-radius:12px;font-size:13.5px;font-weight:700;box-shadow:var(--shadow-lg);transition:opacity .2s, transform .2s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
 .toast.on{opacity:1;transform:translate(-50%,0)}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 /* raspored za telefon: jedna kolona, daljinski odmah ispod plejera */
 .wrap,.top-in{max-width:600px}
@@ -584,6 +585,11 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
   <symbol id="i-usb" viewBox="0 0 24 24"><rect x="7" y="9" width="10" height="13" rx="2"/><path d="M9 9V3h6v6M11 5.5v1M13 5.5v1"/></symbol>
+  <symbol id="i-drive" viewBox="0 0 24 24"><path d="M5.5 13 7.8 5.8A1.5 1.5 0 0 1 9.2 4.8h5.6a1.5 1.5 0 0 1 1.4 1L18.5 13"/><rect x="3.5" y="13" width="17" height="6.5" rx="2"/><path d="M7 16.3h5M16.5 16.3h.01"/></symbol>
+  <symbol id="i-sig" viewBox="0 0 24 24"><path d="M2 9h3V4h4v5h3"/><path d="m12 20 4-8 4 8 2-4"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2 12h4l2.5-6 4 13 3-9 1.8 2H22"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><path d="M4 7h11l-3-3M20 17H9l3 3"/></symbol>
   <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
@@ -617,6 +623,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-remote" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3"/><circle cx="12" cy="7" r="1.6" fill="currentColor"/><path d="M10 12h4M10 15h4"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
   <symbol id="i-bt" viewBox="0 0 24 24"><path d="m6.5 7.5 11 9-5.5 4.5V3l5.5 4.5-11 9"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c1 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.4-5.2.2 2 1.2 3 2.2 3.2-.8-3 .2-6 .4-8.5z"/></symbol>
   <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.5C9 8 6 11 6 14.5a6 6 0 0 0 12 0C18 11 15 8 12 3.5z"/></symbol>
   <symbol id="i-scope" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="14" rx="2"/><path d="M5 11c1.2-3.5 2.6-3.5 3.8 0s2.6 3.5 3.8 0 2.6-3.5 3.8 0 1.6 2.3 2.6 2.3M8 21h8M12 17.5V21"/></symbol>
   <symbol id="i-logic" viewBox="0 0 24 24"><path d="M2 9.5h3v-5h4v5h3v-5h3v5h3v-5h4M2 19.5h5v-5h2.5v5H15v-5h3v5h4"/></symbol>
@@ -624,6 +631,23 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-cap" viewBox="0 0 24 24"><path d="M2 12h7.5M14.5 12H22M9.5 5v14M14.5 5v14"/></symbol>
   <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.3 17.5a9.5 9.5 0 1 1 17.4 0"/><path d="M12 14.5 16.5 8.5"/><circle cx="12" cy="14.5" r="1.6"/><path d="M6.5 12.5h1M12 6.5v1M17.5 12.5h-1"/></symbol>
   <symbol id="i-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.5"/><path d="M12 12 18.5 5.5"/><circle cx="15.5" cy="9.5" r="1.3" fill="currentColor"/><circle cx="8" cy="15" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.8-3.5M4 4v4h4M4 13a8 8 0 0 0 14.8 3.5M20 20v-4h-4"/></symbol>
+  <symbol id="i-wifian" viewBox="0 0 24 24"><path d="M2 20h20M4 20c1.5-6 3-9 4-9s2.5 3 4 9M10 20c1.5-9 3.5-14 5-14s3.5 5 5 14"/></symbol>
+  <symbol id="i-burn" viewBox="0 0 24 24"><rect x="5" y="9" width="14" height="11" rx="2"/><path d="M8 9V7M12 9V7M16 9V7M8 20v2M12 20v2M16 20v2M12 1.5v5M9.5 4 12 6.5 14.5 4"/></symbol>
+  <symbol id="i-led" viewBox="0 0 24 24"><path d="M7 7l7 5-7 5zM14 7v10M3 12h4M14 12h7M16 5l2.5-2.5M18.5 7.5 21 5"/></symbol>
+  <symbol id="i-ohm" viewBox="0 0 24 24"><path d="M5 20h4.5v-2.2A7 7 0 1 1 14.5 17.8V20H19"/></symbol>
+  <symbol id="i-div" viewBox="0 0 24 24"><path d="M12 2v3M12 11v2M12 19v3M9.5 5h5v6h-5zM9.5 13h5v6h-5zM12 12h7"/></symbol>
+  <symbol id="i-555" viewBox="0 0 24 24"><path d="M2 16h3V8h5v8h3V8h5v8h4"/></symbol>
+  <symbol id="i-calc" viewBox="0 0 24 24"><rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><rect x="7.5" y="5.5" width="9" height="4" rx="1"/><path d="M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01M16 17h.01"/></symbol>
+  <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="8"/><path d="M12 9v4.5l3 2M9.5 2.5h5M12 2.5v3M19 6l1.5-1.5"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M10 3.5a2 2 0 1 1 4 0V5h4a1 1 0 0 1 1 1v4h-1.5a2 2 0 1 0 0 4H19v4a1 1 0 0 1-1 1h-4v-1.5a2 2 0 1 0-4 0V19H6a1 1 0 0 1-1-1v-4h1.5a2 2 0 1 0 0-4H5V6a1 1 0 0 1 1-1h4z"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M8.5 13h7M8.5 17h5"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2.5V6M12 2.5V6M15 2.5V6M9 18v3.5M12 18v3.5M15 18v3.5M2.5 9H6M2.5 12H6M2.5 15H6M18 9h3.5M18 12h3.5M18 15h3.5"/></symbol>
+  <symbol id="i-subnet" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="6" height="5" rx="1.2"/><rect x="15.5" y="16.5" width="6" height="5" rx="1.2"/><path d="M12 7.5V12M5.5 16.5V12h13v4.5"/></symbol>
+  <symbol id="i-dnsr" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="7" rx="2"/><rect x="3" y="13.5" width="18" height="7" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="m6.5 9 3 3-3 3M11.5 15h5"/></symbol>
+  <symbol id="i-win" viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.5v7H3zM13 4.2 21 3v8.5h-8zM3 12.5h7.5v7L3 18.5zM13 12.5h8V21l-8-1.2z"/></symbol>
   <symbol id="i-dns" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2.2 2.1 3.2 4.6 3.2 7.5s-1 5.4-3.2 7.5c-2.2-2.1-3.2-4.6-3.2-7.5s1-5.4 3.2-7.5"/><path d="m16 16 5.5 5.5"/></symbol>
   <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M14 21h.01M17.5 21H21v-3.5M6.5 6.5h.01M17.5 6.5h.01M6.5 17.5h.01"/></symbol>
   <symbol id="i-handset" viewBox="0 0 24 24"><path d="M5 3.5h3.5l2 5L8 10a12 12 0 0 0 6 6l1.5-2.5 5 2V19a2 2 0 0 1-2 2A16.5 16.5 0 0 1 3 5.5a2 2 0 0 1 2-2"/></symbol>
@@ -647,6 +671,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <symbol id="i-valve" viewBox="0 0 24 24"><path d="M3 13h5l2-3h4l2 3h5M3 9v8M21 9v8M12 10V5M8.5 5h7"/></symbol>
   <symbol id="i-pan" viewBox="0 0 24 24"><path d="M3 11h14v2a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6zM17 12h4.5M7 4c-.8 1 .8 2 0 3.5M11 4c-.8 1 .8 2 0 3.5"/></symbol>
   <symbol id="i-pump" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6.5"/><path d="M14.6 9.4V4.5H20M3 21.5h14M10 14l2.8-2.8M10 14H6.2M10 14l1.1 3.7"/></symbol>
+  <symbol id="i-air" viewBox="0 0 24 24"><circle cx="8" cy="16.5" r="3.5"/><circle cx="14.5" cy="9.5" r="2.4"/><circle cx="18.5" cy="4" r="1.5"/><circle cx="7" cy="7" r="1.2"/><path d="M3 22h12"/></symbol>
   <symbol id="i-pumpout" viewBox="0 0 24 24"><circle cx="9" cy="10" r="6"/><path d="M13.2 5.8V3H18M9 10l2.5-2.5M9 10H5.5M9 10l1 3.4M19 9.5V21M16 18l3 3 3-3M2.5 20.5h11"/></symbol>
   <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15.5a4.5 4.5 0 1 1 1.2-8.8A6 6 0 0 1 19.6 9.3 3.2 3.2 0 0 1 18.5 15.5z"/><path d="M8.5 19l-1 2.5M12.5 19l-1 2.5M16.5 19l-1 2.5"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.8 12.2 9.7-9.7M17 6l3 3M14.5 8.5l2 2"/></symbol>
@@ -670,67 +695,114 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
 
 <!-- meni sa strane: na računaru stalno otvoren, na telefonu fioka (dugme ☰ u zaglavlju) -->
 <div class="side-bg" id="sideBg" hidden></div>
+<div class="tgmenu" id="tgMenu" role="menu" hidden></div>
 <nav class="side" id="side" aria-label="Meni">
   <div class="side-logo"><span class="mark" aria-hidden="true"></span><span class="slt">Teco.Pi</span></div>
   <div class="tree">
     <div class="tgrp" data-view="media" style="--c:#e0343c">
       <button class="tsec" data-view="media" title="Multimedija"><svg class="i"><use href="#i-media"/></svg><span>Multimedija</span></button>
     </div>
+    <div class="tsep" role="separator"></div>
     <div class="tgrp" data-view="smart" style="--c:#0f9d8f">
       <button class="tsec" data-view="smart" title="Smart Home"><svg class="i"><use href="#i-home"/></svg><span>Smart Home</span><i class="tdot" id="navAlDot"></i></button>
       <div class="titems">
-        <a href="#lightsCard" data-view="lights"><span class="tic" style="--c:#f2a900"><svg class="i"><use href="#i-bulb"/></svg></span>Svetla</a>
-        <a href="#applCard" data-view="appl"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-plug"/></svg></span>Uređaji</a>
-        <a href="#aquaCard" data-view="aqua"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-fish"/></svg></span>Akvarijum</a>
-        <a href="#doorsCard" data-view="doors"><span class="tic" style="--c:#f07c1a"><svg class="i"><use href="#i-bell"/></svg></span>Interfon / Zvona</a>
-        <a href="#alList" data-view="alarm"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-shield"/></svg></span>Alarm</a>
-        <a href="#cctvCard" data-view="cctv"><span class="tic" style="--c:#4b5d73"><svg class="i"><use href="#i-cam"/></svg></span>CCTV</a>
-        <a href="#waterCard" data-view="water"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-drop"/></svg></span>Navodnjavanje</a>
-        <a href="#powerCard" data-view="power"><span class="tic" style="--c:#9aa618"><svg class="i"><use href="#i-zap"/></svg></span>Potrošnja struje</a>
-        <a href="#weatherCard" data-view="weather"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sun"/></svg></span>Meteorologija</a>
+            <a href="#doorsCard" data-view="doors"><span class="tic" style="--c:#f07c1a"><svg class="i"><use href="#i-bell"/></svg></span>Interfon / Zvona</a>
+            <a href="#lightsCard" data-view="lights"><span class="tic" style="--c:#f2a900"><svg class="i"><use href="#i-bulb"/></svg></span>Svetla</a>
+            <a href="#applCard" data-view="appl"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-plug"/></svg></span>Uređaji</a>
+            <a href="#weatherCard" data-view="weather"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sun"/></svg></span>Meteorologija</a>
+            <a href="#alList" data-view="alarm"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-shield"/></svg></span>Alarm</a>
+            <a href="#cctvCard" data-view="cctv"><span class="tic" style="--c:#4b5d73"><svg class="i"><use href="#i-cam"/></svg></span>CCTV</a>
+            <a href="#waterCard" data-view="water"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-drop"/></svg></span>Navodnjavanje</a>
+            <a href="#aquaCard" data-view="aqua"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-fish"/></svg></span>Akvarijum</a>
+            <a href="#powerCard" data-view="power"><span class="tic" style="--c:#9aa618"><svg class="i"><use href="#i-zap"/></svg></span>Potrošnja</a>
+      </div>
+    </div>
+    <div class="tgrp" data-view="ext" style="--c:#15803d">
+      <button class="tsec" data-view="ext" title="Ekstenzije"><svg class="i"><use href="#i-ext"/></svg><span>Ekstenzije</span></button>
+      <div class="titems">
+            <a href="#toolsCard" data-view="tstor"><span class="tic" style="--c:#7c3aed"><svg class="i"><use href="#i-drive"/></svg></span>Skladište podataka</a>
+            <a href="#toolsCard" data-view="tweb"><span class="tic" style="--c:#16a34a"><svg class="i"><use href="#i-pulse"/></svg></span>Web monitor</a>
+            <a href="#toolsCard" data-view="tpbx"><span class="tic" style="--c:#15803d"><svg class="i"><use href="#i-pbx"/></svg></span>VoIP / FXS</a>
+            <a href="#toolsCard" data-view="tsms"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sms"/></svg></span>SMS poruke</a>
+            <a href="#toolsCard" data-view="tmail"><span class="tic" style="--c:#2563eb"><svg class="i"><use href="#i-mail"/></svg></span>SMTP Email</a>
+            <a href="#toolsCard" data-view="tdnsr"><span class="tic" style="--c:#0d9488"><svg class="i"><use href="#i-dnsr"/></svg></span>DNS resolver</a>
+            <a href="#toolsCard" data-view="twds"><span class="tic" style="--c:#0369a1"><svg class="i"><use href="#i-win"/></svg></span>WDS server</a>
+            <a href="#toolsCard" data-view="tsmb"><span class="tic" style="--c:#c2410c"><svg class="i"><use href="#i-folder"/></svg></span>SMB share</a>
       </div>
     </div>
     <div class="tgrp" data-view="tools" style="--c:#4b5d73">
       <button class="tsec" data-view="tools" title="Alati"><svg class="i"><use href="#i-tool"/></svg><span>Alati</span></button>
       <div class="titems">
-        <small class="tgl">Merenje</small>
-        <a href="#toolsCard" data-view="tscope"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-scope"/></svg></span>Osciloskop</a>
-        <a href="#toolsCard" data-view="tlogic"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-logic"/></svg></span>Logički analizator</a>
-        <small class="tgl">Komponente</small>
-        <a href="#toolsCard" data-view="tres"><span class="tic" style="--c:#b7791f"><svg class="i"><use href="#i-resistor"/></svg></span>Otpornici</a>
-        <a href="#toolsCard" data-view="tcap"><span class="tic" style="--c:#7c5cd6"><svg class="i"><use href="#i-cap"/></svg></span>Kondenzatori</a>
-        <small class="tgl">Mreža</small>
-        <a href="#toolsCard" data-view="tnet"><span class="tic" style="--c:#2563eb"><svg class="i"><use href="#i-gauge"/></svg></span>Mrežni tester</a>
-        <a href="#toolsCard" data-view="tscan"><span class="tic" style="--c:#0891b2"><svg class="i"><use href="#i-radar"/></svg></span>Skeniranje mreže</a>
-        <a href="#toolsCard" data-view="tdns"><span class="tic" style="--c:#0f766e"><svg class="i"><use href="#i-dns"/></svg></span>DNS i Whois</a>
-        <a href="#toolsCard" data-view="tguest"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-qr"/></svg></span>Wi-Fi za goste</a>
-        <small class="tgl">Komunikacija</small>
-        <a href="#toolsCard" data-view="tpbx"><span class="tic" style="--c:#15803d"><svg class="i"><use href="#i-pbx"/></svg></span>Telefonska centrala</a>
-        <a href="#toolsCard" data-view="tsms"><span class="tic" style="--c:#27a9d9"><svg class="i"><use href="#i-sms"/></svg></span>SMS poruke</a>
-        <small class="tgl">Sigurnost</small>
-        <a href="#toolsCard" data-view="tpass"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-key"/></svg></span>Lozinke</a>
+        <div class="tsub" data-sub="gen"><button type="button" class="tglb">Opšte<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+            <a href="#toolsCard" data-view="tpass"><span class="tic" style="--c:#d64545"><svg class="i"><use href="#i-key"/></svg></span>Lozinke</a>
+            <a href="#toolsCard" data-view="tguest"><span class="tic" style="--c:#2fa84f"><svg class="i"><use href="#i-qr"/></svg></span>Wi-Fi za goste</a>
+            <a href="#toolsCard" data-view="tdice"><span class="tic" style="--c:#ea580c"><svg class="i"><use href="#i-dice"/></svg></span>Kockice</a>
+            <a href="#toolsCard" data-view="tpin"><span class="tic" style="--c:#0e7490"><svg class="i"><use href="#i-chip"/></svg></span>Pinout i datasheet</a>
+            <a href="#toolsCard" data-view="ttimer"><span class="tic" style="--c:#ea580c"><svg class="i"><use href="#i-timer"/></svg></span>Tajmer</a>
+        </div></div>
+        <div class="tsub" data-sub="net"><button type="button" class="tglb">Network alati<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+            <a href="#toolsCard" data-view="tnet"><span class="tic" style="--c:#2563eb"><svg class="i"><use href="#i-gauge"/></svg></span>Mrežni tester</a>
+            <a href="#toolsCard" data-view="tscan"><span class="tic" style="--c:#0891b2"><svg class="i"><use href="#i-radar"/></svg></span>Skeniranje mreže</a>
+            <a href="#toolsCard" data-view="twifi"><span class="tic" style="--c:#9333ea"><svg class="i"><use href="#i-wifian"/></svg></span>Wi-Fi analizator</a>
+            <a href="#toolsCard" data-view="tdns"><span class="tic" style="--c:#0f766e"><svg class="i"><use href="#i-dns"/></svg></span>DNS i Whois</a>
+            <a href="#toolsCard" data-view="tsub"><span class="tic" style="--c:#4f46e5"><svg class="i"><use href="#i-subnet"/></svg></span>Subnet kalkulator</a>
+        </div></div>
+        <div class="tsub" data-sub="el"><button type="button" class="tglb">Elektronika<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+            <a href="#toolsCard" data-view="tscope"><span class="tic" style="--c:#0f9d8f"><svg class="i"><use href="#i-scope"/></svg></span>Osciloskop</a>
+            <a href="#toolsCard" data-view="tlogic"><span class="tic" style="--c:#1d8fe0"><svg class="i"><use href="#i-logic"/></svg></span>Logički analizator</a>
+            <a href="#toolsCard" data-view="tgen"><span class="tic" style="--c:#c026d3"><svg class="i"><use href="#i-sig"/></svg></span>Generator signala</a>
+            <a href="#toolsCard" data-view="tser"><span class="tic" style="--c:#334155"><svg class="i"><use href="#i-term"/></svg></span>Serijski terminal</a>
+            <div class="tsub tsub2" data-sub="prog"><button type="button" class="tgl2"><span class="tic" style="--c:#b91c1c"><svg class="i"><use href="#i-burn"/></svg></span>Programatori<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+              <a href="#toolsCard" data-view="tesp"><span class="tic" style="--c:#b91c1c"><svg class="i"><use href="#i-burn"/></svg></span>ESP flasher</a>
+              <a href="#toolsCard" data-view="tavr"><span class="tic" style="--c:#0f766e"><svg class="i"><use href="#i-burn"/></svg></span>AVR programer</a>
+              <a href="#toolsCard" data-view="tpic"><span class="tic" style="--c:#2563eb"><svg class="i"><use href="#i-burn"/></svg></span>PIC programer</a>
+            </div></div>
+            <div class="tsub tsub2" data-sub="comp"><button type="button" class="tgl2"><span class="tic" style="--c:#b7791f"><svg class="i"><use href="#i-resistor"/></svg></span>Komponente<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+              <a href="#toolsCard" data-view="tres"><span class="tic" style="--c:#b7791f"><svg class="i"><use href="#i-resistor"/></svg></span>Otpornici</a>
+              <a href="#toolsCard" data-view="tcap"><span class="tic" style="--c:#7c5cd6"><svg class="i"><use href="#i-cap"/></svg></span>Kondenzatori</a>
+            </div></div>
+            <div class="tsub tsub2" data-sub="calc"><button type="button" class="tgl2"><span class="tic" style="--c:#0284c7"><svg class="i"><use href="#i-calc"/></svg></span>Kalkulatori<svg class="i tch"><use href="#i-down"/></svg></button><div class="tsubi">
+              <a href="#toolsCard" data-view="tled"><span class="tic" style="--c:#dc2626"><svg class="i"><use href="#i-led"/></svg></span>LED otpornik</a>
+              <a href="#toolsCard" data-view="tohm"><span class="tic" style="--c:#0284c7"><svg class="i"><use href="#i-ohm"/></svg></span>Ohmov zakon</a>
+              <a href="#toolsCard" data-view="tdiv"><span class="tic" style="--c:#7c3aed"><svg class="i"><use href="#i-div"/></svg></span>Razdelnik napona</a>
+              <a href="#toolsCard" data-view="t555"><span class="tic" style="--c:#0d9488"><svg class="i"><use href="#i-555"/></svg></span>NE555</a>
+            </div></div>
+        </div></div>
       </div>
     </div>
-    <div class="tsep" role="separator"></div>
     <!-- Admin: posebna stranica sa svim podešavanjima (ulazak = admin režim, odlazak = izlaz iz admina) -->
     <div class="tgrp" data-view="admin" style="--c:#d97706">
       <button class="tsec tadm" id="adminSw" role="switch" aria-checked="false" title="Podešavanja (traži PIN)"><svg class="i"><use href="#i-lock" id="lockIco"/></svg><span>Admin</span><small class="tadm-on">uključen</small></button>
       <div class="titems">
         <a href="#hero" data-view="admin">Izvori i konzole</a>
         <a href="#irCard" data-view="admin">Daljinski · tasteri</a>
-        <a href="#imgCard" data-view="admin">Kad nema videa</a>
         <a href="#evCard" data-view="admin">Obaveštenja</a>
         <a href="#btCard" data-view="admin">Bluetooth</a>
         <a href="#devicesCard" data-view="admin">Uređaji (Smart Home)</a>
         <a href="#castCard" data-view="admin">Cast</a>
-        <a href="#pwaCard" data-view="admin">Aplikacija na telefonu</a>
-        <a href="#alCfgCard" data-view="admin">Alarm · veza</a>
         <a href="#netCard" data-view="admin">Mreža</a>
         <a href="#sysAdmCard" data-view="admin">Sistem</a>
         <a href="#accCard" data-view="admin">Admin pristup</a>
       </div>
     </div>
-  </div></nav>
+  </div>
+  <button class="sideshare" id="pwaOpen" type="button" title="Aplikacija na telefonu (QR kod)"><svg class="i"><use href="#i-share"/></svg><span>Aplikacija na telefonu</span></button>
+</nav>
+<div class="pwapop" id="pwaPop" hidden>
+      <section class="card pwamodal" aria-labelledby="h-pwa" id="pwaCard" role="dialog" aria-modal="true">
+        <div class="card-head"><h2 id="h-pwa">Teco.Pi na telefonu</h2><button class="btn ghost pwax" id="pwaX" type="button" aria-label="Zatvori"><svg class="i"><use href="#i-x"/></svg></button></div>
+        <div class="pwa-pc" id="pwaPc">
+          <div class="pwa-qr" id="pwaQr" aria-label="QR kod za telefon"></div>
+          <p class="muted" style="font-size:13px;margin:0">Skeniraj kamerom telefona. Otvoriće se Teco.Pi i pokazati gde da dodirneš da dodaš ikonicu na ekran.</p>
+        </div>
+        <button class="btn gel" id="pwaGo" type="button" hidden><svg class="i"><use href="#i-phone"/></svg><span>Dodaj Teco.Pi na početni ekran</span></button>
+        <div class="pwa-vpn" id="pwaVpn" hidden>
+          <b class="netcfg-t">Preko VPN-a <small class="nstat" id="pwaVpnIp"></small></b>
+          <div class="pwa-pc"><div class="pwa-qr" id="pwaQrVpn" aria-label="QR kod za VPN prečicu"></div><p class="muted" style="font-size:13px;margin:0">Sa uključenim VPN-om na telefonu skeniraj ovaj kod. Prečica radi sa bilo kog mesta; nazovi je npr. „Teco.Pi VPN”.</p></div>
+          <a class="btn" id="pwaVpnGo" href="#" hidden><svg class="i"><use href="#i-phone"/></svg><span>Dodaj VPN prečicu</span></a>
+        </div>
+      </section>
+</div>
 
 <header class="top">
   <div class="top-in">
@@ -754,15 +826,15 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <section class="card cctv" id="smartCard" aria-labelledby="h-smart">
     <div class="card-head"><h2 id="h-smart">Smart Home</h2></div>
     <div class="shgrid">
+      <button class="shtile go" type="button" id="shDoors" data-go="doors" style="--c:#f07c1a"><span class="fic"><svg class="i"><use href="#i-bell"/></svg></span><b>Interfon / Zvona</b><small>nema uređaja</small></button>
       <button class="shtile go" type="button" id="shLights" data-go="lights" style="--c:#f2a900"><span class="fic"><svg class="i"><use href="#i-bulb"/></svg></span><b>Svetla</b><small>primer</small></button>
       <button class="shtile go" type="button" id="shAppl" data-go="appl" style="--c:#0f9d8f"><span class="fic"><svg class="i"><use href="#i-plug"/></svg></span><b>Uređaji</b><small>nema uređaja</small></button>
-      <button class="shtile go" type="button" id="shAqua" data-go="aqua" style="--c:#1d8fe0"><span class="fic"><svg class="i"><use href="#i-fish"/></svg></span><b>Akvarijum</b><small id="shAquaTxt">modul nije povezan</small></button>
-      <button class="shtile go" type="button" id="shDoors" data-go="doors" style="--c:#f07c1a"><span class="fic"><svg class="i"><use href="#i-bell"/></svg></span><b>Interfon / Zvona</b><small>nema uređaja</small></button>
+      <button class="shtile go" type="button" id="shWeather" data-go="weather" style="--c:#27a9d9"><span class="fic"><svg class="i"><use href="#i-sun"/></svg></span><b>Meteorologija</b><small id="shWeatherTxt">primer</small></button>
       <button class="shtile go" type="button" id="shAlarm" data-go="alarm" style="--c:#d64545"><i class="shdot" aria-hidden="true"></i><span class="fic"><svg class="i"><use href="#i-shield"/></svg></span><b>Alarm</b><small id="shAlarmTxt">—</small></button>
       <button class="shtile go" type="button" id="shCctv" data-go="cctv" style="--c:#4b5d73"><span class="fic"><svg class="i"><use href="#i-cam"/></svg></span><b>CCTV</b><small>nema kamera</small></button>
       <button class="shtile go" type="button" id="shWater" data-go="water" style="--c:#2fa84f"><span class="fic"><svg class="i"><use href="#i-drop"/></svg></span><b>Navodnjavanje</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shPower" data-go="power" style="--c:#9aa618"><span class="fic"><svg class="i"><use href="#i-zap"/></svg></span><b>Potrošnja struje</b><small>primer</small></button>
-      <button class="shtile go" type="button" id="shWeather" data-go="weather" style="--c:#27a9d9"><span class="fic"><svg class="i"><use href="#i-sun"/></svg></span><b>Meteorologija</b><small id="shWeatherTxt">primer</small></button>
+      <button class="shtile go" type="button" id="shAqua" data-go="aqua" style="--c:#1d8fe0"><span class="fic"><svg class="i"><use href="#i-fish"/></svg></span><b>Akvarijum</b><small id="shAquaTxt">modul nije povezan</small></button>
+      <button class="shtile go" type="button" id="shPower" data-go="power" style="--c:#9aa618"><span class="fic"><svg class="i"><use href="#i-zap"/></svg></span><b>Potrošnja</b><small>struja · gas · voda (primer)</small></button>
     </div>
   </section>
   <!-- Svetla: dodata svetla (strana Uređaji) -->
@@ -775,7 +847,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <section class="card demo" id="applCard" aria-labelledby="h-appl">
     <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-appl">Uređaji</h2><span class="sub" id="applCount"></span></div>
     <div class="dgrid" id="applGrid"></div>
-    <p class="muted" id="applEmpty" style="font-size:13px;margin:0">Nema dodatih uređaja (Admin → Uređaji, vrsta <b>Uređaj</b>: klima, bojler, pegla… preko pametne utičnice ili releja alarma).</p>
+    <p class="muted" id="applEmpty" style="font-size:13px;margin:0">Nema dodatih uređaja (Admin → Uređaji, vrsta <b>Uređaj</b> ili <b>TV</b>: klima, bojler, pegla… preko pametne utičnice ili releja alarma, TV preko mreže).</p>
     <!-- PRIMER (samo izgled): prekidači reaguju lokalno, bez prave kontrole -->
     <b class="netcfg-t">Primer <span class="demotag">primer</span></b>
     <div class="dgrid">
@@ -785,7 +857,6 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
       <div class="dv" data-anim="heat" style="--c:#b7791f"><span class="dvi"><span class="em"><svg class="i"><use href="#i-iron"/></svg></span></span><span class="t"><b>Pegla · Ostava</b><small>isključena · sama se gasi posle 30 min</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
       <div class="dv on" data-anim="spin" style="--c:#1d8fe0"><span class="dvi"><span class="em"><svg class="i"><use href="#i-washer"/></svg></span></span><span class="t"><b>Veš mašina · Kupatilo</b><small>pere · još 42 min</small></span><button class="dvs" type="button" role="switch" aria-checked="true" aria-label="Uključi / isključi"></button></div>
       <div class="dv" data-anim="heat" style="--c:#d64545"><span class="dvi"><span class="em"><svg class="i"><use href="#i-heat"/></svg></span></span><span class="t"><b>Grejalica · Spavaća soba</b><small>isključena · termostat 21°</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
-      <div class="dv" data-anim="spin" style="--c:#2fa84f"><span class="dvi"><span class="em"><svg class="i"><use href="#i-drop"/></svg></span></span><span class="t"><b>Pumpa · Bašta</b><small>isključena</small></span><button class="dvs" type="button" role="switch" aria-checked="false" aria-label="Uključi / isključi"></button></div>
     </div>
   </section>
 
@@ -806,35 +877,31 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     </div>
   </section>
 
-  <!-- PRIMER (samo izgled): Potrošnja struje -->
+  <!-- PRIMER (samo izgled): Potrošnja — struja, gas i hladna voda (brojila) -->
   <section class="card demo" id="powerCard" aria-labelledby="h-power">
-    <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-power">Potrošnja struje</h2><span class="demotag">primer</span></div>
-    <div class="wsum">
-      <div><small>Sada</small><b>2,7 kW</b></div><div><small>Danas</small><b>8,4 kWh</b></div><div><small>Ovaj mesec</small><b>214 kWh · ~2.140 din</b></div>
+    <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-power">Potrošnja</h2><span class="demotag">primer</span></div>
+    <div class="pwtabs" id="pwTabs" role="group" aria-label="Vrsta potrošnje">
+      <button type="button" data-k="el" aria-pressed="true" style="--c:#f2a900"><svg class="i"><use href="#i-zap"/></svg><span>Struja</span><small>8,4 kWh</small></button>
+      <button type="button" data-k="gas" aria-pressed="false" style="--c:#f97316"><svg class="i"><use href="#i-flame"/></svg><span>Gas</span><small>3,1 m³</small></button>
+      <button type="button" data-k="wat" aria-pressed="false" style="--c:#0ea5e9"><svg class="i"><use href="#i-drop"/></svg><span>Hladna voda</span><small>412 L</small></button>
     </div>
-    <div class="pchart"><b>Danas po satu</b><div class="pbars" id="pBars"></div><div class="paxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>
-    <b class="netcfg-t">Najveći potrošači danas</b>
-    <div class="ptop">
-      <div><span><svg class="i" style="color:#f07c1a"><use href="#i-shower"/></svg>Bojler</span><i style="--w:46%"></i><em>3,9 kWh</em></div>
-      <div><span><svg class="i" style="color:#1d8fe0"><use href="#i-washer"/></svg>Veš mašina</span><i style="--w:18%"></i><em>1,5 kWh</em></div>
-      <div><span><svg class="i" style="color:#27a9d9"><use href="#i-snow"/></svg>Klima</span><i style="--w:14%"></i><em>1,2 kWh</em></div>
-      <div><span><svg class="i" style="color:#8d5a3b"><use href="#i-pan"/></svg>Kuhinja</span><i style="--w:12%"></i><em>1,0 kWh</em></div>
-      <div><span><svg class="i" style="color:#f2a900"><use href="#i-bulb"/></svg>Ostalo</span><i style="--w:10%"></i><em>0,8 kWh</em></div>
-    </div>
+    <div class="wsum" id="pwSum"></div>
+    <div class="pchart"><b id="pwChT">Danas po satu</b><div class="pbars" id="pBars"></div><div class="paxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>
+    <b class="netcfg-t" id="pwTopT">Najveći potrošači danas</b>
+    <div class="ptop" id="pwTop"></div>
   </section>
 
   <!-- Akvarijum: izlaze i senzore drži ESP32 (Teco ESP protokol, /api/aqua) -->
   <section class="card demo" id="aquaCard" aria-labelledby="h-aqua">
     <div class="card-head"><button class="alback shback" type="button" data-up="smart"><svg class="i"><use href="#i-left"/></svg><span>Smart Home</span></button><h2 id="h-aqua">Akvarijum</h2><span class="aqesp" id="aqEsp">modul nije povezan</span></div>
+    <div class="dgrid" id="aqOuts"></div>
     <div class="aqtop">
-      <div class="aqtank" id="aqTank" aria-label="Nivo vode"><div class="aqwater" id="aqWater"></div><div class="aqmarks" id="aqMarks"></div></div>
+      <div class="aqlv"><div class="aqtank" id="aqTank" role="img" aria-label="Akvarijum: nivo vode i oprema"></div><div class="aqleg" id="aqLeg"></div><div class="aqlvtxt" id="aqLvTxt">Nivo vode</div></div>
       <div class="aqvals">
         <div class="mt"><small>pH</small><b id="aqPh">—</b><em id="aqPhTxt">nema podatka</em></div>
         <div class="mt"><small>Temperatura vode</small><b id="aqTemp">—</b><em>opciono</em></div>
       </div>
     </div>
-    <b class="netcfg-t">Upravljanje</b>
-    <div class="dgrid" id="aqOuts"></div>
     <p class="muted" style="font-size:13px;margin:0" id="aqNote">Zaštita: dovod vode se zatvara na MAX/ALARM nivou, odvod staje ispod MIN.</p>
   </section>  <!-- Vrata: ulazna vrata, kapija, garaža… (uređaji vrste Vrata, za sada preko PGM-a alarma) -->
   <section class="card demo" id="doorsCard" aria-labelledby="h-doors">
@@ -863,23 +930,37 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
   <!-- Alati: osciloskop i otpornici se prikazuju na ekranu (TV), ovde se podešavaju -->
   <section class="card demo" id="toolsCard" aria-labelledby="h-tools">
     <div class="card-head"><button class="alback shback tback" type="button" id="toolBack"><svg class="i"><use href="#i-left"/></svg><span>Alati</span></button><h2 id="h-tools">Alati</h2><span class="aqesp" id="toolShown">nije na ekranu</span></div>
+    <div class="exmaster" id="exMaster" hidden></div>
     <div id="toolTabs">
-      <div class="ttgrp" style="--c:#f59e0b"><h3>Merenje</h3><div class="tooltabs">
-        <button type="button" data-tool="scope" style="--c:#0f9d8f"><span class="ti"><svg class="i"><use href="#i-scope"/></svg></span><b>Osciloskop</b><small>2 kanala, signal na ekranu</small></button>
-        <button type="button" data-tool="logic" style="--c:#1d8fe0"><span class="ti"><svg class="i"><use href="#i-logic"/></svg></span><b>Logički analizator</b><small>2 kanala, UART dekoder</small></button></div></div>
-      <div class="ttgrp" style="--c:#a78bfa"><h3>Komponente</h3><div class="tooltabs">
-        <button type="button" data-tool="resistor" style="--c:#b7791f"><span class="ti"><svg class="i"><use href="#i-resistor"/></svg></span><b>Otpornici</b><small>boje i SMD šifre</small></button>
-        <button type="button" data-tool="capacitor" style="--c:#7c5cd6"><span class="ti"><svg class="i"><use href="#i-cap"/></svg></span><b>Kondenzatori</b><small>kodovi sa nožicama i SMD</small></button></div></div>
-      <div class="ttgrp" style="--c:#38bdf8"><h3>Mreža</h3><div class="tooltabs">
+      <div class="ttgrp" id="genGrp" style="--c:#f43f5e"><h3>Opšte</h3><div class="tooltabs">
+        <button type="button" data-tool="pass" style="--c:#d64545"><span class="ti"><svg class="i"><use href="#i-key"/></svg></span><b>Lozinke</b><small>šifrovan trezor + generator</small></button>
+        <button type="button" data-tool="guest" style="--c:#2fa84f"><span class="ti"><svg class="i"><use href="#i-qr"/></svg></span><b>Wi-Fi za goste</b><small>QR kod na ekranu</small></button>
+        <button type="button" data-tool="dice" style="--c:#ea580c"><span class="ti"><svg class="i"><use href="#i-dice"/></svg></span><b>Kockice</b><small>baci kockice, zbir, istorija</small></button>
+        <button type="button" data-tool="pin" style="--c:#0e7490"><span class="ti"><svg class="i"><use href="#i-chip"/></svg></span><b>Pinout i datasheet</b><small>ATmega, ESP32, ESP8266, SIM800L…</small></button>
+        <button type="button" class="tgt" data-grp="timer" style="--c:#f97316"><span class="ti"><svg class="i"><use href="#i-timer"/></svg></span><b>Tajmer</b><small>odbrojavanje, štoperica, alarm</small><span class="tgdd"><svg class="i"><use href="#i-down"/></svg></span></button></div></div>
+      <div class="ttgrp" style="--c:#38bdf8"><h3>Network alati</h3><div class="tooltabs">
         <button type="button" data-tool="net" style="--c:#2563eb"><span class="ti"><svg class="i"><use href="#i-gauge"/></svg></span><b>Mrežni tester</b><small>veza, ruter, port, brzina</small></button>
         <button type="button" data-tool="scan" style="--c:#0891b2"><span class="ti"><svg class="i"><use href="#i-radar"/></svg></span><b>Skeniranje mreže</b><small>uređaji, portovi, buđenje (WoL)</small></button>
+        <button type="button" data-tool="wifi" style="--c:#9333ea"><span class="ti"><svg class="i"><use href="#i-wifian"/></svg></span><b>Wi-Fi analizator</b><small>mreže, kanali, preporuka</small></button>
         <button type="button" data-tool="dns" style="--c:#0f766e"><span class="ti"><svg class="i"><use href="#i-dns"/></svg></span><b>DNS i Whois</b><small>nslookup, vlasnik domena / IP</small></button>
-        <button type="button" data-tool="guest" style="--c:#2fa84f"><span class="ti"><svg class="i"><use href="#i-qr"/></svg></span><b>Wi-Fi za goste</b><small>QR kod na ekranu</small></button></div></div>
-      <div class="ttgrp" style="--c:#22c55e"><h3>Komunikacija</h3><div class="tooltabs">
-        <button type="button" data-tool="pbx" style="--c:#15803d"><span class="ti"><svg class="i"><use href="#i-pbx"/></svg></span><b>Telefonska centrala <i class="smbadge" id="pxBadge" hidden></i></b><small>lokali, linija, modem, najave, pošta</small></button>
-        <button type="button" data-tool="sms" style="--c:#27a9d9"><span class="ti"><svg class="i"><use href="#i-sms"/></svg></span><b>SMS poruke <i class="smbadge" id="smBadge" hidden></i></b><small>poruke, obaveštenja, komande</small></button></div></div>
-      <div class="ttgrp" style="--c:#f43f5e"><h3>Sigurnost</h3><div class="tooltabs">
-        <button type="button" data-tool="pass" style="--c:#d64545"><span class="ti"><svg class="i"><use href="#i-key"/></svg></span><b>Lozinke</b><small>šifrovan trezor + generator</small></button></div></div>
+        <button type="button" data-tool="sub" style="--c:#4f46e5"><span class="ti"><svg class="i"><use href="#i-subnet"/></svg></span><b>Subnet kalkulator</b><small>IPv4, CIDR, deljenje, Azure</small></button></div></div>
+      <div class="ttgrp" style="--c:#f59e0b"><h3>Elektronika</h3><div class="tooltabs">
+        <button type="button" data-tool="scope" style="--c:#0f9d8f"><span class="ti"><svg class="i"><use href="#i-scope"/></svg></span><b>Osciloskop</b><small>2 kanala, signal na ekranu</small></button>
+        <button type="button" data-tool="logic" style="--c:#1d8fe0"><span class="ti"><svg class="i"><use href="#i-logic"/></svg></span><b>Logički analizator</b><small>2 kanala, UART dekoder</small></button>
+        <button type="button" data-tool="gen" style="--c:#c026d3"><span class="ti"><svg class="i"><use href="#i-sig"/></svg></span><b>Generator signala</b><small>2 kanala, pravougaoni i trougaoni</small></button>
+        <button type="button" data-tool="ser" style="--c:#334155"><span class="ti"><svg class="i"><use href="#i-term"/></svg></span><b>Serijski terminal</b><small>RS232 / USB-serijski, do 2 Mbit/s</small></button>
+        <button type="button" class="tgt" data-grp="prog" style="--c:#b91c1c"><span class="ti"><svg class="i"><use href="#i-burn"/></svg></span><b>Programatori</b><small>upis firmware-a</small><span class="tgdd"><svg class="i"><use href="#i-down"/></svg></span></button>
+        <button type="button" class="tgt" data-grp="comp" style="--c:#b7791f"><span class="ti"><svg class="i"><use href="#i-resistor"/></svg></span><b>Komponente</b><small>otpornici i kondenzatori</small><span class="tgdd"><svg class="i"><use href="#i-down"/></svg></span></button>
+        <button type="button" class="tgt" data-grp="calc" style="--c:#0284c7"><span class="ti"><svg class="i"><use href="#i-calc"/></svg></span><b>Kalkulatori</b><small>LED, Ohm, razdelnik, NE555</small><span class="tgdd"><svg class="i"><use href="#i-down"/></svg></span></button></div></div>
+      <div class="ttgrp" id="extGrp" style="--c:#22c55e"><h3>Ekstenzije</h3><div class="tooltabs">
+        <button type="button" data-tool="stor" style="--c:#7c3aed"><span class="ti"><svg class="i"><use href="#i-drive"/></svg></span><b>Skladište podataka</b><small>USB diskovi: igrice, ISO, video, dokumenti</small></button>
+        <button type="button" data-tool="web" style="--c:#16a34a"><span class="ti"><svg class="i"><use href="#i-pulse"/></svg></span><b>Web monitor</b><small>da li sajtovi rade, ključna reč, SSL</small></button>
+        <button type="button" data-tool="pbx" style="--c:#15803d"><span class="ti"><svg class="i"><use href="#i-pbx"/></svg></span><b>VoIP / FXS <i class="smbadge" id="pxBadge" hidden></i></b><small>lokali, linija, modem, najave, pošta</small></button>
+        <button type="button" data-tool="sms" style="--c:#27a9d9"><span class="ti"><svg class="i"><use href="#i-sms"/></svg></span><b>SMS poruke <i class="smbadge" id="smBadge" hidden></i></b><small>poruke, obaveštenja, komande</small></button>
+        <button type="button" data-tool="mail" style="--c:#2563eb"><span class="ti"><svg class="i"><use href="#i-mail"/></svg></span><b>SMTP Email</b><small>SMTP nalog, obaveštenja e-mailom</small></button>
+        <button type="button" data-tool="dnsr" style="--c:#0d9488"><span class="ti"><svg class="i"><use href="#i-dnsr"/></svg></span><b>DNS resolver</b><small>Teco.Pi kao DNS server sa kešom</small></button>
+        <button type="button" data-tool="wds" style="--c:#0369a1"><span class="ti"><svg class="i"><use href="#i-win"/></svg></span><b>WDS server</b><small>Windows instalacija preko mreže</small></button>
+        <button type="button" data-tool="smb" style="--c:#c2410c"><span class="ti"><svg class="i"><use href="#i-folder"/></svg></span><b>SMB share</b><small>deljeni folderi i USB diskovi, PS2 igrice</small></button></div></div>
     </div>
     <!-- Kondenzatori -->
     <div class="tpanel" id="tCap" hidden>
@@ -949,13 +1030,15 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <label class="cplbl">Dozvoljeni brojevi za dolazne pozive (prazno = svi)<textarea class="field" data-k="allow" rows="2" placeholder="+38164…, +38163…"></textarea></label>
       </div>
     </div>
-    <!-- Telefonska centrala (Asterisk): lokali, krugovi zvonjenja, radno vreme, najave, govorna pošta -->
+    <!-- VoIP / FXS (Asterisk): lokali, krugovi zvonjenja, radno vreme, najave, govorna pošta -->
     <div class="tpanel" id="tPbx" hidden>
       <div class="phst"><div class="phs" id="pxSt"></div><div class="phs" id="pxGsm"></div></div>
-      <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-pbx"/></svg>Centrala</b><button class="dvs" type="button" role="switch" id="pxOn" aria-label="Centrala"></button></div>
-        <p class="muted phnote">Dolazni poziv sa mobilne linije: van radnog vremena najava „Van radnog vremena“ i govorna pošta; u radnom vremenu najava „Dobrodošlica“, pa krugovi zvonjenja (zvone samo lokali koji su online), pa „Niko nije dostupan“ i govorna pošta. Sa lokala: drugi lokal (101…), spoljni broj (06…), *97 = svoja pošta.</p></div>
-      <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-users"/></svg>Lokali</b><button class="btn" type="button" id="pxSecret"><svg class="i"><use href="#i-key"/></svg><span>Podaci za SIP telefone</span></button></div><div class="pxext" id="pxExt"></div></div>
-      <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-repeat"/></svg>Krugovi zvonjenja</b><button class="btn" type="button" id="pxAddR"><svg class="i"><use href="#i-plus"/></svg><span>Krug</span></button></div><div class="pxrounds" id="pxRounds"></div></div>
+      <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-users"/></svg>Lokali</b><button class="btn" type="button" id="pxSecret"><svg class="i"><use href="#i-key"/></svg><span>Podaci za SIP telefone</span></button></div><div class="pxext" id="pxExt"></div>
+        <div class="pxadd"><input class="field" id="pxAddN" placeholder="Broj (npr. 104)" inputmode="numeric" maxlength="4" autocomplete="off"><input class="field" id="pxAddName" placeholder="Ime (npr. Kancelarija)" maxlength="30" autocomplete="off">
+          <select class="field" id="pxAddK"><option value="sip">SIP lokal</option><option value="fxs">FXS kanal</option></select><button class="btn gel" type="button" id="pxAdd"><svg class="i"><use href="#i-plus"/></svg><span>Dodaj lokal</span></button></div>
+        <p class="muted phnote">SIP lokal se prijavljuje preko mreže (podaci: „Podaci za SIP telefone“). FXS kanal je obični telefon na liniji Teco.Pi-ja — ima ga samo jedan, pa izbor FXS-a za jedan lokal ostale prebacuje na SIP.</p></div>
+      <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-repeat"/></svg>Krugovi zvonjenja</b><button class="btn" type="button" id="pxAddR"><svg class="i"><use href="#i-plus"/></svg><span>Krug</span></button></div><div class="pxrounds" id="pxRounds"></div>
+        <p class="muted phnote">Dolazni poziv sa mobilne linije: van radnog vremena najava „Van radnog vremena“ i govorna pošta; u radnom vremenu „Dobrodošlica“, pa krugovi redom (zvone samo lokali koji su online), pa „Niko nije dostupan“ i govorna pošta. Sa lokala: drugi lokal (101…), spoljni broj (06…), *97 = svoja pošta.</p></div>
       <div class="phcard"><div class="phh"><b><svg class="i"><use href="#i-clock"/></svg>Radno vreme</b><button class="dvs" type="button" role="switch" id="pxWorkOn" aria-label="Radno vreme"></button></div>
         <div class="pxdays" id="pxDays"></div>
         <div class="phgrid"><label>Od<input class="field" type="time" id="pxFrom"></label><label>Do<input class="field" type="time" id="pxTo"></label></div></div>
@@ -985,6 +1068,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
           <label><button class="dvs" type="button" role="switch" data-n="arm"></button><span>Alarm uključen / isključen</span></label>
           <label><button class="dvs" type="button" role="switch" data-n="power"></button><span>Nestanak i povratak struje (sa alarm centrale)</span></label>
           <label><button class="dvs" type="button" role="switch" data-n="aqua"></button><span>Akvarijum: preliv, ispod MIN, pH, modul se ne javlja</span></label>
+          <label><button class="dvs" type="button" role="switch" data-n="web"></button><span>Web monitor: sajt ne radi / ponovo radi, SSL ističe</span></label>
           <label><button class="dvs" type="button" role="switch" data-n="devices"></button><span>Praćeni uređaji nestali / vratili se na mrežu (dugme „Prati“ u Skeniranju mreže)</span></label>
           <label><button class="dvs" type="button" role="switch" data-n="cmds"></button><span>Primaj SMS komande sa pouzdanih brojeva</span></label>
         </div>
@@ -1009,6 +1093,402 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         </div>
       </div>
       <p class="muted" style="font-size:12.5px;margin:0">Gost otvori kameru telefona, usmeri je na kod sa TV-a i telefon se sam poveže. Lozinka je vidljiva na ekranu — koristi posebnu mrežu za goste na ruteru.</p>
+    </div>
+    <!-- Serijski terminal: USB-serijski / RS232 (podaci kroz /ws/serial) -->
+    <div class="tpanel" id="tSer" hidden>
+      <div class="serbar">
+        <label class="serf grow">Port<select class="field" id="serDev"></select></label>
+        <button class="btn icon" type="button" id="serRef" title="Osveži spisak portova" aria-label="Osveži portove"><svg class="i"><use href="#i-refresh"/></svg></button>
+        <label class="serf">Brzina<input class="field" id="serBaud" list="serBauds" inputmode="numeric" value="115200"><datalist id="serBauds"></datalist></label>
+        <label class="serf">Format<select class="field" id="serFmt"><option>8N1</option><option>8E1</option><option>8O1</option><option>8N2</option><option>7E1</option><option>7O1</option><option>7N1</option></select></label>
+        <button class="btn gel serop" type="button" id="serOpen"><span>Poveži</span></button>
+      </div>
+      <div class="serst">
+        <span class="serled" id="serTx"><i></i>TX</span><span class="serled rx" id="serRx"><i></i>RX</span>
+        <span class="sercnt" id="serCnt">RX 0 B · TX 0 B</span>
+        <span class="sersp"></span>
+        <button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button>
+        <label class="serchk"><input type="checkbox" id="serTs" checked>Vreme</label>
+        <label class="serchk"><input type="checkbox" id="serHex">HEX</label>
+        <label class="serchk"><input type="checkbox" id="serAuto" checked>Prati</label>
+        <button class="btn" type="button" id="serClr"><svg class="i"><use href="#i-trash"/></svg><span>Očisti</span></button>
+      </div>
+      <pre class="serout" id="serOut" tabindex="0" aria-live="off"></pre>
+      <form class="sersend" id="serSend" autocomplete="off">
+        <input class="field" id="serIn" placeholder="Poruka za uređaj (↑↓ prethodne)" spellcheck="false" autocapitalize="off" enterkeyhint="send">
+        <select class="field" id="serEol" title="Kraj reda" aria-label="Kraj reda"><option value="">bez</option><option value="\r">CR</option><option value="\n">LF</option><option value="\r\n" selected>CR+LF</option></select>
+        <label class="serchk"><input type="checkbox" id="serHexIn">HEX</label>
+        <button class="btn gel" type="submit"><span>Pošalji</span></button>
+      </form>
+      <div class="serlines" id="serLines"></div>
+    </div>
+    <!-- Wi-Fi analizator: okolne mreže (Wi-Fi Pi-ja), grafikon kanala, preporuka -->
+    <div class="tpanel" id="tWifi" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <div class="wdsst" id="waSt"></div>
+      <div class="tbar"><div class="segc" id="waBand" role="group"><button type="button" data-v="2.4" aria-pressed="true">2,4 GHz</button><button type="button" data-v="5" aria-pressed="false">5 GHz</button></div>
+        <span class="sersp"></span><label class="serchk"><input type="checkbox" id="waAuto" checked>Osvežavaj (15 s)</label>
+        <button class="btn gel" type="button" id="waGo"><svg class="i"><use href="#i-refresh"/></svg><span>Skeniraj</span></button></div>
+      <div class="wachart" id="waChart"></div>
+      <div class="warec" id="waRec"></div>
+      <b class="netcfg-t" id="waCnt">Mreže</b>
+      <div class="walist" id="waList"></div>
+      <p class="muted kh">Skenira Wi-Fi Teco.Pi-ja (Raspberry Pi 3B čuje samo 2,4 GHz). Na 2,4 GHz koristi samo kanale 1, 6 ili 11 — ostali se preklapaju sa susedima. Preporuka ne računa tvoju mrežu.</p>
+    </div>
+    <!-- ESP flasher / AVR programer: jedan panel, delovi po alatu (pg-esp / pg-avr) -->
+    <div class="tpanel" id="tProg" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <div class="wdsst" id="pgSt"></div>
+      <div class="wdsinst" id="pgInst" hidden><p class="muted" style="font-size:13px;margin:0" id="pgInstT"></p><button class="btn gel" type="button" id="pgInstall"><span>Instaliraj</span></button></div>
+      <div class="kin">
+        <label class="cplbl pg-port">Port<select class="field" id="pgDev"></select></label>
+        <label class="cplbl pg-esp">Brzina<select class="field" id="pgEspBaud"><option value="115200">115200 (sigurno)</option><option value="460800" selected>460800</option><option value="921600">921600 (brzo)</option></select></label>
+        <label class="cplbl pg-avr">Programator<select class="field" id="pgProg"></select></label>
+        <label class="cplbl pg-avr">Čip<select class="field" id="pgMcu"></select></label>
+        <label class="cplbl pg-pic">Čip<input class="field" id="pgPart" list="pgParts" placeholder="Prepoznaj ili upiši, npr. PIC16F628A" autocomplete="off" autocapitalize="characters" spellcheck="false"><datalist id="pgParts"><option value="PIC10F200"><option value="PIC10F206"><option value="PIC12F508"><option value="PIC12F629"><option value="PIC12F675"><option value="PIC12F683"><option value="PIC16F84A"><option value="PIC16F628A"><option value="PIC16F648A"><option value="PIC16F676"><option value="PIC16F690"><option value="PIC16F716"><option value="PIC16F73"><option value="PIC16F84"><option value="PIC16F877A"><option value="PIC16F876A"><option value="PIC16F88"><option value="PIC16F886"><option value="PIC16F887"><option value="PIC16F1827"><option value="PIC16F1847"><option value="PIC18F252"><option value="PIC18F452"><option value="PIC18F2550"><option value="PIC18F4550"><option value="PIC18F25K20"><option value="PIC18F45K20"><option value="PIC24FJ64GA002"><option value="dsPIC30F4013"><option value="dsPIC33FJ128GP802"></datalist></label>
+        <label class="cplbl pg-avr pg-ard">Bootloader<select class="field" id="pgAvrBaud"><option value="115200">115200 · Uno, novi Nano</option><option value="57600">57600 · stari Nano, Pro Mini</option></select></label>
+      </div>
+      <div class="pgpw pg-avr pg-isp"><label class="serchk"><input type="checkbox" id="pgSlow">Sporo programiranje (nov čip iz fabrike, 1 MHz)</label></div>
+      <div class="pgpw pg-pic"><label class="serchk"><input type="checkbox" id="pgExt">Čip ima svoje napajanje</label><label class="serchk"><input type="checkbox" id="pgHold">Ostavi napajanje iz PICkit-a posle</label><label class="serchk"><input type="checkbox" id="pgRun" checked>Pokreni čip posle (pusti MCLR)</label></div>
+      <b class="netcfg-t">Firmware</b>
+      <div class="pgfile">
+        <select class="field" id="pgFile"></select>
+        <label class="btn" for="pgUp"><svg class="i"><use href="#i-plus"/></svg><span>Pošalji fajl</span><input type="file" id="pgUp" accept=".bin,.hex" hidden></label>
+        <button class="btn icon" type="button" id="pgRef" title="Osveži spisak" aria-label="Osveži"><svg class="i"><use href="#i-refresh"/></svg></button>
+      </div>
+      <div class="pg-esp pgoff"><label class="cplbl">Adresa upisa<input class="field" id="pgOff" value="0x0" autocomplete="off" spellcheck="false"></label>
+        <div class="cpex" id="pgOffEx"><button type="button" data-o="0x0">0x0 · ceo / merged, ESP8266</button><button type="button" data-o="0x10000">0x10000 · aplikacija ESP32</button><button type="button" data-o="0x1000">0x1000 · bootloader ESP32</button></div></div>
+      <div class="tbar pgact">
+        <button class="btn pg-esp pg-pic" type="button" data-pa="id"><span>Prepoznaj čip</span></button><button class="btn pg-pic" type="button" data-pa="blank"><span>Da li je prazan</span></button><button class="btn pg-avr" type="button" data-pa="sig"><span>Proveri vezu</span></button>
+        <button class="btn pg-avr" type="button" data-pa="fuse"><span>Pročitaj fuse</span></button>
+        <button class="btn pg-pic" type="button" data-pa="read"><span>Pročitaj u fajl</span></button>
+        <button class="btn" type="button" data-pa="erase"><span>Obriši flash</span></button>
+        <button class="btn gel" type="button" data-pa="flash"><svg class="i"><use href="#i-burn"/></svg><span>Upiši</span></button>
+        <button class="btn" type="button" id="pgStop" hidden><span>Prekini</span></button>
+      </div>
+      <div class="pgbar" id="pgBar" hidden><i></i><span></span></div>
+      <div class="pgoffer" id="pgOffer" hidden></div>
+      <pre class="serout pglog" id="pgLog"></pre>
+      <p class="muted kh pg-esp">Ploče sa USB-om (DevKit, NodeMCU) same uđu u režim programiranja. Goli modul (ESP-01, ESP-12): GPIO0 na masu pa reset. Port se oslobađa i ako je otvoren u Serijskom terminalu.</p>
+      <p class="muted kh pg-pic">PICkit 2 ICSP: 1 MCLR/VPP, 2 VDD, 3 GND, 4 PGD, 5 PGC (pin 1 kod strelice). PICkit napaja čip (do ~25 mA); ako ploča ima svoje napajanje, uključi „Čip ima svoje napajanje“. Upis radi i proveru (verify). „Pročitaj u fajl“ pravi .hex u spisku firmware-a.</p>
+      <p class="muted kh pg-avr">Arduino Uno/Nano preko USB-a: „Arduino bootloader“. Goli čip (ATtiny, ATmega bez bootloadera): USBasp, PICkit 2 (ICSP: 1 RESET, 2 VDD, 3 GND, 4 MISO, 5 SCK, 6 MOSI) ili Arduino sa ArduinoISP skicom (pinovi 10→RESET, 11→MOSI, 12→MISO, 13→SCK).</p>
+    </div>
+    <!-- LED otpornik / Ohmov zakon / Razdelnik napona / NE555: u stilu Otpornika (vrednosti: 4k7, 100n, 2.2u…) -->
+    <!-- Generator signala: 2 kanala na p3/p4 proširenja osciloskopa (pigpio talas) -->
+    <div class="tpanel" id="tGen" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <div class="gnst" id="gnSt"></div>
+      <canvas class="gncv" id="gnCv" width="900" height="300" aria-label="Izgled signala"></canvas>
+      <div class="gngrid">
+        <div class="gncard" data-ch="ch1">
+          <div class="gnh"><b>CH1</b><span class="gnpin" data-k="pin"></span><button class="acc-sw" type="button" role="switch" data-k="on" aria-checked="true" aria-label="Uključi CH1"><span class="sw"></span></button></div>
+          <div class="segc" data-k="wave" role="group" aria-label="Oblik"><button type="button" data-v="square" aria-pressed="true">⎍ Pravougaoni</button><button type="button" data-v="tri" aria-pressed="false">△ Trougaoni</button></div>
+          <div class="kin">
+            <label class="cplbl">Frekvencija (Hz)<input class="field" data-k="freq" inputmode="decimal"></label>
+            <label class="cplbl gnduty">Duty (%)<input class="field" data-k="duty" inputmode="decimal"></label>
+          </div>
+          <div class="cpex" data-k="pre"></div>
+          <small class="muted gnact" data-k="act"></small>
+        </div>
+        <div class="gncard" data-ch="ch2">
+          <div class="gnh"><b>CH2</b><span class="gnpin" data-k="pin"></span><button class="acc-sw" type="button" role="switch" data-k="on" aria-checked="true" aria-label="Uključi CH2"><span class="sw"></span></button></div>
+          <div class="segc" data-k="wave" role="group" aria-label="Oblik"><button type="button" data-v="square" aria-pressed="true">⎍ Pravougaoni</button><button type="button" data-v="tri" aria-pressed="false">△ Trougaoni</button></div>
+          <div class="kin">
+            <label class="cplbl">Frekvencija (Hz)<input class="field" data-k="freq" inputmode="decimal"></label>
+            <label class="cplbl gnduty">Duty (%)<input class="field" data-k="duty" inputmode="decimal"></label>
+          </div>
+          <div class="cpex" data-k="pre"></div>
+          <small class="muted gnact" data-k="act"></small>
+        </div>
+      </div>
+      <button class="btn gel" id="gnRun" type="button" style="align-self:flex-start"><svg class="i"><use href="#i-play"/></svg><span>Pokreni</span></button>
+      <p class="muted kh">Izlaz je 3,3 V (0 / 3,3 V), najviše ~8 mA po pinu — ne vezuj direktno opterećenje. Trougaoni je PWM (10 kHz; ispod 20 Hz ređi) čiji duty raste pa pada:
+      na izlaz stavi RC filter — otpornik u seriji, kondenzator na masu: do ~200 Hz <b>10 kΩ + 100 nF</b>, iznad <b>1 kΩ + 100 nF</b>. Masa (GND) proširenja ide na masu osciloskopa.</p>
+    </div>
+    <div class="tpanel" id="tLed" hidden>
+      <div class="rsprev" id="ldPrev"></div>
+      <div class="kin">
+        <label class="cplbl">Napajanje (V)<input class="field" id="ldV" value="5" inputmode="decimal"></label>
+        <label class="cplbl"><span>Struja <i>(mA)</i></span><input class="field" id="ldI" value="15" inputmode="decimal"></label>
+        <label class="cplbl">Napon LED (V)<input class="field" id="ldF" value="2.0" inputmode="decimal"></label>
+        <label class="cplbl">LED u nizu<input class="field" id="ldN" value="1" inputmode="numeric"></label>
+      </div>
+      <div class="cpex" id="ldCol"><button type="button" data-f="2.0" data-c="#ef4444">crvena</button><button type="button" data-f="2.1" data-c="#f59e0b">žuta</button><button type="button" data-f="2.2" data-c="#22c55e">zelena</button><button type="button" data-f="3.1" data-c="#3b82f6">plava</button><button type="button" data-f="3.1" data-c="#f8fafc">bela</button><button type="button" data-f="1.4" data-c="#7f1d1d">IR</button></div>
+      <p class="muted kh">Uzima se prvi veći otpornik iz serije, pa struja nikad ne pređe zadatu. Napajanje 12 V + 3 bele LED u nizu: „LED u nizu“ = 3.</p>
+    </div>
+    <div class="tpanel" id="tOhm" hidden>
+      <div class="rsprev" id="ohPrev"></div>
+      <div class="kin">
+        <label class="cplbl">Napon U (V)<input class="field ohf" id="ohU" inputmode="decimal" placeholder="—"></label>
+        <label class="cplbl">Struja I (A)<input class="field ohf" id="ohI" inputmode="decimal" placeholder="npr. 20m"></label>
+        <label class="cplbl">Otpor R (Ω)<input class="field ohf" id="ohR" inputmode="decimal" placeholder="npr. 4k7"></label>
+        <label class="cplbl">Snaga P (W)<input class="field ohf" id="ohP" inputmode="decimal" placeholder="—"></label>
+      </div>
+      <div class="cpex" id="ohEx"><button type="button" data-o="5,20m,,">5 V · 20 mA</button><button type="button" data-o="12,,1k,">12 V · 1 kΩ</button><button type="button" data-o="230,,,2000">230 V · 2000 W</button><button type="button" data-o=",500m,10,">0,5 A · 10 Ω</button><button type="button" data-o=",,,">očisti</button></div>
+      <p class="muted kh">Upiši bilo koje dve vrednosti — druge dve se izračunaju. Može i 4k7, 220m, 1M.</p>
+    </div>
+    <div class="tpanel" id="tDiv" hidden>
+      <div class="rsprev" id="dvPrev"></div>
+      <div class="kin">
+        <label class="cplbl">Ulaz Vin (V)<input class="field" id="dvI" value="12" inputmode="decimal"></label>
+        <label class="cplbl">Želim Vout (V)<input class="field" id="dvO" value="3.3" inputmode="decimal"></label>
+        <label class="cplbl">R2, ka masi (Ω)<input class="field" id="dvR2" value="10k" inputmode="decimal"></label>
+      </div>
+      <div class="cpex" id="dvEx"><button type="button" data-d="12,3.3,10k">12 V → 3,3 V (ESP32)</button><button type="button" data-d="5,3.3,20k">5 V → 3,3 V (UART)</button><button type="button" data-d="24,3.3,10k">24 V → 3,3 V</button><button type="button" data-d="12,5,10k">12 V → 5 V</button><button type="button" data-d="4.2,1,10k">Li-Ion → 1 V (ESP-12)</button></div>
+      <p class="muted kh">Vout = Vin · R2 / (R1 + R2). Prvi veći R1 daje izlaz malo ispod željenog — sigurnije za ulaz mikrokontrolera.</p>
+    </div>
+    <div class="tpanel" id="t555" hidden>
+      <div class="segc" id="tmMode" role="group"><button type="button" data-v="a" aria-pressed="true">Astabilni (oscilator)</button><button type="button" data-v="m" aria-pressed="false">Monostabilni (tajmer)</button></div>
+      <div class="rsprev" id="tmPrev"></div>
+      <div class="kin">
+        <label class="cplbl tma">R1 (Ω)<input class="field" id="tmR1" value="1k" inputmode="decimal"></label>
+        <label class="cplbl"><span id="tmR2l">R2 (Ω)</span><input class="field" id="tmR2" value="68k" inputmode="decimal"></label>
+        <label class="cplbl">C (F)<input class="field" id="tmC" value="10u" inputmode="decimal"></label>
+      </div>
+      <div class="cpex" id="tmEx"><button type="button" data-t="a,1k,68k,10u">treptanje ~1 Hz</button><button type="button" data-t="a,1k,6k8,100n">~1 kHz zvuk</button><button type="button" data-t="a,1k,1k8,10n">~38 kHz (IR)</button><button type="button" data-t="m,,100k,100u">tajmer ~11 s</button><button type="button" data-t="m,,1M,470u">tajmer ~9 min</button></div>
+      <p class="muted kh" id="tmHelp"></p>
+    </div>
+    <!-- Tajmer: vreme drži server (isto na svim uređajima i na TV-u) -->
+    <div class="tpanel" id="tTimer" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <div class="tmalert" id="tmAlert" hidden><b id="tmAlertT">ALARM</b><button class="btn gel" type="button" id="tmStopRing"><span>Ugasi zvono</span></button></div>
+      <label class="tmmode"><svg class="i"><use href="#i-timer"/></svg><select class="field" id="tmTabs" aria-label="Režim tajmera"><option value="cd">Odbrojavanje</option><option value="sw">Štoperica</option><option value="al">Alarm</option></select><svg class="i dd"><use href="#i-down"/></svg></label>
+      <div class="tmpane" data-p="sw" hidden>
+        <div class="tmsw" id="tmSw">0:00.0</div>
+        <div class="tmbtn"><button class="btn" type="button" id="swReset"><span>Ponovo</span></button><button class="btn gel tmgo" type="button" id="swGo"><span>Kreni</span></button><button class="btn" type="button" id="swLap"><span>Krug</span></button></div>
+        <div class="tmlaps" id="swLaps"></div>
+      </div>
+      <div class="tmpane" data-p="al" hidden>
+        <div class="tmal"><input class="field" type="time" id="alAt" value="07:00"><div class="tmalst" id="alSt"></div></div>
+        <div class="tmbtn"><button class="btn" type="button" id="alOff"><span>Isključi</span></button><button class="btn gel tmgo" type="button" id="alSet"><span>Uključi alarm</span></button></div>
+        <label class="cplbl">Natpis (vidi se i na TV-u)<input class="field" id="alLabel" maxlength="30" placeholder="npr. Buđenje" autocomplete="off"></label>
+        <p class="muted kh">U zadato vreme Teco.Pi pusti melodiju (preko zvučnika / TV-a) i prikaže ALARM na ekranu i ovde. Zvoni do 2 minuta ili dok ga ne ugasiš.</p>
+      </div>
+      <div class="tmpane" data-p="cd">
+      <div class="tmring" id="tmRing"></div>
+      <div class="tmbtn">
+        <button class="btn" type="button" id="tmReset"><span>Ponovo</span></button>
+        <button class="btn gel tmgo" type="button" id="tmGo"><span>Kreni</span></button>
+        <button class="btn" type="button" id="tmAdd"><span>+1 min</span></button>
+      </div>
+      <div class="cpex tmpre" id="tmPre"><button type="button" data-s="60">1 min</button><button type="button" data-s="180">3 min</button><button type="button" data-s="300">5 min</button><button type="button" data-s="600">10 min</button><button type="button" data-s="900">15 min</button><button type="button" data-s="1800">30 min</button><button type="button" data-s="3600">1 h</button></div>
+      <div class="kin tmset">
+        <label class="cplbl">Sati<input class="field" id="tmH" inputmode="numeric" placeholder="0"></label>
+        <label class="cplbl">Minuta<input class="field" id="tmM" inputmode="numeric" placeholder="5"></label>
+        <label class="cplbl">Sekundi<input class="field" id="tmS" inputmode="numeric" placeholder="0"></label>
+        <button class="btn" type="button" id="tmSet"><span>Postavi</span></button>
+      </div>
+      <label class="cplbl">Natpis (vidi se i na TV-u)<input class="field" id="tmLabel" maxlength="30" placeholder="npr. Pica u rerni" autocomplete="off"></label>
+      </div>
+    </div>
+    <!-- Kockice: bacanje u pregledaču (crypto), rezultat i na ekranu -->
+    <div class="tpanel" id="tDice" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <div class="dcn"><span class="muted">Broj kockica</span><button class="vbtn" type="button" id="dcMinus" aria-label="Manje">−</button><b id="dcN">2</b><button class="vbtn" type="button" id="dcPlus" aria-label="Više">+</button></div>
+      <button class="dcarea" type="button" id="dcArea" aria-label="Baci kockice"></button>
+      <div class="dcsum" id="dcSum">Dodirni kockice ili „Baci“</div>
+      <button class="btn gel dcroll" type="button" id="dcRoll"><svg class="i"><use href="#i-dice"/></svg><span>Baci</span></button>
+      <b class="netcfg-t">Istorija</b>
+      <div class="dchist" id="dcHist"></div>
+    </div>
+    <!-- Pinout i datasheet: crteži iz podataka (u pregledaču), PDF-ovi sa flash-a -->
+    <div class="tpanel" id="tPin" hidden>
+      <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button></div>
+      <input class="field pvsearch" id="piQ" placeholder="Traži čip ili pin (npr. esp32, sim800, GPIO0, SDA)…" autocomplete="off" spellcheck="false">
+      <label class="cplbl">Čip<select class="field" id="piSel"></select></label>
+      <div class="pihead" id="piHead"></div>
+      <div class="pidiag" id="piDiag"></div>
+      <div class="pileg" id="piLeg"></div>
+      <div class="pinotes" id="piNotes"></div>
+      <div class="pitab" id="piTab"></div>
+      <b class="netcfg-t">Datasheet <button class="btn ghost pidsadd" id="piDsAdd" type="button"><svg class="i"><use href="#i-drive"/></svg><span>Dodaj u Skladište</span></button></b>
+      <div class="pids" id="piDs"></div>
+      <details class="snadd" id="piAll"><summary><svg class="i"><use href="#i-chip"/></svg><span id="piAllN">Svi datasheet-ovi</span></summary><div class="pids" id="piDsAll"></div></details>
+    </div>
+    <!-- Subnet kalkulator: sve u pregledaču; Azure režim (5 rezervisanih adresa po subnetu) -->
+    <div class="tpanel" id="tSub" hidden>
+      <div class="segc" id="sbMode" role="group"><button type="button" data-v="std" aria-pressed="true">Standardno</button><button type="button" data-v="az" aria-pressed="false">Azure</button></div>
+      <div class="sbin">
+        <label class="serf grow">Adresa / CIDR<input class="field" id="sbIp" value="10.0.0.0/24" autocomplete="off" spellcheck="false" inputmode="decimal" placeholder="npr. 10.0.0.0/24 ili 192.168.1.10"></label>
+        <label class="serf">Maska<select class="field" id="sbPre"></select></label>
+      </div>
+      <p class="sberr" id="sbErr" hidden></p>
+      <div class="sbaz" id="sbAzNote" hidden></div>
+      <div class="sbgrid" id="sbOut"></div>
+      <div class="sbbits" id="sbBits"></div>
+      <div class="sbres" id="sbRes" hidden></div>
+      <b class="netcfg-t">Podeli na manje subnete</b>
+      <div class="sbsplit">
+        <label class="serf">Novi prefiks<select class="field" id="sbSplit"></select></label>
+        <span class="muted" id="sbSplitN"></span>
+      </div>
+      <div class="sblist" id="sbList"></div>
+    </div>
+    <!-- DNS resolver: Teco.Pi kao DNS server (dnsmasq, keš, lokalna imena) -->
+    <div class="tpanel" id="tDnsr" hidden>
+      <div class="wdsst" id="drSt"></div>
+      <div class="ntsum drsum" id="drSum"></div>
+      <b class="netcfg-t">DNS serveri na internetu</b>
+      <div class="drups" id="drUps"></div>
+      <div class="drrow">
+        <label class="serf">Keš (zapisa)<input class="field" id="drCache" inputmode="numeric"></label>
+        <label class="serchk"><input type="checkbox" id="drVpn">Odgovara i preko VPN-a</label>
+        <button class="btn gel" type="button" id="drSave"><span>Sačuvaj</span></button>
+      </div>
+      <b class="netcfg-t">Lokalna imena</b>
+      <div class="drhosts" id="drHosts"></div>
+      <form class="drhadd" id="drHAdd" autocomplete="off">
+        <input class="field" id="drHN" placeholder="ime (npr. nas)" autocapitalize="off" spellcheck="false">
+        <input class="field" id="drHIp" placeholder="IP (npr. 172.10.10.20)" inputmode="decimal">
+        <button class="btn" type="submit"><svg class="i"><use href="#i-plus"/></svg><span>Dodaj</span></button>
+      </form>
+      <div class="tbar"><b class="netcfg-t" style="margin:0;flex:1">Poslednji upiti</b><button class="btn" type="button" id="drClr"><svg class="i"><use href="#i-trash"/></svg><span>Očisti</span></button></div>
+      <div class="drlog" id="drLog"></div>
+      <details class="snadd"><summary><svg class="i"><use href="#i-dnsr"/></svg>Kako se koristi</summary>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0">Na ruteru, u DHCP podešavanju, kao DNS server upiši IP Teco.Pi-ja — tada ga svi uređaji koriste sami. Može i ručno na jednom uređaju (podešavanja mreže → DNS).<br>
+        Uređaji tada dobijaju i imena: <b>tecopi</b> (ova stranica), <b>wds</b> (Windows instalacija: \\wds\WDS) i tvoja lokalna imena (npr. <b>nas</b>). Ako Teco.Pi nije upaljen, uređaji ostaju bez DNS-a — zato na ruteru kao drugi DNS ostavi npr. 1.1.1.1.</p>
+      </details>
+    </div>
+    <!-- SMB share: deljenje foldera / USB diskova (Samba) -->
+    <div class="tpanel" id="tSmb" hidden>
+        <div class="smbinst" id="smbInst" hidden>
+          <p class="muted" style="font-size:13px;margin:0" id="smbInstTxt">Za deljenje fajlova treba instalirati Samba (oko 40 MB, par minuta).</p>
+          <button class="btn gel" id="smbInstall" style="align-self:flex-start"><span>Instaliraj Samba</span></button>
+        </div>
+        <div class="smbmain" id="smbMain">
+          <button class="acc-row" id="smbSw" role="switch" aria-checked="false" hidden>
+            <span class="t"><b>SMB server</b><span id="smbTxt">Isključeno</span></span><span class="sw"></span>
+          </button>
+          <div class="muted smbst" id="smbTxt2"></div>
+          <div class="btlist" id="smbList"></div>
+          <div class="netcfg" id="snBox">
+            <b class="netcfg-t">Novi share</b>
+            <div class="netst smbacc">
+              <label>Ime<input class="field" id="snName" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="npr. Filmovi"></label>
+              <label>Disk<select class="field" id="snDisk"></select></label>
+            </div>
+            <div class="smbrow"><span class="smbpath" id="snDirTxt">/ (ceo disk)</span><button class="btn" id="snDirBtn" type="button"><svg class="i"><use href="#i-folder"/></svg><span>Folder</span></button></div>
+            <button class="acc-row" id="snGame" role="switch" aria-checked="false" type="button">
+              <span class="t"><b>Game share (PS2 · OPL)</b><span>Uključuje SMB1 na serveru (samo dok postoji game share) i pravi OPL foldere</span></span><span class="sw"></span>
+            </button>
+            <button class="btn gel" id="snAdd" type="button" style="align-self:flex-start"><svg class="i"><use href="#i-plus"/></svg><span>Napravi share</span></button>
+          </div>
+          <div class="smbbrowse" id="smbBrowse" hidden>
+            <div class="smbbr-h"><b id="smbBrTitle">Folder za deljenje</b><span class="smbpath" id="smbBrPath">/</span></div>
+            <div class="smbbr-l" id="smbBrList"></div>
+            <div class="smbbr-b"><button class="btn gel" id="smbBrUse" type="button"><span>Deli ovaj folder</span></button><button class="btn" id="smbBrRoot" type="button"><span>Ceo disk</span></button><button class="btn ghost" id="smbBrClose" type="button"><span>Zatvori</span></button></div>
+          </div>
+          <div class="netcfg">
+            <b class="netcfg-t">Pristup</b>
+            <div class="btlist" id="smbUsers"></div>
+            <div class="netst smbacc">
+              <label>Korisnik<input class="field" id="smbUser" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="npr. ps2"></label>
+              <label>Lozinka<input class="field" id="smbPw" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="4–64 znaka"></label>
+            </div>
+            <div class="smbrow">
+              <span class="muted" style="font-size:12.5px">Uvek sa lozinkom · svi korisnici vide sve share-ove</span>
+              <button class="btn gel" id="smbPwSave" type="button"><svg class="i"><use href="#i-plus"/></svg><span>Dodaj korisnika</span></button>
+            </div>
+          </div>
+          <button class="acc-row" id="smbDirect" role="switch" aria-checked="false">
+            <span class="t"><b>PS2 kablom direktno na Pi</b><span id="smbDirectTxt">Brže od Wi-Fi-ja. Pi mora biti na Wi-Fi-ju.</span></span><span class="sw"></span>
+          </button>
+        </div>
+    </div>
+    <!-- Email: SMTP nalog (Exchange / Microsoft 365, Gmail, drugi) za obaveštenja -->
+    <div class="tpanel" id="tMail" hidden>
+      <div class="wdsst" id="mlSt"></div>
+      <button class="acc-row" id="mlOn" role="switch" aria-checked="false" type="button" hidden><span class="t"><b>Obaveštenja e-mailom</b><span>Alarm, struja, akvarijum, web monitor… (iste vrste kao SMS, Admin → Obaveštenja)</span></span><span class="sw"></span></button>
+      <div class="netcfg">
+        <b class="netcfg-t">Nalog</b>
+        <div class="segc" id="mlPre" role="group" aria-label="Brzo podešavanje"><button type="button" data-p="m365">Microsoft 365 / Exchange</button><button type="button" data-p="gmail">Gmail</button><button type="button" data-p="">Drugi SMTP</button></div>
+        <div class="netst mlf">
+          <label>SMTP server<input class="field" id="mlHost" placeholder="smtp.office365.com" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Port<input class="field" id="mlPort" inputmode="numeric" placeholder="587"></label>
+          <label>Zaštita<select class="field" id="mlSec"><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">bez (25)</option></select></label>
+          <label>Korisnik<input class="field" id="mlUser" placeholder="obavestenja@firma.rs" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Lozinka<input class="field" id="mlPw" type="password" autocomplete="new-password" placeholder="lozinka"></label>
+          <label>Ime pošiljaoca<input class="field" id="mlFromName" placeholder="Teco.Pi" autocomplete="off"></label>
+          <label>Adresa pošiljaoca<input class="field" id="mlFrom" placeholder="obavestenja@firma.rs" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Primaoci <small>(zarezom)</small><input class="field" id="mlTo" placeholder="ja@firma.rs, servis@firma.rs" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        </div>
+        <p class="muted kh" id="mlHint"></p>
+        <div class="smbrow"><span></span><div class="bb"><button class="btn" id="mlTest" type="button"><svg class="i"><use href="#i-mail"/></svg><span>Pošalji probni mail</span></button><button class="btn gel" id="mlSave" type="button"><span>Sačuvaj</span></button></div></div>
+      </div>
+      <div class="netcfg"><b class="netcfg-t">Poslato</b><div class="btlist" id="mlLog"></div></div>
+    </div>
+    <!-- Web monitor: da li javne web aplikacije rade (kao updown.io) -->
+    <div class="tpanel" id="tWeb" hidden>
+      <div class="wbsum" id="wbSum"></div>
+      <div class="wblist" id="wbList"></div>
+      <div class="netcfg wbform" id="wbForm">
+        <b class="netcfg-t" id="wbFormT">Dodaj sajt</b>
+        <div class="netst wbf">
+          <label>Adresa<input class="field" id="wbUrl" placeholder="https://primer.rs/prijava" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label>Naziv<input class="field" id="wbName" placeholder="npr. Prodavnica" autocomplete="off"></label>
+          <label>Proverava na<select class="field" id="wbEvery"><option value="5">5 s</option><option value="10">10 s</option><option value="30" selected>30 s</option><option value="60">1 min</option><option value="300">5 min</option></select></label>
+          <label>Ključna reč (opciono)<input class="field" id="wbKw" placeholder="npr. Prijavi se" autocomplete="off"></label>
+        </div>
+        <label class="wbchk"><input type="checkbox" id="wbKwNot"><span>Reč <b>ne sme</b> da postoji na stranici (npr. „Error“, „Maintenance“)</span></label>
+        <div class="wbssl"><label class="wbchk"><input type="checkbox" id="wbSsl" checked><span>Proveri SSL sertifikat i javi kad ističe za</span></label><input class="field" id="wbDays" value="14" inputmode="numeric"><span class="muted">dana</span></div>
+        <div class="smbrow"><span class="muted" style="font-size:12.5px">Pad se potvrđuje drugim pokušajem posle 2 s · obaveštenje SMS-om (Admin → Obaveštenja)</span>
+          <div class="bb"><button class="btn ghost" id="wbCancel" type="button" hidden><span>Otkaži</span></button><button class="btn gel" id="wbSave" type="button"><svg class="i"><use href="#i-plus"/></svg><span>Dodaj</span></button></div></div>
+      </div>
+    </div>
+    <!-- Skladište: USB diskovi po vrsti sadržaja -->
+    <div class="tpanel" id="tStor" hidden>
+      <div class="btlist" id="stDisks"></div>
+      <label class="bootrow" id="smbTargetRow" hidden><span>Disk</span><select class="field" id="smbTarget"></select></label>
+      <div class="sttabs" id="stTabs" role="group" aria-label="Vrsta"></div>
+      <div class="stsaver" id="stSaver" hidden>
+        <p class="muted" style="font-size:12.5px;margin:0">Sistemski folder na Teco.Pi-ju (SD kartica): radi i bez flash diska. Slike se same prilagode ekranu.</p>
+        <div class="segc" id="idleSeg" role="group" aria-label="Šta je na ekranu kad nema videa" style="align-self:flex-start"><button aria-pressed="true" data-v="slides">Slike</button><button aria-pressed="false" data-v="clock">Sat i temperatura</button></div>
+        <div class="gallery" id="gallery">
+          <label class="drop" for="upl"><svg class="i"><use href="#i-plus"/></svg>Dodaj slike<input type="file" id="upl" accept="image/*" multiple></label>
+        </div>
+        <div class="row">
+          <span class="muted" style="font-size:13px">Vreme po slici</span>
+          <div class="segc" id="dur" role="group" aria-label="Vreme po slici"><button aria-pressed="false">5 s</button><button aria-pressed="true">10 s</button><button aria-pressed="false">30 s</button><button aria-pressed="false">1 min</button></div>
+        </div>
+      </div>
+      <div class="stsaver" id="stSnd" hidden>
+        <p class="muted" style="font-size:12.5px;margin:0">Sistemski folder na Teco.Pi-ju (SD kartica): melodije za zvono i interfon (Admin → Obaveštenja). Radi i bez flash diska.</p>
+        <label class="drop sndup"><svg class="i"><use href="#i-plus"/></svg>Dodaj zvuk (mp3, wav, ogg, flac)<input type="file" id="sndUp" accept="audio/*" multiple></label>
+        <div class="btlist" id="sndList"></div>
+      </div>
+      <div class="sthead"><b id="stCatT">Igrice</b><small class="nstat" id="stCatN"></small>
+        <button class="btn ghost" id="stMkdir" type="button" hidden><svg class="i"><use href="#i-plus"/></svg><span>Novi folder</span></button>
+        <button class="btn ghost" id="stRefresh" type="button"><svg class="i"><use href="#i-refresh"/></svg><span>Osveži</span></button></div>
+      <div class="stcrumb" id="stCrumb" hidden></div>
+      <div class="smbup" id="smbUp" hidden>
+        <label class="smbdrop" id="smbDrop">
+          <svg class="i"><use href="#i-plus"/></svg>
+          <span id="stDropTxt"><b>Dodaj</b> · prevuci ili klikni</span>
+          <input type="file" id="smbFile" multiple>
+        </label>
+        <div class="smbprog" id="smbProg" hidden>
+          <div class="smbprog-t"><b id="smbProgName">—</b><span id="smbProgTxt"></span><button class="btn ghost" id="smbProgX" type="button"><span>Otkaži</span></button></div>
+          <div class="smbbar"><i id="smbProgBar" style="width:0"></i></div>
+        </div>
+      </div>
+      <div class="btlist" id="stList"></div>
+    </div>
+    <!-- WDS: Windows instalacija preko mreže (ISO sa flash-a) -->
+    <div class="tpanel" id="tWds" hidden>
+      <div class="wdsst" id="wdsSt"></div>
+      <div class="wdsinst" id="wdsInst" hidden>
+        <p class="muted" style="font-size:13px;margin:0">Za WDS trebaju paketi: <span id="wdsMiss"></span>.</p>
+        <button class="btn gel" type="button" id="wdsInstall"><span>Instaliraj</span></button>
+      </div>
+      <div class="tbar"><b class="netcfg-t" style="margin:0">ISO iz Skladišta (folder ISOs)</b><button class="btn" type="button" id="wdsAddIso"><svg class="i"><use href="#i-drive"/></svg><span>Dodaj ISO</span></button><button class="btn" type="button" id="wdsRefresh"><span>Osveži</span></button></div>
+      <div class="wdslist" id="wdsList"></div>
+      <b class="netcfg-t">Dešavanja</b>
+      <div class="wdslog" id="wdsLog"></div>
+      <details class="snadd"><summary><svg class="i"><use href="#i-win"/></svg>Kako se koristi</summary>
+        <p class="muted" style="font-size:12.5px;margin:8px 0 0"><b>Sa mreže (računar bez sistema):</b> u BIOS-u uključi mrežno butovanje (PXE / Network Stack), isključi Secure Boot, pa pri paljenju izaberi mrežnu karticu (F12 / F11 / F8 / Esc). Računar sa mreže povuče Windows Setup sa Teco.Pi-ja.<br>
+        <b>Iz Windows-a:</b> otvori <b>\\TECOPI\WDS</b> (ili \\&lt;IP&gt;\WDS) i pokreni setup.exe. Prijava: korisnik <b>wds</b>, lozinka <b>wds</b> (ili tvoj SMB share korisnik).<br>
+        Adrese i dalje deli ruter — Teco.Pi samo javlja računaru odakle da se butuje.</p>
+      </details>
     </div>
     <!-- DNS i Whois -->
     <div class="tpanel" id="tDns" hidden>
@@ -1085,13 +1565,28 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <div class="pgout"><code id="pgOut">—</code><button class="btn" type="button" id="pgNew" title="Nova"><svg class="i"><use href="#i-shuffle"/></svg></button><button class="btn gel" type="button" id="pgCopy"><span>Kopiraj</span></button></div>
         <div class="pgstr"><i id="pgBar"></i><small id="pgStr"></small></div>
         <label class="pglen">Dužina <b id="pgLenV">20</b><input type="range" id="pgLen" min="8" max="64" value="20"></label>
-        <div class="pgopts"><label><input type="checkbox" id="pgU" checked> A–Z</label><label><input type="checkbox" id="pgL" checked> a–z</label><label><input type="checkbox" id="pgD" checked> 0–9</label><label><input type="checkbox" id="pgS" checked> !@#$</label><label><input type="checkbox" id="pgX"> bez sličnih (Il1O0)</label></div>
+        <div class="pgopts"><label><input type="checkbox" id="pgU" checked> A–Z</label><label><input type="checkbox" id="pgL" checked> a–z</label><label><input type="checkbox" id="pgD" checked> 0–9</label><label><input type="checkbox" id="pgS" checked> @.!?</label><label><input type="checkbox" id="pgX"> bez sličnih (Il1O0)</label></div>
       </div>
     </div>
     <!-- Logički analizator (2 kanala) -->
     <div class="tpanel" id="tLogic" hidden>
       <div class="tbar"><button class="btn" type="button" data-thide><span>Skloni sa ekrana</span></button><button class="btn" type="button" id="laRun"><span>⏸ Stop</span></button></div>
+      <div class="segc" id="laSrc" role="group" aria-label="Izvor signala"><button type="button" data-v="sim" aria-pressed="true">Simulator</button><button type="button" data-v="pk2" aria-pressed="false">PICkit 2</button></div>
+      <div class="lapk" id="laPk" hidden>
+        <div class="lapkst" id="laPkSt"></div>
+        <div class="kin">
+          <label class="cplbl">Brzina<select class="field" id="laPkRate"><option value="1MHz">1 MHz · 1 ms</option><option value="500kHz">500 kHz · 2 ms</option><option value="250kHz">250 kHz · 4 ms</option><option value="100kHz">100 kHz · 10 ms</option><option value="50kHz">50 kHz · 20 ms</option><option value="25kHz">25 kHz · 41 ms</option><option value="10kHz">10 kHz · 102 ms</option><option value="5kHz">5 kHz · 205 ms</option></select></label>
+          <label class="cplbl">Okidanje<select class="field" id="laPkTch"><option value="0">odmah</option><option value="1">CH1 (pin 4)</option><option value="2">CH2 (pin 5)</option><option value="3">CH3 (pin 6)</option></select></label>
+          <label class="cplbl">Uslov<select class="field" id="laPkTrig"><option value="rise">↑ rastuća ivica</option><option value="fall">↓ opadajuća ivica</option><option value="high">nivo 1</option><option value="low">nivo 0</option></select></label>
+          <label class="cplbl">Okidanje u snimku<select class="field" id="laPkWin"><option value="start">na početku</option><option value="center">u sredini</option><option value="end">na kraju</option></select></label>
+          <label class="cplbl">UART dekoder<select class="field" id="laPkUart"><option value="0">isključen</option><option value="1">CH1</option><option value="2">CH2</option><option value="3">CH3</option></select></label>
+          <label class="cplbl">Brzina UART-a<select class="field" id="laPkBaud"><option>1200</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label>
+        </div>
+        <div class="tbar"><button class="btn gel" type="button" id="laPkGo"><svg class="i"><use href="#i-logic"/></svg><span>Snimi</span></button><button class="btn" type="button" id="laPkStop" hidden><span>Prekini čekanje</span></button><span class="muted lapkn" id="laPkN"></span></div>
+      </div>
       <canvas class="sccanvas" id="laCanvas" width="800" height="280"></canvas>
+      <div class="lameas" id="laMeas" hidden></div>
+      <p class="muted kh" id="laPkHelp" hidden>PICkit 2: pin 3 GND na masu, pin 2 VDD na napon kola (3,3–5 V, referenca ulaza), kanali na pinove 4, 5 i 6. Snimak ima 1024 uzorka po kanalu (na 1 MHz to je 1 ms). Za UART 9600 izaberi 50 kHz (20 ms ≈ 19 znakova), za 115200 — 1 MHz. „Odmah“ snima bez čekanja ivice; sa okidanjem PICkit čeka signal (najviše 30 s, dugme na PICkit-u prekida).</p>
       <div class="scgrid">
         <div class="sccard"><b>Vreme i okidanje</b>
           <label>Vreme / podeok<select class="field" id="laTdiv"></select></label>
@@ -1100,7 +1595,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <div class="sccard lach0" data-lch="ch0"><b>CH0 <button class="dvs" type="button" role="switch" data-k="on" aria-label="CH0"></button></b></div>
         <div class="sccard lach1" data-lch="ch1"><b>CH1 <button class="dvs" type="button" role="switch" data-k="on" aria-label="CH1"></button></b></div>
       </div>
-      <p class="muted" style="font-size:12.5px;margin:0">Signali su iz simulatora; kasnije pravi ulazi sa kartice na proširenju.</p>
+      <p class="muted lasimh" style="font-size:12.5px;margin:0">Signali su iz simulatora; pravi signal: izvor „PICkit 2“.</p>
     </div>
     <!-- Otpornici -->
     <div class="tpanel" id="tRes" hidden>
@@ -1179,6 +1674,11 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
             <span class="mono" id="tDur">-0:00</span>
           </div>
         </div>
+        <form class="ytnow" id="ytNow" autocomplete="off">
+          <svg class="i yti"><use href="#i-yt"/></svg>
+          <input class="field" id="ytNowUrl" type="url" inputmode="url" placeholder="Nalepi YouTube link — kreće odmah" aria-label="YouTube link: pusti odmah" enterkeyhint="go">
+          <span class="ytnst" id="ytNowSt" aria-live="polite"></span>
+        </form>
         <div class="console" id="consPanel" hidden>
           <div class="cons-stage" id="consStage"></div>
           <span class="cons-kicker"><i></i><span id="consKicker">AV2 · na ekranu</span></span>
@@ -1294,17 +1794,6 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <button class="btn ghost" id="qClear" hidden style="align-self:flex-end"><svg class="i"><use href="#i-trash"/></svg><span>Očisti listu</span></button>
       </section>
 
-      <section class="card adm" aria-labelledby="h-img" id="imgCard">
-        <div class="card-head"><h2 id="h-img">Kad nema videa</h2><span class="sub" id="imgCount"></span></div>
-        <div class="segc" id="idleSeg" role="group" aria-label="Šta je na ekranu kad nema videa" style="align-self:flex-start"><button aria-pressed="true" data-v="slides">Slike</button><button aria-pressed="false" data-v="clock">Sat i temperatura</button></div>
-        <div class="gallery" id="gallery">
-          <label class="drop adm" for="upl"><svg class="i"><use href="#i-plus"/></svg>Dodaj slike<input type="file" id="upl" accept="image/*" multiple></label>
-        </div>
-        <div class="row">
-          <span class="muted" style="font-size:13px">Slajdšou kreće sam kad je lista prazna.</span>
-          <div class="segc adm" id="dur" role="group" aria-label="Vreme po slici"><button aria-pressed="false">5 s</button><button aria-pressed="true">10 s</button><button aria-pressed="false">30 s</button><button aria-pressed="false">1 min</button></div>
-        </div>
-      </section>
     </div>
 
     <div class="col">
@@ -1347,24 +1836,9 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         <ol class="alev" id="alEv"></ol>
       </section>
 
-      <section class="card adm" aria-labelledby="h-alc" id="alCfgCard">
-        <div class="card-head"><h2 id="h-alc">Alarm · veza sa centralom</h2></div>
-        <div class="alcfg" id="alCfg">
-          <div class="netst">
-            <label class="chk"><input type="checkbox" id="alEn"> Poveži se sa centralom</label>
-            <label>Naziv alarma<input class="field" id="alName" maxlength="40" placeholder="npr. Stan Novi Sad (prazno = naziv particije)" autocomplete="off"></label>
-            <label>IP adresa IP150 modula<input class="field" id="alHost" placeholder="172.10.10.50" autocomplete="off" inputmode="decimal"></label>
-            <label>Port<input class="field" id="alPort" placeholder="10000" autocomplete="off" inputmode="numeric"></label>
-            <label>Lozinka IP modula<span class="pwbox"><input class="field" id="alIpPw" type="password" autocomplete="new-password" placeholder="podrazumevano: paradox"><button class="pweye" type="button" data-for="alIpPw" title="Prikaži lozinku" aria-label="Prikaži lozinku"><svg class="i"><use href="#i-eye"/></svg></button></span></label>
-            <label>PC lozinka centrale (Babyware)<span class="pwbox"><input class="field" id="alPcPw" type="password" autocomplete="new-password" placeholder="4 cifre, npr. 0000"><button class="pweye" type="button" data-for="alPcPw" title="Prikaži lozinku" aria-label="Prikaži lozinku"><svg class="i"><use href="#i-eye"/></svg></button></span></label>
-            <p class="muted" style="font-size:12px;margin:0">Lozinke se čuvaju samo na Teco.Pi i ne prikazuju se ponovo. Prazno polje = ostaje sačuvana. IP150 prima samo jednu vezu u isto vreme.</p>
-          </div>
-          <button class="btn gel" id="alSave" style="align-self:flex-start"><span>Sačuvaj i poveži</span></button>
-        </div>
-      </section>
 
       <section class="card adm" aria-labelledby="h-ev" id="evCard">
-        <div class="card-head"><h2 id="h-ev">Obaveštenja</h2></div>
+        <div class="card-head"><h2 id="h-ev">Obaveštenja</h2><select class="field evsel" id="evSel" aria-label="Obaveštenje"></select></div>
         <div class="evlist" id="evList"></div>
       </section>
 
@@ -1386,13 +1860,37 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
       <section class="card adm demo" id="devicesCard" aria-labelledby="h-devices">
         <div class="card-head"><h2 id="h-devices">Uređaji (Smart Home)</h2><span class="sub" id="devCount"></span></div>
         <div class="btlist" id="devList"></div>
+        <div class="aldev">
+          <div class="btlist" id="alDevList"></div>
+          <details class="snadd alcfgd" id="alCfgBox"><summary><svg class="i"><use href="#i-shield"/></svg>Podešavanje: <b id="alCfgName"></b> · <span id="alModelN"></span></summary>
+          <div class="alcfg" id="alCfg">
+            <div class="netst">
+              <label class="chk"><input type="checkbox" id="alEn"> Poveži se sa centralom</label>
+              <label>Naziv alarma<input class="field" id="alName" maxlength="40" placeholder="npr. Stan Novi Sad (prazno = naziv particije)" autocomplete="off"></label>
+              <label class="al-par">IP modul<select class="field" id="alMod"><option>IP150</option><option>IP100</option></select></label>
+              <label><span id="alHostL">IP adresa</span><input class="field" id="alHost" placeholder="172.10.10.50" autocomplete="off" inputmode="decimal"></label>
+              <label>Port<input class="field" id="alPort" autocomplete="off" inputmode="numeric"></label>
+              <label>Panel (centrala)<select class="field" id="alPanel"></select></label>
+              <label>Šifra za uključ./isključ. sa stranice<span class="alcode"><input class="field" id="alUiCode" type="password" autocomplete="new-password" inputmode="numeric" placeholder="4–8 cifara (prazno = bez šifre)"><button class="btn ghost" id="alUiClr" type="button" hidden><span>Ukloni</span></button></span></label>
+              <label class="al-par">Lozinka IP modula<input class="field" id="alIpPw" type="password" autocomplete="new-password" placeholder="podrazumevano: paradox"></label>
+              <label class="al-par">PC lozinka centrale (Babyware)<input class="field" id="alPcPw" type="password" autocomplete="new-password" placeholder="4 cifre, npr. 0000"></label>
+              <label class="al-dsc">Lozinka EnvisaLink-a<input class="field" id="alTpi" type="password" autocomplete="new-password" placeholder="fabrički: user"></label>
+              <label class="al-dsc">Korisnički kod (uključ./isključ.)<input class="field" id="alCode" type="password" autocomplete="new-password" inputmode="numeric" placeholder="4 ili 6 cifara"></label>
+              <label class="al-dsc">Broj particija<input class="field" id="alNP" inputmode="numeric" placeholder="1"></label>
+              <label class="al-dsc">Broj zona<input class="field" id="alNZ" inputmode="numeric" placeholder="8"></label>
+              <p class="muted" style="font-size:12px;margin:0" id="alCfgHint"></p>
+            </div>
+            <div class="smbrow"><button class="btn ghost" id="alDel" type="button"><svg class="i"><use href="#i-trash"/></svg><span>Ukloni alarm</span></button><button class="btn gel" id="alSave" type="button"><span>Sačuvaj i poveži</span></button></div>
+          </div>
+        </details>
+        </div>
         <div class="netcfg">
           <b class="netcfg-t">Dodaj uređaj</b>
           <div class="netst devadd">
-            <label>Vrsta<select class="field" id="devType"><option value="light">Svetlo</option><option value="appliance">Uređaj (klima, bojler, pegla, kafe aparat…)</option><option value="camera">Kamera</option><option value="door">Vrata (kapija, garaža)</option><option value="intercom">Interfon (zona alarma)</option><option value="bell">Zvono na vratima (zona alarma)</option></select></label>
+            <label>Vrsta<select class="field" id="devType"><option value="light">Svetlo</option><option value="alarm">Alarm (centrala)</option><option value="appliance">Uređaj (klima, bojler, pegla, kafe aparat…)</option><option value="tv">TV</option><option value="camera">Kamera</option><option value="door">Vrata (kapija, garaža)</option><option value="intercom">Interfon (zona alarma)</option><option value="bell">Zvono na vratima (zona alarma)</option></select></label>
             <label>Proizvođač<select class="field" id="devProto"><option value="wiz">WiZ</option></select></label>
             <label>Naziv<input class="field" id="devName" placeholder="npr. Plafon" autocomplete="off"></label>
-            <label>Prostorija<input class="field" id="devRoom" placeholder="npr. Dnevna soba" autocomplete="off"></label>
+            <label class="devroom">Prostorija<input class="field" id="devRoom" placeholder="npr. Dnevna soba" autocomplete="off"></label>
             <label class="devipl">IP adresa<input class="field" id="devIp" placeholder="172.10.10.101" inputmode="decimal" autocomplete="off"></label>
             <label class="devusb" hidden>USB kamera<select class="field" id="devUsbCam"></select></label>
             <label class="devcam" hidden>Korisnik<input class="field" id="devCamUser" placeholder="admin" autocomplete="off" autocapitalize="off"></label>
@@ -1412,72 +1910,7 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
         </div>
       </section>
 
-      <section class="card adm" aria-labelledby="h-pwa" id="pwaCard">
-        <div class="card-head"><h2 id="h-pwa">Aplikacija na telefonu</h2></div>
-        <div class="pwa-pc" id="pwaPc">
-          <div class="pwa-qr" id="pwaQr" aria-label="QR kod za telefon"></div>
-          <p class="muted" style="font-size:13px;margin:0">Skeniraj kamerom telefona. Otvoriće se Teco.Pi i pokazati gde da dodirneš da dodaš ikonicu na ekran.</p>
-        </div>
-        <button class="btn gel" id="pwaGo" type="button" hidden><svg class="i"><use href="#i-phone"/></svg><span>Dodaj Teco.Pi na početni ekran</span></button>
-        <div class="pwa-vpn" id="pwaVpn" hidden>
-          <b class="netcfg-t">Preko VPN-a <small class="nstat" id="pwaVpnIp"></small></b>
-          <div class="pwa-pc"><div class="pwa-qr" id="pwaQrVpn" aria-label="QR kod za VPN prečicu"></div><p class="muted" style="font-size:13px;margin:0">Sa uključenim VPN-om na telefonu skeniraj ovaj kod. Prečica radi sa bilo kog mesta; nazovi je npr. „Teco.Pi VPN”.</p></div>
-          <a class="btn" id="pwaVpnGo" href="#" hidden><svg class="i"><use href="#i-phone"/></svg><span>Dodaj VPN prečicu</span></a>
-        </div>
-      </section>
 
-      <section class="card adm" aria-labelledby="h-smb" id="smbCard">
-        <div class="card-head"><h2 id="h-smb">Deljenje fajlova</h2><span class="sub">SMB</span></div>
-        <div class="smbinst" id="smbInst" hidden>
-          <p class="muted" style="font-size:13px;margin:0" id="smbInstTxt">Za deljenje fajlova treba instalirati Samba (oko 40 MB, par minuta).</p>
-          <button class="btn gel" id="smbInstall" style="align-self:flex-start"><span>Instaliraj Samba</span></button>
-        </div>
-        <div class="smbmain" id="smbMain">
-          <button class="acc-row" id="smbSw" role="switch" aria-checked="false">
-            <span class="t"><b>SMB server</b><span id="smbTxt">Isključeno</span></span><span class="sw"></span>
-          </button>
-          <div class="btlist" id="smbList"></div>
-          <div class="smbbrowse" id="smbBrowse" hidden>
-            <div class="smbbr-h"><b id="smbBrTitle">Folder za deljenje</b><span class="smbpath" id="smbBrPath">/</span></div>
-            <div class="smbbr-l" id="smbBrList"></div>
-            <div class="smbbr-b"><button class="btn gel" id="smbBrUse" type="button"><span>Deli ovaj folder</span></button><button class="btn" id="smbBrRoot" type="button"><span>Ceo disk</span></button><button class="btn ghost" id="smbBrClose" type="button"><span>Zatvori</span></button></div>
-          </div>
-          <div class="netcfg">
-            <b class="netcfg-t">Pristup</b>
-            <div class="netst smbacc">
-              <label>Korisnik<input class="field" id="smbUser" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ps2"></label>
-              <label>Lozinka<input class="field" id="smbPw" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="lozinka"></label>
-            </div>
-            <div class="smbrow">
-              <div class="segc" id="smbGuest" role="group" aria-label="Pristup"><button data-v="0" aria-pressed="true">Sa lozinkom</button><button data-v="1" aria-pressed="false">I gost</button></div>
-              <button class="btn gel" id="smbPwSave" type="button"><span>Sačuvaj</span></button>
-            </div>
-          </div>
-          <div class="netcfg">
-            <b class="netcfg-t">Protokol</b>
-            <div class="segc" id="smbProto" role="group" aria-label="SMB protokol"><button data-v="NT1" aria-pressed="true">SMB1 · PS2</button><button data-v="SMB2" aria-pressed="false">SMB2/3</button><button data-v="SMB3" aria-pressed="false">SMB3</button></div>
-          </div>
-          <button class="acc-row" id="smbDirect" role="switch" aria-checked="false">
-            <span class="t"><b>PS2 kablom direktno na Pi</b><span id="smbDirectTxt">Brže od Wi-Fi-ja. Pi mora biti na Wi-Fi-ju.</span></span><span class="sw"></span>
-          </button>
-          <div class="smbgames" id="smbGames" hidden>
-            <b class="netcfg-t">Igrice <small class="nstat" id="smbGamesN"></small></b>
-            <div class="btlist" id="smbGameList"></div>
-            <div class="smbup" id="smbUp" hidden>
-              <label class="smbdrop" id="smbDrop">
-                <svg class="i"><use href="#i-plus"/></svg>
-                <span><b>Dodaj igricu</b> · prevuci ili klikni (.iso, .zso, .vcd)</span>
-                <input type="file" id="smbFile" accept=".iso,.zso,.vcd" multiple>
-              </label>
-              <label class="bootrow" id="smbTargetRow"><span>Snimi na</span><select class="field" id="smbTarget"></select></label>
-              <div class="smbprog" id="smbProg" hidden>
-                <div class="smbprog-t"><b id="smbProgName">—</b><span id="smbProgTxt"></span><button class="btn ghost" id="smbProgX" type="button"><span>Otkaži</span></button></div>
-                <div class="smbbar"><i id="smbProgBar" style="width:0"></i></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section class="card adm" aria-labelledby="h-acc" id="accCard">
         <div class="card-head"><h2 id="h-acc">Admin pristup</h2></div>
@@ -1711,6 +2144,6 @@ section[aria-labelledby="h-ir"] .card-head .sub{margin-left:0!important;display:
     </div>
   </section>
 </main>
-<footer class="foot"><span class="flogo"><span class="mark" aria-hidden="true"></span>Teco.Pi<i class="fled" title="Veza sa Teco.Pi"></i></span><span class="ftime" id="ftTime"></span></footer>
+<footer class="foot"><span class="flogo"><img class="fmark" src="/static/logos/tecomatic-mark.png" alt=""><img class="fword" src="/static/logos/tecomatic.png" alt="Tecomatic"></span><span class="ftime" id="ftTime"></span></footer>
 <div class="toast" id="toast" role="status"></div>
 

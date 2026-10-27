@@ -6,22 +6,26 @@ Drži stalnu vezu sa IP modulom i daje lokalni API samo za Teco.Pi server (127.0
   GET  /wait?v=N                      -> isto, ali tek kad se stanje promeni (dugo čekanje, do 20 s)
   POST /partition {"p": key|id|"all", "cmd": "arm"|"arm_stay"|"arm_instant"|"arm_force"|"disarm"}
   POST /pgm       {"p": key|id, "cmd": "on"|"off"|"release"|"on_override"|"off_override"}
-Pristupni podaci su u ~/teco/data/alarm.json (chmod 600), upisuje ih Admin forma.
+Pristupni podaci su u ~/teco/data/alarm.json (chmod 600), upisuje ih stranica Alarm → Podešavanje.
+Više Paradox centrala: python alarm_bridge.py <id> (teco-alarm@<id>.service) — data/alarm-<id>.json, svoj dnevnik i port
+(api_port u podešavanju). Bez argumenta = prvi alarm (a1): alarm.json, port 8098.
 """
 import asyncio
 import json
 import logging
 import os
 import re
+import sys
 import time
 from pathlib import Path
 
 from aiohttp import web
 
 DATA = Path(__file__).resolve().parent.parent / 'data'
-CFG_FILE = DATA / 'alarm.json'
-PAI_CFG = DATA / 'pai-config.json'   # generisano iz alarm.json (PAI čita konfiguraciju iz fajla)
-PORT = 8098
+AID = sys.argv[1] if len(sys.argv) > 1 else 'a1'
+SUF = '' if AID == 'a1' else '-' + AID   # a1 zadržava stare fajlove (dnevnik i podešavanje od ranije)
+CFG_FILE = DATA / ('alarm%s.json' % SUF)
+PAI_CFG = DATA / ('pai-config%s.json' % SUF)   # generisano iz alarm.json (PAI čita konfiguraciju iz fajla)
 CMDS = ('arm', 'arm_stay', 'arm_instant', 'arm_force', 'disarm')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
@@ -29,7 +33,7 @@ log = logging.getLogger('teco-alarm')
 
 state = {'run': 'stop', 'err': None, 'since': None, 'panel': None}
 alarm = None
-EV_FILE = DATA / 'alarm-events.json'   # dnevnik događaja (poslednjih EV_MAX), ostaje posle restarta
+EV_FILE = DATA / ('alarm-events%s.json' % SUF)   # dnevnik događaja (poslednjih EV_MAX), ostaje posle restarta
 EV_MAX = 1000
 events = []
 version = 0                           # raste na svaku promenu: server čeka /wait?v= i dobija stanje odmah
@@ -368,7 +372,7 @@ async def run_alarm():
 
     c = load_cfg()
     if not c.get('enabled') or not c.get('host'):
-        setstate(run='off', err='Alarm nije podešen (Admin → Alarm · veza).')
+        setstate(run='off', err='Alarm nije podešen (Alarm → Podešavanje).')
         return
     write_pai_cfg(c)
     cfg.load(str(PAI_CFG))
@@ -586,8 +590,9 @@ async def main():
     app.router.add_post('/events/range', h_events_range)
     runner = web.AppRunner(app, access_log=None)   # server pita na 1,5 s: bez zapisa svakog upita (/tmp je u RAM-u)
     await runner.setup()
-    await web.TCPSite(runner, '127.0.0.1', PORT).start()   # samo lokalno: spolja se ide preko Teco.Pi servera
-    log.info('Teco.Pi alarm most na 127.0.0.1:%d', PORT)
+    port = int(load_cfg().get('api_port') or 8098)
+    await web.TCPSite(runner, '127.0.0.1', port).start()   # samo lokalno: spolja se ide preko Teco.Pi servera
+    log.info('Teco.Pi alarm most %s na 127.0.0.1:%d', AID, port)
     await run_alarm()
     while True:   # nije podešen: API i dalje odgovara (stanje „off“)
         await asyncio.sleep(3600)

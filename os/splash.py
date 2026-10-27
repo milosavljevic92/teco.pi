@@ -1,14 +1,19 @@
 """Teco.Pi logo za ekran: pri pokretanju Raspberry-ja (framebuffer) i kad plejer nema šta da prikaže.
 
 python3 splash.py  ->  data/splash.fb (sirova slika za /dev/fb0, koristi je teco-splash.service)
+python3 splash.py data/restart.fb "Restartovanje…"  ->  ista slika sa porukom (teco-shutdown.service)
 """
 import subprocess
 import sys
 from pathlib import Path
 
 
-def svg(w, h):
-    """Logo u „virtuelnoj“ širini (ekran je 16:9, slika se posle stisne na 720x576)."""
+def svg(w, h, msg=None):
+    """Logo u „virtuelnoj“ širini (ekran je 16:9, slika se posle stisne na 720x576). msg: poruka umesto potpisa."""
+    sub = (f'<text x="{w / 2:.0f}" y="{h * 0.84:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.05:.0f}" '
+           f'letter-spacing="2" fill="#fbbf24">{msg}</text>') if msg else \
+          (f'<text x="{w / 2:.0f}" y="{h * 0.82:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-size="{h * 0.042:.0f}" '
+           f'letter-spacing="6" fill="#7dd3c7">by Tecomatic</text>')
     s = h * 0.24                       # znak (zaobljeni kvadrat)
     cx, my = w / 2, h * 0.36
     x0, y0 = cx - s / 2, my - s / 2
@@ -25,11 +30,11 @@ def svg(w, h):
 <circle cx="{cx:.0f}" cy="{my:.0f}" r="{s * 0.24:.0f}" fill="none" stroke="#fff" stroke-width="{s * 0.09:.0f}"/>
 <circle cx="{cx:.0f}" cy="{my:.0f}" r="{s * 0.075:.0f}" fill="#fff"/>
 <text x="{cx:.0f}" y="{h * 0.72:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="{h * 0.14:.0f}" letter-spacing="-2" fill="#ffffff">Teco.Pi</text>
-<text x="{cx:.0f}" y="{h * 0.82:.0f}" text-anchor="middle" font-family="DejaVu Sans" font-size="{h * 0.042:.0f}" letter-spacing="6" fill="#7dd3c7">by Tecomatic</text>
+{sub}
 </svg>'''
 
 
-def make_fb(out, w=None, h=None, vw=None):
+def make_fb(out, w=None, h=None, vw=None, msg=None):
     """Slika za /dev/fb0: RGB565 (16 bita), kao što ekran (vc4drmfb) očekuje.
     Veličina iz framebuffer-a: AV 720x576 se crta u 16:9 širini; HDMI (npr. 1024x600) ima kvadratne piksele."""
     from PIL import Image
@@ -41,19 +46,17 @@ def make_fb(out, w=None, h=None, vw=None):
     vw = vw or (round(h * 16 / 9) if w == 720 else w)
     src = Path(out).with_suffix('.svg')
     png = Path(out).with_suffix('.png')
-    src.write_text(svg(vw, h))
+    src.write_text(svg(vw, h, msg), encoding='utf-8')
     subprocess.run(['rsvg-convert', '-w', str(vw), '-h', str(h), '-o', str(png), str(src)], check=True)
     im = Image.open(png).convert('RGB').resize((w, h), Image.LANCZOS)
-    data = bytearray(w * h * 2)
-    for i, (r, g, b) in enumerate(im.getdata()):   # RGB565, little-endian
-        v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
-        data[2 * i] = v & 0xFF
-        data[2 * i + 1] = v >> 8
-    Path(out).write_bytes(bytes(data))
+    import numpy as np
+    a = np.asarray(im, dtype=np.uint16)   # RGB565, little-endian
+    v = ((a[..., 0] >> 3) << 11) | ((a[..., 1] >> 2) << 5) | (a[..., 2] >> 3)
+    Path(out).write_bytes(v.astype('<u2').tobytes())
     src.unlink()
     return png
 
 
 if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).with_name('data') / 'splash.fb')
-    print(make_fb(out))
+    print(make_fb(out, msg=sys.argv[2] if len(sys.argv) > 2 else None))

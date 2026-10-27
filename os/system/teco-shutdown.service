@@ -1,0 +1,19 @@
+[Unit]
+Description=Teco.Pi poruka na ekranu pri restartu i gašenju (umesto zamrznute poslednje slike)
+# gasi se POSLE korisničkih servisa (mpv pusti ekran), pa framebuffer opet prikazuje ono što se upiše
+Before=user@1000.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=dmilosavljevic
+SupplementaryGroups=video
+WorkingDirectory=/home/dmilosavljevic/teco
+# slike se prave unapred (veličina framebuffer-a se menja sa ekranom), pri gašenju je samo upis
+ExecStart=/bin/sh -c 'for m in restart:Restartovanje… poweroff:Gašenje…; do python3 splash.py data/$${m%%%%:*}.fb "$${m#*:}" >/dev/null || true; done'
+ExecStop=/bin/sh -c 'f=data/poweroff.fb; systemctl list-jobs --no-legend | grep -q reboot.target && f=data/restart.fb; [ -f $$f ] && cat $$f > /dev/fb0 || true'
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

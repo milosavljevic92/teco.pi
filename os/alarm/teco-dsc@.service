@@ -1,0 +1,14 @@
+[Unit]
+Description=Teco.Pi alarm %i (DSC preko EnvisaLink, TPI)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/teco/alarm
+ExecStart=/usr/bin/python3 %h/teco/alarm/dsc_bridge.py %i
+StandardOutput=append:/tmp/teco-alarm-%i.log
+StandardError=append:/tmp/teco-alarm-%i.log
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

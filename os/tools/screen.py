@@ -12,7 +12,8 @@ OVL_ID = 63   # najviši sloj: iznad slike konzole i sata
 
 class Screen:
     def __init__(self, name):
-        self.files = ['/tmp/teco-tool-%s-%d.bgra' % (name, i) for i in (0, 1)]   # dva fajla: mpv nikad ne čita poluupisan
+        d = '/dev/shm' if os.path.isdir('/dev/shm') else '/tmp'   # /tmp je samo 64 MB, a slika na 1080p ima 8 MB
+        self.files = ['%s/teco-tool-%s-%d.bgra' % (d, name, i) for i in (0, 1)]   # dva fajla: mpv nikad ne čita poluupisan
         self.cur = 0
         self.sock = None
         self.w = self.h = None
@@ -59,19 +60,34 @@ class Screen:
                         out[m['request_id']] = int(m['data'])
             s.close()
             if len(out) == 2:
-                return out[1], out[2]
+                return self._fit(out[1], out[2])
         except OSError:
             pass
         with open('/sys/class/graphics/fb0/virtual_size') as f:
-            return tuple(int(x) for x in f.read().split(','))
+            return self._fit(*(int(x) for x in f.read().split(',')))
+
+    def _fit(self, w, h):
+        """Veliki ekran (TV 1080p): alat crta u pola rezolucije, a show() uvećava 2x — mpv sam ne ume da skalira
+        sloj, a ceo kadar 1920x1080 je spor za crtanje na Pi-ju. Slika se centrira ako ne deli tačno."""
+        self.k = max(1, h // 540)
+        self.sw, self.sh = w, h
+        return w // self.k, h // self.k
 
     def show(self, bgra, w, h):
         """bgra: bytes w*h*4 (B,G,R,A)."""
+        k = getattr(self, 'k', 1)
+        x = y = 0
+        if k > 1:
+            import numpy as np
+            a = np.frombuffer(bgra, np.uint8).reshape(h, w, 4)
+            bgra = a.repeat(k, 0).repeat(k, 1).tobytes()
+            w, h = w * k, h * k
+            x, y = (self.sw - w) // 2, (self.sh - h) // 2
         self.cur ^= 1
         f = self.files[self.cur]
         with open(f, 'wb') as fp:
             fp.write(bgra)
-        self._cmd('overlay-add', OVL_ID, 0, 0, f, 0, 'bgra', w, h, w * 4)
+        self._cmd('overlay-add', OVL_ID, x, y, f, 0, 'bgra', w, h, w * 4)
 
     def close(self):
         self._cmd('overlay-remove', OVL_ID)
