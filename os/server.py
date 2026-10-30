@@ -40,7 +40,8 @@ ALARM_CMDS = {'arm': 'Uključen (Regular)', 'arm_stay': 'Uključen (Stay)', 'arm
               'arm_force': 'Uključen (Force)', 'disarm': 'Isključen'}
 PGM_PULSE = 3   # s: impuls PGM-a (vrata, prečice PGM1/PGM2), posle se vraća na normalan rad
 PGM_CMDS = {'on': 'uključen', 'off': 'isključen', 'release': 'vraćen na automatski rad', 'pulse': 'uključen na %d s' % PGM_PULSE}
-NTP_CONF = Path('/etc/systemd/timesyncd.conf.d/teco.conf')   # NTP serveri iz podešavanja mreže
+NTP_CONF = Path('/etc/chrony/conf.d/teco.conf')   # chrony: izvori vremena i deljenje (Ekstenzije → NTP vreme, system/ntp.sh)
+NTP_PRESETS = {'rs': ['0.rs.pool.ntp.org', '1.rs.pool.ntp.org'], 'cf': ['time.cloudflare.com']}
 SMB_CONF = Path('/etc/samba/smb.conf')   # Teco.Pi ga piše ceo (deljenje fajlova iz admina)
 SHARE = BASE / 'share'                   # deljeni folder na SD kartici (\\tecopi\Teco)
 USB_MNT = Path('/media/teco')            # USB diskovi: /media/teco/<ime>
@@ -197,7 +198,7 @@ ADMIN_CMDS = {'scr_set','scr_press', 'reboot', 'boot', 'theme','radio_clock', 'y
               'bt_scan', 'bt_pair', 'bt_remove', 'pin_req', 'pbx_secret',
               'cast', 'alarm_cfg', 'alarm_add', 'alarm_del',   # alarmi se podešavaju u Admin → Uređaji; SMB share je u Ekstenzijama (kao WDS i DNS resolver): bez Admina
               'dev_add', 'dev_edit', 'dev_del', 'dev_scan',   # uređaji se dodaju u Adminu; dev_set (upravljanje) je za sve   # uređaji (dev_*): svi u mreži (za sada samo svetla)
-              'net_mode', 'net_set', 'dns_set', 'ntp_set', 'relay', 'ir_save', 'ir_del',
+              'net_mode', 'net_set', 'dns_set', 'relay', 'ir_save', 'ir_del',
               'cons', 'name', 'fm_save', 'fm_del', 'st_add', 'st_del', 'set_pin'}
 
 
@@ -1138,20 +1139,24 @@ class Teco:
 
     # ---------- Alati na ekranu (Osciloskop, Otpornici…): poseban program crta sloj PREKO plejera (mpv overlay),
     # pa YouTube/radio/TV rade ispod; gasi se samo Arcade. Podešavanje: data/tool-<ime>.json (program ga prati).
-    TOOL_SCRIPTS = {'scope': 'scope.py', 'resistor': 'resistor.py', 'logic': 'logic.py', 'capacitor': 'capacitor.py', 'net': 'net.py', 'scan': 'scan.py', 'guest': 'guest.py', 'pin': 'pinout.py', 'ser': 'serial_tv.py', 'dice': 'dice.py', 'timer': 'timer.py', 'wifi': 'wifi_tv.py', 'prog': 'prog_tv.py', 'gen': 'gen_tv.py'}
+    TOOL_SCRIPTS = {'scope': 'scope.py', 'resistor': 'resistor.py', 'logic': 'logic.py', 'capacitor': 'capacitor.py', 'net': 'net.py', 'scan': 'scan.py', 'guest': 'guest.py', 'pin': 'pinout.py', 'ser': 'serial_tv.py', 'dice': 'dice.py', 'timer': 'timer.py', 'wifi': 'wifi_tv.py', 'prog': 'prog_tv.py', 'gen': 'gen_tv.py', 'bura': 'bura_tv.py', 'tran': 'tran_tv.py', 'ind': 'ind_tv.py', 'irdec': 'irdec_tv.py', 'mm': 'mm_tv.py'}
     TOOL_DEFAULTS = {
         'scope': {'run': True, 'exp': 'exp2', 'tdiv': 0.005, 'trig': {'src': 'ch1', 'level': 0.0, 'edge': 'rise'},
                   'ch1': {'on': True, 'wave': 'sine', 'freq': 50.0, 'amp': 2.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.03},
                   'ch2': {'on': True, 'wave': 'square', 'freq': 100.0, 'amp': 1.0, 'offset': 0.0, 'vdiv': 1.0, 'noise': 0.02}},
         'net': {}, 'scan': {}, 'guest': {'ssid': '', 'pw': '', 'sec': 'WPA', 'hidden': False},
         'capacitor': {'mode': 'code', 'code': '2A104J', 'smd': 'S5'},
+        'tran': {'q': 'BC547'},   # tranzistor: oznaka ili SMD kod (components.py)
+        'irdec': {},   # IR dekoder: kodove piše server (irdec_loop, RAM)
+        'mm': {},      # multimetar: prikaz u RAM-u (/dev/shm/teco-mm.json)
+        'ind': {'mode': 'smd', 'smd': '4R7', 'bands': ['yellow', 'violet', 'black', 'gold']},   # induktivnost: SMD/RKM kod ili prstenovi
         'pin': {'chip': {}, 'sel': -1},   # Pinout: podaci izabranog čipa dolaze sa stranice (tamo je biblioteka čipova)
         'ser': {'ts': True, 'hex': False},   # serijski terminal na ekranu: podaci idu kroz /ws/serial, ovde samo prikaz
         'dice': {'n': 2, 'sides': 6, 'vals': [], 't': 0},   # kockice: bacanje je na stranici, ekran prikazuje poslednje
         # tajmer: kraj (end) drži server, pa je isti svuda; režimi: cd odbrojavanje, sw štoperica, al alarm (HH:MM)
         'timer': {'mode': 'cd', 'dur': 300, 'left': 300, 'end': 0, 'run': False, 'label': '',
                   'sw_run': False, 'sw_start': 0, 'sw_acc': 0, 'laps': [], 'al_at': '07:00', 'al_on': False, 'al_last': '', 'ring': 0},
-        'wifi': {}, 'prog': {},   # Wi-Fi analizator i programatori na ekranu: podatke piše server (tool_write)
+        'wifi': {}, 'prog': {}, 'bura': {},   # Wi-Fi analizator, programatori i vaga na ekranu: podatke piše server
         'resistor': {'mode': 'bands', 'bands': 4, 'colors': ['brown', 'black', 'red', 'gold', 'brown', 'brown'], 'smd': '103'},
         'logic': {'run': True, 'tdiv': 0.0002, 'trig': {'src': 'ch0', 'edge': 'rise'},
                   # izvor: sim (simulator) ili pk2 (PICkit 2: 3 kanala, 1024 uzorka); snimak je u data/logic-pk2.json
@@ -1169,7 +1174,29 @@ class Teco:
                 c[k] = v
         return c
 
+    def comp_views(self):
+        """Tranzistori i induktivnosti: podešavanje + rezultat dekodera (components.py, isti kao na TV-u)."""
+        import components
+        t, i = self.tool_cfg('tran'), self.tool_cfg('ind')
+        key = json.dumps([t, i], sort_keys=True)
+        c = getattr(self, '_comp_c', None)
+        if not c or c[0] != key:   # stanje se pravi često: dekodira se samo kad se unos promeni
+            c = self._comp_c = (key, {'tran': dict(t, res=components.tran(t.get('q')), ex=components.TRAN_EX,
+                                                     names=sorted(k.replace('-SMD', '') for k in components.TR) + sorted(components.SMD)),
+                                      'ind': dict(i, res=components.ind(i), ex=components.IND_EX['smd'], colors=components.COLORS + ['none'])})
+        return c[1]
+
     def tool_write(self, name):
+        if name == 'bura':   # vaga: stanje u RAM-u (osvežava se uživo, bura_flush)
+            self.BURA_SHM.write_text(json.dumps(self.bura_view()))
+            return
+        if name == 'irdec':
+            self.IRDEC_SHM.write_text(json.dumps(self.irdec_view()))
+            return
+        if name == 'mm':
+            if not self.MM_SHM.exists():
+                self.MM_SHM.write_text('{}')
+            return
         f = DATA / ('tool-%s.json' % name)
         tmp = f.with_suffix('.tmp')
         data = (self.nt_view() if name == 'net' else self.scan_view() if name == 'scan' else getattr(self, 'wifi_last', None) or {} if name == 'wifi'
@@ -1235,7 +1262,8 @@ class Teco:
         self.mark()
         return {'ok': 'Na ekranu: ' + {'scope': 'Osciloskop', 'resistor': 'Otpornici', 'logic': 'Logički analizator', 'capacitor': 'Kondenzatori', 'net': 'Mrežni tester', 'scan': 'Skeniranje mreže', 'guest': 'Wi-Fi za goste',
                                       'pin': 'Pinout', 'ser': 'Serijski terminal', 'dice': 'Kockice', 'timer': 'Tajmer', 'prog': 'Programator',
-                                      'wifi': 'Wi-Fi analizator', 'gen': 'Generator signala'}.get(name, name)}
+                                      'wifi': 'Wi-Fi analizator', 'gen': 'Generator signala', 'bura': 'BURAscale', 'tran': 'Tranzistori',
+                                      'ind': 'Induktivnosti', 'irdec': 'IR dekoder', 'mm': 'Multimetar'}.get(name, name)}
 
     async def tool_hide(self, restore=True):
         t = getattr(self, 'tool', None)
@@ -2495,14 +2523,14 @@ class Teco:
         return {}
 
     # ---------- SMS obaveštenja (alarm, struja, akvarijum, uređaji sa mreže) i SMS komande sa pouzdanih brojeva
-    NOTIFY_DEF = {'nums': [], 'alarm': True, 'arm': False, 'power': True, 'aqua': True, 'devices': True, 'web': True, 'cmds': True, 'pin': ''}
+    NOTIFY_DEF = {'nums': [], 'alarm': True, 'arm': False, 'power': True, 'aqua': True, 'devices': True, 'web': True, 'notes': True, 'cmds': True, 'pin': ''}
 
     def notify_cfg(self):
         return dict(self.NOTIFY_DEF, **(self.st.get('notify') or {}))
 
     def notify_set(self, a):
         c = self.notify_cfg()
-        for k in ('alarm', 'arm', 'power', 'aqua', 'devices', 'web', 'cmds'):
+        for k in ('alarm', 'arm', 'power', 'aqua', 'devices', 'web', 'notes', 'cmds'):
             if k in a:
                 c[k] = bool(a[k])
         if 'nums' in a and isinstance(a['nums'], list):
@@ -2539,6 +2567,82 @@ class Teco:
         log.info('SMS obaveštenje (%s): %s', kind, text)
         self.sms_kick()   # pošalji odmah (ne čekaj sledeći krug)
         self.mark()
+
+    # ---------- Beleške / kontrolna lista (Alati → Opšte): zajedničke za sve uređaje (data/notes.json), podsetnik u zadato vreme
+    NOTES = DATA / 'notes.json'
+
+    def notes_db(self):
+        if not hasattr(self, '_notes'):
+            try:
+                self._notes = json.loads(self.NOTES.read_text())
+            except (OSError, ValueError):
+                self._notes = []
+        return self._notes
+
+    def notes_save(self):
+        tmp = self.NOTES.with_suffix('.tmp')
+        tmp.write_text(json.dumps(self._notes, ensure_ascii=False))
+        os.replace(tmp, self.NOTES)
+
+    def notes_cmd(self, c, a):
+        db = self.notes_db()
+        if c == 'note_add':
+            if len(db) >= 200:
+                return {'err': 'Najviše 200 beležaka.'}
+            n = {'id': secrets.token_hex(4), 'title': str(a.get('title') or '').strip()[:80], 'text': '', 'items': [], 'remind': None, 'fired': False,
+                 'pin': False, 'color': '', 't': time.time()}
+            db.insert(0, n)
+            self.notes_save()
+            self.mark()
+            return {'id': n['id']}
+        n = next((x for x in db if x['id'] == a.get('id')), None)
+        if not n:
+            return {'err': 'Beleška ne postoji (možda je obrisana na drugom uređaju).'}
+        if c == 'note_del':
+            db.remove(n)
+        else:   # note_set: samo poslata polja
+            if 'title' in a:
+                n['title'] = str(a['title'])[:80]
+            if 'text' in a:
+                n['text'] = str(a['text'])[:5000]
+            if isinstance(a.get('items'), list):
+                n['items'] = [{'t': str(i.get('t', ''))[:200], 'done': bool(i.get('done'))} for i in a['items'][:100] if isinstance(i, dict)]
+            if 'pin' in a:
+                n['pin'] = bool(a['pin'])
+            if a.get('color') in ('', 'y', 'g', 'b', 'r', 'v'):
+                n['color'] = a['color']
+            if 'remind' in a:   # unix vreme (s) ili null
+                try:
+                    n['remind'] = int(a['remind']) if a['remind'] else None
+                except (TypeError, ValueError):
+                    return {'err': 'Neispravno vreme podsetnika.'}
+                n['fired'] = False
+            n['t'] = time.time()
+        self.notes_save()
+        self.mark()
+        return {}
+
+    async def notes_loop(self):
+        """Na 20 s: podsetnici koji su stigli -> SMS/e-mail (Obaveštenja → Beleške) i prozorčić na svim otvorenim stranicama."""
+        while True:
+            await asyncio.sleep(20)
+            try:
+                now, hit = time.time(), []
+                for n in self.notes_db():
+                    if n.get('remind') and not n.get('fired') and n['remind'] <= now:
+                        n['fired'] = True
+                        hit.append(n)
+                for n in hit:
+                    left = [i['t'] for i in n.get('items', []) if not i.get('done')]
+                    txt = 'Podsetnik: ' + (n.get('title') or (n.get('text') or '').split('\n')[0][:60] or 'beleška') + (' (' + ', '.join(left[:5]) + ')' if left else '')
+                    self.notify('notes', txt, key='note:%s:%s' % (n['id'], n['remind']))
+                    await self.push({'remind': {'id': n['id'], 'title': n.get('title') or 'Beleška', 'text': txt}})
+                    log.info('beleška: %s', txt)
+                if hit:
+                    self.notes_save()
+                    self.mark()
+            except Exception:
+                log.exception('beleške')
 
     def notify_alarm(self, st, aid='a1'):
         """Iz stanja alarm centrale: alarm (zone), uključen/isključen, nestanak struje (posebno za svaku centralu)."""
@@ -3335,6 +3439,17 @@ class Teco:
                     cur['chip'] = ch
                 if 'sel' in a:
                     cur['sel'] = int(a['sel'])
+            elif name == 'tran':
+                if 'q' in a:
+                    cur['q'] = re.sub(r'[^0-9A-Za-z\- ]', '', str(a['q']))[:16]
+            elif name == 'ind':
+                import components
+                if a.get('mode') in ('smd', 'bands'):
+                    cur['mode'] = a['mode']
+                if 'smd' in a:
+                    cur['smd'] = re.sub(r'[^0-9A-Za-zµ., ]', '', str(a['smd']))[:10]
+                if isinstance(a.get('bands'), list):
+                    cur['bands'] = [b if b in components.COL_RGB else 'none' for b in a['bands'][:4]]
             elif name == 'capacitor':
                 if a.get('mode') in ('code', 'smd'):
                     cur['mode'] = a['mode']
@@ -7504,9 +7619,263 @@ class Teco:
     # ---------- Ekstenzije: glavni prekidač na vrhu svake (osim Skladišta; DNS resolver ima svoj)
     def ext_state(self):
         return {'pbx': bool(self.pbx_cfg().get('on')), 'sms': bool(self.phone_cfg()['gsm'].get('on')), 'mail': bool(self.mail_cfg().get('on')),
-                'wds': bool(self.wds_cfg().get('on')), 'smb': bool(self.smb_cfg().get('on')), 'web': bool(self.web_cfg().get('on', True))}
+                'wds': bool(self.wds_cfg().get('on')), 'smb': bool(self.smb_cfg().get('on')), 'web': bool(self.web_cfg().get('on', True)),
+                'bura': bool(self.bura_cfg().get('on')), 'cups': bool(self.cups_cfg().get('on')), 'ntp': bool(self.ntp_cfg().get('serve'))}
+
+    # ---------- BURAscale (vaga preko USB COM-a): masa uživo na stranici (sopstvena WS poruka, ne celo stanje) i na TV-u
+    BURA_SHM = Path('/dev/shm/teco-bura.json') if Path('/dev/shm').is_dir() else Path('/tmp/teco-bura.json')   # RAM: upis 20x u s, ne SD kartica
+
+    def bura_cfg(self):
+        return self.st.setdefault('bura', {'on': False, 'port': ''})
+
+    def bura_view(self):
+        b = getattr(self, 'bura', None)
+        v = b.view() if b else {'online': False, 'disp': 'N/A', 'unit': ''}
+        import bura
+        return dict(v, on=bool(self.bura_cfg().get('on')), port=self.bura_cfg().get('port', ''), ports=bura.ports())
+
+    def bura_changed(self):
+        """Poziva ga bura.py na svaku promenu; šalje se najviše ~25x u sekundi (vaga je brza, a prikaz mora da prati)."""
+        if getattr(self, '_bura_h', None):
+            return
+        last = getattr(self, '_bura_t', 0)
+        self._bura_h = asyncio.get_running_loop().call_later(max(0, 0.04 - (time.time() - last)), lambda: asyncio.ensure_future(self.bura_flush()))
+
+    async def bura_flush(self):
+        self._bura_h, self._bura_t = None, time.time()
+        v = self.bura_view()
+        if self.tool_running() == 'bura':
+            try:
+                tmp = self.BURA_SHM.with_suffix('.tmp')
+                tmp.write_text(json.dumps(v))
+                os.replace(tmp, self.BURA_SHM)
+            except OSError:
+                pass
+        await self.push({'bura': v})
+
+    async def bura_loop(self):
+        import bura
+        self.bura = bura.Bura(self.bura_changed)
+        while True:
+            await asyncio.sleep(1)
+            c, b = self.bura_cfg(), self.bura
+            try:
+                if not c.get('on'):
+                    if b.ser:
+                        b.close()
+                        self.bura_changed()
+                    continue
+                if b.ser and time.time() - b.last_rx > 5:   # ništa ne stiže: ponovo otvori
+                    b.err = 'vaga se ne javlja'
+                    b.close()
+                if not b.ser:
+                    ps = bura.ports()
+                    dev = c.get('port') or (ps[0] if ps else '')
+                    if dev and dev in ps:
+                        b.open(dev)
+                    else:
+                        b.err = 'vaga nije priključena (USB)'
+                    self.bura_changed()
+                elif time.time() - b.last_tx > 2:
+                    b.send('PING')   # veza važi 5 s bez komandi
+                b.ask()
+                if b.ser and b.gaps and time.time() - getattr(self, '_bura_dbg', 0) > 15:   # dijagnostika: ritam redova mase
+                    self._bura_dbg = time.time()
+                    g = sorted(b.gaps)
+                    log.info('BURAscale: %d redova, razmak sr %.0f ms, med %.0f, max %.0f ms; INF=%s CFG=%s ostalo=%s', len(g), 1000 * sum(g) / len(g),
+                             1000 * g[len(g) // 2], 1000 * g[-1], b.raw_inf[:40], b.raw_cfg[:40], b.other[-1:])
+                    import collections
+                    log.info('BURAscale vrednosti (poslednjih %d): %s', len(getattr(b, 'raw', [])), dict(collections.Counter(getattr(b, 'raw', []))))
+            except Exception:
+                log.exception('BURAscale')
+
+    async def bura_cmd(self, a):
+        b = getattr(self, 'bura', None)
+        k = a.get('k')
+        if k == 'port':
+            self.bura_cfg()['port'] = str(a.get('v') or '')
+            save_state(self.st)
+            if b:
+                b.close()
+            self.bura_changed()
+            return {'ok': 'Port: ' + (self.bura_cfg()['port'] or 'automatski')}
+        if not b or not b.online:
+            return {'err': 'Vaga nije povezana.'}
+        if k == 'pt':
+            v = str(a.get('v') or '').strip().replace(',', '.')
+            if not re.fullmatch(r'\d{1,4}(\.\d{1,4})?', v):
+                return {'err': 'Ručna tara: upiši masu (npr. 0.250).'}
+            cmd = 'PT ' + v
+        else:
+            cmd = {'zero': 'ZERO', 'tare': 'TARE', 'mplus': 'ALIBI SAVE %d' % int(time.time()), 'print': 'W'}.get(k)
+            if not cmd:
+                return {'err': 'Nepoznata komanda.'}
+        b.reply = ''
+        b.send(cmd)
+        for _ in range(20):   # odgovor stiže za par desetina ms
+            await asyncio.sleep(0.05)
+            if b.reply:
+                break
+        r = b.reply
+        if r.startswith(('E:', 'AL,E')):
+            why = {'U': 'masa nije stabilna', 'R': 'van opsega', 'S': 'zagrevanje / startna nula', 'A': 'greška ADC', 'V': 'neispravna vrednost', 'D': 'nije deljivo sa e'}.get(r.rsplit(',', 1)[-1].strip(), r)
+            return {'err': cmd.split()[0] + ': ' + why}
+        return {'ok': {'zero': 'Nula', 'tare': 'Tara', 'mplus': 'Merenje sačuvano (alibi)', 'print': 'Štampa', 'pt': 'Ručna tara ' + str(a.get('v'))}[k] + (' · ' + r if r and not r.startswith('OK') else '')}
+
+    # ---------- CUPS štampa: Pi deli mrežne štampače svim uređajima (AirPrint/IPP preko mDNS, Windows preko http://IP:631/printers/…)
+    def cups_cfg(self):
+        return self.st.setdefault('cups', {'on': False})
+
+    async def cups_refresh(self):
+        """Štampači, podrazumevani i poslovi iz lpstat (na 5 s dok je uključeno; ne u svakom stanju stranice)."""
+        v = {'installed': bool(shutil.which('lpstat')), 'printers': [], 'jobs': [], 'default': ''}
+        if v['installed'] and self.cups_cfg().get('on'):
+            _, p = await self._rc('lpstat', '-l', '-p', timeout=8)
+            _, dv = await self._rc('lpstat', '-v', timeout=8)
+            _, d = await self._rc('lpstat', '-d', timeout=8)
+            _, o = await self._rc('lpstat', '-o', timeout=8)
+            uri = dict(re.findall(r'device for (\S+): (\S+)', dv or ''))
+            cur, first = None, False
+            for ln in (p or '').splitlines():
+                m = re.match(r'printer (\S+) (?:is (\w+)|(disabled))', ln)
+                if m:
+                    cur, first = {'name': m.group(1), 'state': m.group(2) or 'disabled', 'desc': '', 'loc': '', 'uri': uri.get(m.group(1), ''), 'msg': ''}, True
+                    v['printers'].append(cur)
+                    continue
+                if cur and first and ln.startswith('\t') and ':' not in ln and ln.strip():
+                    cur['msg'] = ln.strip()   # poruka štampača (npr. nema papira) je red odmah ispod naziva
+                first = False
+                if cur and ln.strip().startswith('Description:'):
+                    cur['desc'] = ln.split(':', 1)[1].strip()
+                elif cur and ln.strip().startswith('Location:'):
+                    cur['loc'] = ln.split(':', 1)[1].strip()
+            m = re.search(r'destination: (\S+)', d or '')
+            v['default'] = m.group(1) if m else ''
+            for ln in (o or '').splitlines():
+                m = re.match(r'(\S+)-(\d+)\s+(\S+)\s+(\d+)\s+(.*)$', ln)
+                if m:
+                    v['jobs'].append({'printer': m.group(1), 'id': int(m.group(2)), 'user': m.group(3), 'size': int(m.group(4)), 'when': m.group(5).strip()})
+        self.cups_st = v
+        self.mark()
+
+    def cups_view(self):
+        v = dict(getattr(self, 'cups_st', None) or {'installed': bool(shutil.which('lpstat')), 'printers': [], 'jobs': [], 'default': ''})
+        lan = next(((i.get('ip') or [''])[0].split('/')[0] for i in self.net.get('ifs', []) if i.get('ip') and not i['n'].startswith('tun')), '')
+        v.update(on=bool(self.cups_cfg().get('on')), ip=lan, found=getattr(self, 'cups_found', []), busy=getattr(self, 'cups_busy', ''))
+        return v
+
+    async def cups_loop(self):
+        while True:
+            try:
+                if self.cups_cfg().get('on'):
+                    await self.cups_refresh()
+            except Exception:
+                log.exception('CUPS')
+            await asyncio.sleep(5)
+
+    async def cups_cmd(self, a):
+        k = a.get('k')
+        name = re.sub(r'[^A-Za-z0-9_-]', '', str(a.get('name') or ''))[:40]
+        if k == 'find':   # štampači u mreži (mDNS/IPP), bez Pi-jevih deljenih
+            import socket
+            _, out = await self._rc('ippfind', '-T', '4', timeout=15)
+            mine = socket.gethostname().lower()
+            have = {re.sub(r'^ipps?://([^/:]+).*', r'\1', p['uri']) for p in (getattr(self, 'cups_st', None) or {}).get('printers', [])}
+
+            def known(u):   # već dodat (pod IP adresom ili imenom)
+                host = re.sub(r'^ipps?://([^/:]+).*', r'\1', u)
+                if host in have:
+                    return True
+                try:
+                    return socket.gethostbyname(host) in have
+                except OSError:
+                    return False
+            self.cups_found = sorted({u for u in (out or '').split() if u.startswith('ipp') and mine not in u.lower() and not known(u)})
+            self.mark()
+            return {'ok': 'Pronađeno novih: %d' % len(self.cups_found) if self.cups_found else 'Nema novih štampača u mreži (već dodati se ne nude; IP se može upisati ručno).'}
+        if k == 'add':
+            src = str(a.get('uri') or a.get('ip') or '').strip()
+            if re.fullmatch(r'\d{1,3}(\.\d{1,3}){3}', src):
+                cands = ['ipp://%s/ipp/print' % src, 'ipp://%s/ipp' % src]
+            elif re.fullmatch(r'ipps?://[A-Za-z0-9.\-:]+/[\w/.\-]*', src):
+                cands = [src]
+            else:
+                return {'err': 'Upiši IP adresu štampača (npr. 172.10.10.133).'}
+            desc = str(a.get('desc') or '').strip()[:60]
+            name = name or re.sub(r'[^A-Za-z0-9]', '', desc)[:30] or 'Stampac' + src.split('/')[2].split('.')[-1].split(':')[0]
+            self.cups_busy = 'Dodajem %s…' % name
+            self.mark()
+            err = ''
+            try:
+                for uri in cands:   # bez drajvera (IPP Everywhere / AirPrint): CUPS sam pita štampač šta ume
+                    rc, out = await self._rc('lpadmin', '-p', name, '-D', desc or name, '-E', '-v', uri, '-m', 'everywhere', '-o', 'printer-is-shared=true', timeout=60)
+                    if not rc:
+                        break
+                    err = ((out or '').strip().splitlines()[-1:] or [''])[0]
+                else:
+                    # IPP radi, ali štampač prima samo svoj jezik: Samsung QPDL/SPL (Xerox Phaser 3020/3025, Samsung M20xx, ML-21xx…)
+                    # -> SpliX drajver i direktan port 9100
+                    _, attrs = await self._rc('ipptool', '-tv', cands[0], 'get-printer-attributes.test', timeout=20)
+                    host = cands[0].split('/')[2]
+                    if 'x-QPDL' in (attrs or '') and Path('/usr/share/cups/drv/splix-samsung.drv').exists():
+                        rc, out = await self._rc('lpadmin', '-p', name, '-D', desc or name, '-E', '-v', 'socket://%s:9100' % host, '-m', 'drv:///splix-samsung.drv/ml2160.ppd',
+                                                 '-o', 'printer-is-shared=true', '-o', 'PageSize=A4', timeout=60)
+                        if rc:
+                            return {'err': 'Drajver SpliX nije uspeo: ' + ((out or '').strip().splitlines()[-1:] or [''])[0][:120]}
+                        # samo A4/A5: telefon sa US podešavanjem bi poslao Letter, a štampač bez ekrana tada ćuti i čeka taj papir
+                        await self._rc('python3', str(BASE / 'system' / 'cups-a4.py'), name, timeout=20)
+                        await self._rc('systemctl', 'restart', 'cups', timeout=30)
+                    else:
+                        return {'err': 'Štampač ne radi bez drajvera (%s).' % err[:120]}
+                if not self.cups_st.get('default') if getattr(self, 'cups_st', None) else True:
+                    await self._rc('lpadmin', '-d', name, timeout=15)
+            finally:
+                self.cups_busy = ''
+            await self.cups_refresh()
+            return {'ok': 'Dodat štampač ' + name + ' · deli se svim uređajima u mreži'}
+        if not name:
+            if k != 'cancel':
+                return {'err': 'Izaberi štampač.'}
+        if k == 'del':
+            rc, out = await self._rc('lpadmin', '-x', name, timeout=20)
+        elif k == 'default':
+            rc, out = await self._rc('lpadmin', '-d', name, timeout=20)
+        elif k == 'test':
+            rc, out = await self._rc('lp', '-d', name, '-t', 'Teco.Pi probna stranica', '/usr/share/cups/data/default-testpage.pdf', timeout=30)
+        elif k == 'resume':   # štampač se zaustavio posle greške: ponovo uključi
+            rc, out = await self._rc('cupsenable', name, timeout=20)
+        elif k == 'cancel':
+            rc, out = await self._rc('cancel', str(int(a.get('id') or 0)), timeout=20)
+        else:
+            return {'err': 'Nepoznata komanda.'}
+        await self.cups_refresh()
+        if rc:
+            return {'err': (out or 'Nije uspelo.').strip().splitlines()[-1][:160]}
+        return {'ok': {'del': 'Uklonjen ' + name, 'default': 'Podrazumevani: ' + name, 'test': 'Probna stranica poslata na ' + name, 'resume': name + ' ponovo radi', 'cancel': 'Posao otkazan'}[k]}
 
     async def ext_on(self, ext, on):
+        if ext == 'ntp':   # glavni prekidač = NTP server za druge uređaje (sam Pi uvek uzima vreme)
+            self.ntp_cfg()['serve'] = on
+            save_state(self.st)
+            err = await self.ntp_write()
+            if err:
+                return {'err': err}
+            self.mark()
+            return {'ok': 'NTP server je ' + ('uključen · uređaji mogu da uzimaju vreme sa Teco.Pi-ja' if on else 'isključen (Pi i dalje uzima vreme)')}
+        if ext == 'cups':
+            if on and not shutil.which('lpstat'):
+                return {'err': 'CUPS nije instaliran (pokreni system/cups.sh).'}
+            self.cups_cfg()['on'] = on
+            save_state(self.st)
+            await self._rc('sudo', '-n', 'systemctl', 'enable' if on else 'disable', '--now', 'cups', timeout=60)
+            await self.cups_refresh()
+            return {'ok': 'Štampa (CUPS) je ' + ('uključena · štampači se dele svim uređajima' if on else 'isključena')}
+        if ext == 'bura':
+            self.bura_cfg()['on'] = on
+            save_state(self.st)
+            self.bura_changed()
+            self.mark()
+            return {'ok': 'BURAscale je ' + ('uključen · tražim vagu na USB-u' if on else 'isključen')}
         if ext == 'pbx':   # centrala: i Asterisk servis (ne troši ništa kad je isključena, ne kreće pri paljenju)
             r = self.pbx_set({'on': on})
             if isinstance(r, dict) and r.get('err'):
@@ -8392,11 +8761,28 @@ class Teco:
                 env = min(1, i / 60) * math.exp(-t * (3.2 if bright else 2.4))
                 buf[i0 + i] += env * sum(a * math.sin(2 * math.pi * f * h * t) for h, a in parts)
         peak = max(abs(x) for x in buf) or 1
+        pcm = b''.join(struct.pack('<h', int(26000 * x / peak)) for x in buf)
+        voice = STATIC / 'sounds' / 'seven-hello.wav'   # 7-Eleven: na kraju glas „Hello, welcome!“ (48 kHz mono)
+        if key == 'seven' and voice.exists():
+            try:
+                with wave.open(str(voice)) as v:
+                    vr = v.readframes(v.getnframes()) if (v.getframerate(), v.getnchannels(), v.getsampwidth()) == (rate, 1, 2) else b''
+                s = struct.unpack('<%dh' % (len(vr) // 2), vr)
+                loud = [i for i, x in enumerate(s) if abs(x) > 400]   # bez tišine na početku i kraju snimka
+                if loud:   # glas kreće dok poslednji ton još zvoni (2,5 s), zvuci se sabiraju
+                    t = list(struct.unpack('<%dh' % (len(pcm) // 2), pcm))
+                    vs, at = s[loud[0]:loud[-1] + 1], int(rate * 2.5)
+                    t += [0] * max(0, at + len(vs) + int(rate * 0.3) - len(t))
+                    for i, x in enumerate(vs):
+                        t[at + i] = max(-32767, min(32767, int(t[at + i] * 0.6 + x * 0.95)))
+                    pcm = struct.pack('<%dh' % len(t), *t)
+            except (OSError, wave.Error, struct.error):
+                pass
         with wave.open(str(path), 'wb') as w:
             w.setnchannels(1)
             w.setsampwidth(2)
             w.setframerate(rate)
-            w.writeframes(b''.join(struct.pack('<h', int(26000 * x / peak)) for x in buf))
+            w.writeframes(pcm)
 
     def event_sound(self, eid):
         """Zvuk u folderu događaja: kod alarma ugrađen alarm.wav (ranije i otpremljen zvuk zvona, prebacuje se u Zvukove)."""
@@ -8552,15 +8938,7 @@ class Teco:
             net.setdefault('dns', {'mode': 'auto', 'servers': []})['active'] = re.findall(r'^nameserver\s+(\S+)', Path('/etc/resolv.conf').read_text(), re.M)
         except OSError:
             pass
-        # sat: NTP (systemd-timesyncd)
-        sync = 'yes' if os.path.exists('/run/systemd/timesync/synchronized') else 'no'   # bez buđenja systemd-timedated na 30 s
-        ts = dict(l.split('=', 1) for l in (await self._run('timedatectl', 'show-timesync', '-p', 'ServerName', '-p', 'ServerAddress', timeout=5)).splitlines() if '=' in l)
-        try:
-            m = re.search(r'^NTP=(.*)$', NTP_CONF.read_text(), re.M)
-            cfg_ntp = m.group(1).split() if m else []
-        except OSError:
-            cfg_ntp = []
-        net['ntp'] = {'sync': sync == 'yes', 'server': ts.get('ServerName') or '', 'addr': ts.get('ServerAddress') or '', 'servers': cfg_ntp}
+        await self.ntp_refresh()   # sat: chrony (Ekstenzije → NTP vreme)
         wifi = await self._run('nmcli', '-t', '-f', 'ACTIVE,SSID,SIGNAL', 'dev', 'wifi', 'list', '--rescan', 'no', timeout=5)
         for line in wifi.splitlines():
             if line.startswith('yes:'):
@@ -8838,25 +9216,84 @@ class Teco:
         await self.net_refresh()
         return {'ok': 'DNS: ' + (' · '.join(dns) if manual else 'od rutera')}
 
-    async def ntp_set(self, a):
-        """NTP serveri za sat (systemd-timesyncd). Prazno = podrazumevani (debian.pool.ntp.org)."""
-        srv = [x for x in re.split(r'[,\s]+', str(a.get('servers') or '')) if x][:4]
-        if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}', x) for x in srv):
-            return {'err': 'NTP server nije ispravan (npr. rs.pool.ntp.org ili 172.10.10.1).'}
-        conf = '[Time]\n' + ('NTP=%s\n' % ' '.join(srv) if srv else '')
-        await self._run('sudo', '-n', 'mkdir', '-p', str(NTP_CONF.parent), timeout=5)
+    # ---------- NTP vreme (Ekstenzije): chrony — Pi uzima vreme (Srbija / Cloudflare / svoj) i po želji ga deli mreži
+    def ntp_cfg(self):
+        c = self.st.setdefault('ntp', {'servers': list(NTP_PRESETS['rs']), 'serve': False})
+        c.setdefault('client', True)
+        if c['servers'] not in NTP_PRESETS.values():   # samo dva izvora: Srbija ili Cloudflare
+            c['servers'] = list(NTP_PRESETS['rs'])
+        return c
+
+    async def ntp_write(self):
+        c = self.ntp_cfg()
+        lines = ['# generiše Teco.Pi (Ekstenzije → NTP vreme) — ne menjati ručno']
+        if c.get('client'):   # NTP klijent: Pi uzima vreme sa izabranog izvora
+            for s in c['servers']:
+                lines.append('%s %s iburst' % ('pool' if 'pool' in s else 'server', s))
+        if c.get('serve'):   # NTP server za kućnu mrežu i VPN; „local“: daje vreme i kad nema interneta (sat ide dalje sam)
+            lines += ['allow 10.0.0.0/8', 'allow 172.16.0.0/12', 'allow 192.168.0.0/16', 'local stratum 10']
+        if not c.get('client') and not c.get('serve'):   # oba isključena: chrony ne treba
+            await self._run('sudo', '-n', 'systemctl', 'disable', '--now', 'chrony', timeout=20)
+            self.ntp_st = {}
+            return None
+        await self._run('sudo', '-n', 'systemctl', 'enable', 'chrony', timeout=20)
         p = await asyncio.create_subprocess_exec('sudo', '-n', 'tee', str(NTP_CONF), stdin=asyncio.subprocess.PIPE,
                                                  stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
-        _, err = await p.communicate(conf.encode())
+        _, err = await p.communicate(('\n'.join(lines) + '\n').encode())
         if p.returncode:
-            return {'err': 'Nije sačuvano: ' + err.decode(errors='replace').strip()[:120]}
-        await self._run('sudo', '-n', 'systemctl', 'restart', 'systemd-timesyncd', timeout=15)
+            return 'Nije sačuvano: ' + err.decode(errors='replace').strip()[:120]
+        await self._run('sudo', '-n', 'systemctl', 'restart', 'chrony', timeout=20)
 
-        async def later():   # sinhronizacija traje par sekundi
-            await asyncio.sleep(6)
-            await self.net_refresh()
+        async def later():   # prva sinhronizacija traje par sekundi
+            await asyncio.sleep(8)
+            await self.ntp_refresh()
+            self.mark()
         asyncio.get_running_loop().create_task(later())
-        return {'ok': 'NTP: ' + (' · '.join(srv) if srv else 'podrazumevani serveri') + '. Sinhronizujem sat…'}
+        return None
+
+    async def ntp_refresh(self):
+        tr = await self._run('chronyc', '-n', 'tracking', timeout=5)
+        src = await self._run('chronyc', '-n', 'sources', timeout=5)
+        t = dict((k.strip(), v.strip()) for k, v in (l.split(':', 1) for l in tr.splitlines() if ':' in l))
+        sources = []
+        for ln in src.splitlines():
+            m = re.match(r'^\^([*+\-?x~])\s+(\S+)\s+(\d+)\s+\d+\s+(\d+)', ln)
+            if m:
+                sources.append({'state': m.group(1), 'addr': m.group(2), 'stratum': int(m.group(3)), 'reach': int(m.group(4), 8)})
+        try:
+            off = float(t.get('System time', '0').split()[0]) * (1 if 'fast' in t.get('System time', '') else -1) * 1000
+        except ValueError:
+            off = None
+        ref = t.get('Reference ID', '')
+        clients = 0
+        if self.ntp_cfg().get('serve'):
+            cl = await self._run('sudo', '-n', 'chronyc', '-n', 'clients', timeout=5)
+            clients = sum(1 for l in cl.splitlines()[2:] if l.strip() and not l.startswith('='))
+        self.ntp_st = {'sync': t.get('Leap status') == 'Normal' and '()' not in ref and bool(ref), 'ref': (re.search(r'\((.*)\)', ref) or [None, ''])[1],
+                       'stratum': t.get('Stratum', ''), 'offset': off, 'sources': sources, 'clients': clients}
+        self.net['ntp'] = {'sync': self.ntp_st['sync'], 'server': self.ntp_st['ref'], 'servers': self.ntp_cfg()['servers']}
+
+    def ntp_view(self):
+        lan = next(((i.get('ip') or [''])[0].split('/')[0] for i in self.net.get('ifs', []) if i.get('ip') and not i['n'].startswith('tun')), '')
+        c = self.ntp_cfg()
+        return dict({k: v for k, v in (getattr(self, 'ntp_st', None) or {}).items() if k != 'sources'}, client=bool(c['client']), serve=bool(c.get('serve')), ip=lan,
+                    preset=next((k for k, v in NTP_PRESETS.items() if v == c['servers']), 'rs'), installed=bool(shutil.which('chronyc')))
+
+    async def ntp_set(self, a):
+        """NTP klijent: uključen / isključen i izvor (Srbija rs.pool.ntp.org ili Cloudflare)."""
+        c = self.ntp_cfg()
+        if a.get('preset') in NTP_PRESETS:
+            c['servers'] = list(NTP_PRESETS[a['preset']])
+        if 'client' in a:
+            c['client'] = bool(a['client'])
+        save_state(self.st)
+        err = await self.ntp_write()
+        if err:
+            return {'err': err}
+        self.mark()
+        if not c['client']:
+            return {'ok': 'NTP klijent isključen — sat Pi-ja ide sam, bez provere'}
+        return {'ok': 'Vreme sa: ' + ('Srbija (rs.pool.ntp.org)' if c['servers'] == NTP_PRESETS['rs'] else 'Cloudflare') + ' · sinhronizujem…'}
 
     async def slow_loop(self):
         """Stvari koje se retko menjaju: mreža na 30 s, zvuk i Bluetooth na 10 s."""
@@ -9021,7 +9458,75 @@ class Teco:
             except Exception as e:
                 log.warning('IR: %s', e)
 
+    # ---------- IR dekoder (Alati → Elektronika): protokol, adresa, komanda svakog tastera; dok je otvoren, daljinski ne upravlja Teco-om
+    IRDEC_SHM = Path('/dev/shm/teco-irdec.json') if Path('/dev/shm').is_dir() else Path('/tmp/teco-irdec.json')
+
+    # ---------- Multimetar (primer): stranica šalje prikaz (simulacija), TV ga crta; kasnije podatke daje BLE most na serveru
+    MM_SHM = Path('/dev/shm/teco-mm.json') if Path('/dev/shm').is_dir() else Path('/tmp/teco-mm.json')
+
+    def mm_show(self, a):
+        if self.tool_running() != 'mm':
+            return {}
+        keep = ('conn', 'dev', 'val', 'unit', 'flags', 'acdc', 'bar', 'range', 'minmax', 'fn', 'hist', 'light', 'beep')
+        v = {k: a[k] for k in keep if k in a}
+        v['hist'] = [float(x) for x in (v.get('hist') or [])[-240:] if isinstance(x, (int, float))]
+        try:
+            tmp = self.MM_SHM.with_suffix('.tmp')
+            tmp.write_text(json.dumps(v))
+            os.replace(tmp, self.MM_SHM)
+        except OSError:
+            pass
+        return {}
+
+    def irdec_active(self):
+        return time.time() < getattr(self, 'irdec_until', 0)
+
+    def irdec_view(self):
+        return {'on': self.irdec_active(), 'hist': getattr(self, 'irdec_hist', [])[:30]}
+
+    async def irdec_set(self, on):
+        """Stranica javlja da je dekoder otvoren (na 60 s); bez javljanja se sam gasi posle 2 min."""
+        if not on:
+            self.irdec_until = 0
+            return {}
+        self.irdec_until = time.time() + 120
+        t = getattr(self, 'irdec_task', None)
+        if not t or t.done():
+            self.irdec_task = asyncio.get_running_loop().create_task(self.irdec_loop())
+        return {}
+
+    async def irdec_loop(self):
+        stop = asyncio.Event()
+
+        async def watch():
+            while self.irdec_active():
+                await asyncio.sleep(2)
+            stop.set()
+        asyncio.get_running_loop().create_task(watch())
+        self.irdec_hist = getattr(self, 'irdec_hist', [])
+        try:
+            async for proto, sc, rep in hw.ir_scancodes(stop):
+                h = self.irdec_hist
+                if rep and h and h[0]['sc'] == sc and h[0]['p'] == proto:
+                    h[0]['n'] += 1   # držan taster: samo brojač
+                else:
+                    e = {'t': time.time(), 'p': proto, 'proto': hw.RC_PROTO.get(proto, str(proto)), 'sc': sc, 'hex': '0x%X' % sc, 'n': 1, **hw.ir_split(proto, sc)}
+                    h.insert(0, e)
+                    del h[50:]
+                v = self.irdec_view()
+                if self.tool_running() == 'irdec':
+                    try:
+                        self.IRDEC_SHM.write_text(json.dumps(v))
+                    except OSError:
+                        pass
+                await self.push({'irdec': v})
+        except OSError as e:
+            log.warning('IR dekoder: %s', e)
+            await self.push({'irdec': dict(self.irdec_view(), err=str(e))})
+
     async def ir_hw(self, code, rep):
+        if self.irdec_active():   # dekoder je otvoren: tasteri se samo prikazuju, ne upravljaju Teco-om
+            return
         m = next((x for x in self.st['ir'] if x['code'] == code), None)
         learning = self.ir_learn_until > time.time()
         now = time.monotonic()
@@ -9088,7 +9593,7 @@ class Teco:
     async def handle(self, a, admin):
         """Obrada poruke sa stranice. Vraća dict koji ide nazad samo tom klijentu."""
         c = a.get('c')
-        if c not in ('ping', 'check', 'vol', 'seek', 'seek_rel', 'vault_get', 'vault_put', 'phone_set', 'sms_send', 'sms_thread', 'sms_read', 'notify_set'):   # zapis komandi sa stranice (bez PIN-a i tokena)
+        if c not in ('ping', 'check', 'vol', 'seek', 'seek_rel', 'vault_get', 'vault_put', 'phone_set', 'sms_send', 'sms_thread', 'sms_read', 'notify_set', 'mm_show', 'note_set'):   # zapis komandi sa stranice (bez PIN-a i tokena; mm_show je 4x u s)
             log.info('stranica: %s %s', c, {k: v for k, v in a.items()
                                              if k not in ('c', 'rid', 'tok', 'pin', 'pw') and 'pass' not in k and 'pw' not in k} or '')
         if c in ADMIN_CMDS and not admin and not (c == 'set_pin' and not self.st['pin']):
@@ -9420,6 +9925,22 @@ class Teco:
             return await self.stor_scan(bool(a.get('force')), a.get('dev'))
         elif c == 'ext_on':
             return await self.ext_on(str(a.get('ext') or ''), bool(a.get('on')))
+        elif c == 'bura':
+            return await self.bura_cmd(a)
+        elif c == 'cups':
+            return await self.cups_cmd(a)
+        elif c in ('note_add', 'note_set', 'note_del'):
+            return self.notes_cmd(c, a)
+        elif c == 'mm_show':
+            return self.mm_show(a)
+        elif c == 'irdec':
+            if a.get('clear'):
+                self.irdec_hist = []
+                if self.tool_running() == 'irdec':
+                    self.tool_write('irdec')
+                await self.push({'irdec': self.irdec_view()})
+                return {}
+            return await self.irdec_set(bool(a.get('on')))
         elif c in ('mail_set', 'mail_test'):
             return await self.mail_cmd(c, a)
         elif c in ('web_add', 'web_set', 'web_del', 'web_check'):
@@ -9853,6 +10374,11 @@ class Teco:
             'pin_required': self.st.get('pin_required', True),
             'events': self.events_snapshot(),
             'tones': self.tones_list(),   # Skladište → Zvukovi (SD)
+            'bura': self.bura_view(),     # vaga; uživo stiže i posebnom porukom {'bura': …}
+            'cups': self.cups_view(),
+            'ntp': self.ntp_view(),
+            'notes': self.notes_db(),
+            'irdec': self.irdec_view(),
             'ev_now': self.ev_now,
             'cast': {'on': bool(self.st.get('cast')), 'run': bool(getattr(self, 'cast_run', False)),
                      'sender': self.cast_sender},
@@ -9862,7 +10388,7 @@ class Teco:
             'favs': self.st.get('favs', []),
             'scrbtn': {k: v for k, v in self.scr_cfg().items() if k != 'pin'},
             'aqua': self.aqua_snapshot(),
-            'tools': {'timer': dict(self.tool_cfg('timer'), now=time.time()), 'scope': self.tool_cfg('scope'), 'resistor': self.tool_cfg('resistor'), 'logic': self.tool_cfg('logic'), 'capacitor': self.tool_cfg('capacitor'), 'guest': self.tool_cfg('guest'), 'net': self.nt_view(), 'scan': self.scan_view(), 'phone': self.phone_view(), 'sms': self.sms_view(), 'pbx': self.pbx_view(), 'shown': self.tool_running()},
+            'tools': {'timer': dict(self.tool_cfg('timer'), now=time.time()), 'scope': self.tool_cfg('scope'), 'resistor': self.tool_cfg('resistor'), 'logic': self.tool_cfg('logic'), 'capacitor': self.tool_cfg('capacitor'), 'guest': self.tool_cfg('guest'), **self.comp_views(), 'net': self.nt_view(), 'scan': self.scan_view(), 'phone': self.phone_view(), 'sms': self.sms_view(), 'pbx': self.pbx_view(), 'shown': self.tool_running()},
             'dev_drivers': [{'key': d.key, 'label': d.label, 'ready': d.ready, 'type': d.dtype} for d in DEV_DRIVERS.values()],
             'usbcams': UsbCamDriver.list_devices(),   # priključene USB kamere (izbor u Adminu)
             'sys': self.sys,
@@ -10211,7 +10737,7 @@ def make_app():
         for x in teco.alarm_list():   # alarm mostovi (podešeni) — rade i kad se server restartuje
             if teco.alarm_cfg(x['id']).get('enabled'):
                 await teco._run('systemctl', '--user', 'start', teco.alarm_unit(x['id']), timeout=20)
-        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop(), teco.sms_loop(), teco.notify_loop(), teco.pbx_loop(), teco.wds_loop(), teco.dnsr_loop(), teco.mpv_guard(), teco.timer_loop(), teco.web_loop())]
+        app['tasks'] = [asyncio.create_task(t) for t in (loop_watchdog(), teco.bt_guard_loop(), teco.mpv.run(), teco.sys_loop(), teco.broadcast_loop(), teco.warm_ytdlp(), teco.clock_loop(), teco.slow_loop(), teco.boot_restore(), teco.hw_detect(), teco.ir_loop(), teco.inet_loop(), teco.prerender_consoles(), teco.alarm_loop(), teco.dev_loop(), teco.sms_loop(), teco.notify_loop(), teco.pbx_loop(), teco.wds_loop(), teco.dnsr_loop(), teco.mpv_guard(), teco.timer_loop(), teco.web_loop(), teco.bura_loop(), teco.cups_loop(), teco.notes_loop())]
 
     async def on_stop(app):
         teco.web_save()   # istorija web monitora
@@ -10282,6 +10808,63 @@ def make_app():
             c = teco.guest_qr_cache = (key, buf.getvalue())
         return web.Response(body=c[1], content_type='image/png', headers={'Cache-Control': 'no-store'})
     app.router.add_get('/api/guest-qr.png', guest_qr)
+
+    def app_urls():
+        """Adrese aplikacije za telefon: kućna mreža (IP, ne tecopi.local — .local ne radi na svim telefonima/ruterima) i VPN (tun)."""
+        lan = vpn = None
+        for i in teco.net.get('ifs', []):
+            ip = (i.get('ip') or [''])[0].split('/')[0]
+            if not ip:
+                continue
+            if i['n'].startswith('tun'):
+                vpn = vpn or ip
+            elif i['n'] == 'wlan0' or not lan:
+                lan = ip if i['n'] == 'wlan0' or not lan else lan
+        return {'lan': 'http://%s/' % lan if lan else None, 'vpn': 'http://%s/' % vpn if vpn else None}
+
+    async def app_qr(request):   # „Aplikacija na telefonu“: QR kod pravi Pi (radi i bez interneta)
+        import io
+        import wifiqr
+        url = app_urls().get(request.query.get('via', 'lan'))
+        if not url:
+            return web.Response(status=404)
+        c = getattr(teco, 'app_qr_cache', {})
+        if url not in c:
+            buf = io.BytesIO()
+            wifiqr.image({}, 320, text=url + '?pwa=1').save(buf, 'PNG')
+            c[url] = buf.getvalue()
+            teco.app_qr_cache = c
+        return web.Response(body=c[url], content_type='image/png', headers={'Cache-Control': 'no-store'})
+    app.router.add_get('/api/app-qr.png', app_qr)
+    app.router.add_get('/api/app-urls', lambda r: web.json_response(app_urls()))
+
+    async def print_upload(request):   # Štampa (CUPS): fajl sa stranice (PDF, slika, tekst) -> lp na izabrani štampač
+        name = re.sub(r'[^A-Za-z0-9_-]', '', request.query.get('printer', ''))
+        if not name or not teco.cups_cfg().get('on'):
+            return web.json_response({'err': 'Štampa nije uključena ili štampač nije izabran.'}, status=400)
+        reader = await request.multipart()
+        part = await reader.next()
+        fname = Path(part.filename or 'dokument').name
+        ext = Path(fname).suffix.lower()
+        if ext not in ('.pdf', '.jpg', '.jpeg', '.png', '.gif', '.tif', '.tiff', '.txt', '.ps'):
+            return web.json_response({'err': 'Štampa: PDF, slike (JPG/PNG) i tekst (.txt).'}, status=400)
+        data = await part.read(decode=False)
+        if len(data) > 40 * 2**20:
+            return web.json_response({'err': 'Fajl je veći od 40 MB.'}, status=400)
+        tmp = Path('/tmp') / ('teco-print-%s%s' % (secrets.token_hex(4), ext))
+        tmp.write_bytes(data)
+        try:
+            args = ['lp', '-d', name, '-t', fname[:60], '-n', str(max(1, min(50, int(request.query.get('n') or 1))))]
+            if request.query.get('fit'):
+                args += ['-o', 'fit-to-page']
+            rc, out = await teco._rc(*args, str(tmp), timeout=60)
+        finally:
+            asyncio.get_running_loop().call_later(120, lambda: tmp.unlink(missing_ok=True))   # lp kopira u red; čisti se kasnije
+        await teco.cups_refresh()
+        if rc:
+            return web.json_response({'err': (out or 'Nije poslato.').strip().splitlines()[-1][:160]})
+        return web.json_response({'ok': 'Poslato na štampu: ' + fname})
+    app.router.add_post('/api/print', print_upload)
 
     async def wds_file(request):   # WDS: iPXE vuče wimboot, BCD, boot.sdi i boot.wim preko HTTP-a (brže od TFTP-a)
         rel, peer = request.match_info['path'], request.remote

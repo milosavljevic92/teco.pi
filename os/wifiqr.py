@@ -15,12 +15,12 @@ def payload(cfg):
     return p + ';'
 
 
-def image(cfg, px=600):
-    """PIL slika QR koda (crno na belom, sa tihom zonom), kvadrat px×px."""
+def image(cfg, px=600, text=None):
+    """PIL slika QR koda (crno na belom, sa tihom zonom), kvadrat px×px. text: bilo koji tekst/adresa umesto Wi-Fi podataka."""
     import qrcode
     from PIL import Image
     q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=2, box_size=10)
-    q.add_data(payload(cfg))
+    q.add_data(text if text is not None else payload(cfg))
     q.make(fit=True)
     img = q.make_image(fill_color='black', back_color='white').get_image().convert('RGB')
     return img.resize((px, px), Image.NEAREST)

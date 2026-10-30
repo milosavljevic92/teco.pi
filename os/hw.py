@@ -198,6 +198,64 @@ class TPA2016:
 
 # ---------------------------------------------------------------- IR prijemnik
 
+# kernel rc_proto (include/uapi/linux/lirc.h) -> naziv
+RC_PROTO = {0: 'nepoznat', 1: 'drugi', 2: 'RC-5', 3: 'RC-5X', 4: 'RC-5 (SZ)', 5: 'JVC', 6: 'Sony 12', 7: 'Sony 15', 8: 'Sony 20', 9: 'NEC', 10: 'NEC ext',
+            11: 'NEC 32', 12: 'Sanyo', 13: 'MCE tastatura', 14: 'MCE miš', 15: 'RC-6 (0)', 16: 'RC-6 6A-20', 17: 'RC-6 6A-24', 18: 'RC-6 6A-32',
+            19: 'RC-6 MCE', 20: 'Sharp', 21: 'XMP', 22: 'CEC', 23: 'iMON', 24: 'RC-MM 12', 25: 'RC-MM 24', 26: 'RC-MM 32', 27: 'Xbox DVD'}
+
+
+def ir_split(proto, sc):
+    """Adresa / komanda iz kernel scancode-a + zapis kao u Arduino IRremote (za NEC: adresa, ~adresa, komanda, ~komanda)."""
+    p = RC_PROTO.get(proto, '')
+    if p == 'NEC':
+        a, c = sc >> 8 & 0xFF, sc & 0xFF
+        lsb = lambda b: int('{:08b}'.format(b)[::-1], 2)   # NEC se šalje od najnižeg bita: Arduino „raw“ je obrnut redosled
+        raw = (lsb(a) << 24) | (lsb(a ^ 0xFF) << 16) | (lsb(c) << 8) | lsb(c ^ 0xFF)
+        return {'addr': a, 'cmd': c, 'raw': '0x%08X' % raw}
+    if p == 'NEC ext':
+        return {'addr': sc >> 8 & 0xFFFF, 'cmd': sc & 0xFF}
+    if p.startswith('RC-5'):
+        return {'addr': sc >> 8 & 0x1F, 'cmd': sc & 0x7F}
+    if p.startswith('Sony'):
+        return {'addr': sc >> 16 if p == 'Sony 20' else sc >> 8, 'cmd': sc & 0x7F}
+    if p.startswith('RC-6'):
+        return {'addr': sc >> 8 & 0xFF, 'cmd': sc & 0xFF}
+    return {'addr': sc >> 8, 'cmd': sc & 0xFF}
+
+
+async def ir_scancodes(stop):
+    """Dekoder (Alati): protokol + scancode iz /dev/lirc0 (LIRC_MODE_SCANCODE). stop: asyncio.Event — kraj čitanja.
+    Daje (protokol, scancode, ponavljanje)."""
+    import fcntl
+    import os
+    import struct
+    fd = os.open('/dev/lirc0', os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        fcntl.ioctl(fd, 0x40046912, struct.pack('I', 8))   # LIRC_SET_REC_MODE = LIRC_MODE_SCANCODE
+        q = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def rd():
+            try:
+                data = os.read(fd, 24 * 16)
+            except BlockingIOError:
+                return
+            for i in range(0, len(data) - 23, 24):   # struct lirc_scancode: u64 ts, u16 flags, u16 proto, u32 keycode, u64 scancode
+                _, flags, proto, _, sc = struct.unpack_from('QHHIQ', data, i)
+                q.put_nowait((proto, sc, bool(flags & 2)))   # LIRC_SCANCODE_FLAG_REPEAT
+        loop.add_reader(fd, rd)
+        try:
+            while not stop.is_set():
+                try:
+                    yield await asyncio.wait_for(q.get(), 1)
+                except asyncio.TimeoutError:
+                    continue
+        finally:
+            loop.remove_reader(fd)
+    finally:
+        os.close(fd)
+
+
 async def ir_codes():
     """Kodovi tastera sa daljinskog: (kod, ponavljanje). Čeka dok se prijemnik ne pojavi."""
     try:
